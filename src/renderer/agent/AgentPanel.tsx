@@ -36,7 +36,7 @@ export function AgentPanel() {
       <div className="flex gap-[9px] px-3 pb-3.5">
         <button
           type="button"
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-select-bg px-3 text-left text-[13px] text-foreground"
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-select-bg px-3 text-left text-[13px] text-muted-foreground"
         >
           <span className="overflow-hidden whitespace-nowrap">{session ?? "New Agent"}</span>
           {status && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
