@@ -32,9 +32,10 @@ if (q.get("view")) {
   setView(x!, y!, zoom!);
 }
 if (q.get("select")) {
-  // "@first" picks the first top-level frame (fixture ids are random).
+  // "@first" picks the first top-level frame, "@first-child" its first child (fixture ids are random).
   const want = q.get("select")!;
-  store.set({ selection: want === "@first" ? (firstScene.tree.children[0]?.id ?? null) : want });
+  const first = firstScene.tree.children[0];
+  store.set({ selection: want === "@first" ? (first?.id ?? null) : want === "@first-child" ? (first?.children[0]?.id ?? null) : want });
 }
 if (q.get("tab")) store.set({ tab: q.get("tab") as Tab });
 if (q.get("settings")) store.set({ settingsOpen: true });

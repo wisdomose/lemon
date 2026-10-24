@@ -1,6 +1,8 @@
 // The properties panel (right island): shown when something is selected. Sections and their order
 // follow the reference captures; fields edit the document.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Popover } from "radix-ui";
+import { ColourPicker } from "../ui/ColourPicker.js";
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -42,7 +44,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import * as store from "../../doc/store.js";
-import type { NodeProps, Size, TreeNode } from "../../doc/schema.js";
+import type { LinearGradient, NodeProps, Paint, Size, TreeNode } from "../../doc/schema.js";
 import { findNode } from "../../render/screenshot.js";
 import { currentScene, doc, edit } from "../scene.js";
 import { useEditor } from "../store.js";
@@ -177,8 +179,7 @@ export function PropertiesPanel() {
   const isFrame = node.type === "frame";
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
-  const fill = typeof p.fill === "string" ? p.fill : undefined;
-  const colour = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : fill;
+  const colour: Paint | undefined = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
@@ -238,7 +239,8 @@ export function PropertiesPanel() {
             />
           )}
           {flex && <FlexControls node={node} />}
-          <Label>Dimensions</Label>
+          {/* Without layout buttons the label sits right under the title, as in the reference. */}
+          <div className={cx(!isFrame && "-mt-[6px]")}><Label>Dimensions</Label></div>
           <div className="grid grid-cols-2 gap-[6px]">
             <NumberField lead="W" value={sizeNum(p.width, box.w)} onCommit={(width) => set(node.id, { width })} />
             <NumberField lead="H" value={sizeNum(p.height, box.h)} onCommit={(height) => set(node.id, { height })} />
@@ -293,7 +295,8 @@ export function PropertiesPanel() {
           {colour && (
             <ColourRow
               value={colour}
-              onChange={(c) => set(node.id, node.type === "text" ? { color: c } : { fill: c })}
+              allowGradient={node.type !== "text"}
+              onChange={(c) => set(node.id, node.type === "text" ? { color: c as string } : { fill: c })}
               onRemove={node.type === "text" ? undefined : () => set(node.id, { fill: null as never })}
             />
           )}
@@ -315,7 +318,7 @@ export function PropertiesPanel() {
             <>
               <ColourRow
                 value={p.stroke.color}
-                onChange={(color) => set(node.id, { stroke: { ...p.stroke!, color } })}
+                onChange={(color) => set(node.id, { stroke: { ...p.stroke!, color: color as string } })}
                 onRemove={() => set(node.id, { stroke: null as never })}
               />
               <div className="grid grid-cols-2 gap-[6px]">
@@ -363,17 +366,51 @@ export function PropertiesPanel() {
   );
 }
 
-function ColourRow({ value, onChange, onRemove }: { value: string; onChange: (c: string) => void; onRemove?: () => void }) {
-  const [text, setText] = useState(hex(value));
-  useEffect(() => setText(hex(value)), [value]);
-  const isVar = value.startsWith("$");
+/**
+ * A fill or stroke row: swatch (opens the colour picker), hex, opacity. While the picker is open the row
+ * is tinted across the panel's full width, and the picker sits 4px left of the panel, centred on the row.
+ */
+function ColourRow({
+  value,
+  onChange,
+  onRemove,
+  allowGradient = false,
+}: {
+  value: Paint;
+  onChange: (c: Paint) => void;
+  onRemove?: () => void;
+  allowGradient?: boolean;
+}) {
+  const solid = typeof value === "string" ? value : undefined;
+  const [text, setText] = useState(solid ? hex(solid) : "");
+  useEffect(() => setText(solid ? hex(solid) : ""), [solid]);
+  const [open, setOpen] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
+  const isVar = !!solid?.startsWith("$");
+  const swatch = solid
+    ? isVar ? "transparent" : solid
+    : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
+  // Anchor: the panel's left edge, at the row's height.
+  const anchor = {
+    current: {
+      getBoundingClientRect: () => {
+        const panel = document.querySelector("[data-props]")!.getBoundingClientRect();
+        const r = row.current!.getBoundingClientRect();
+        return DOMRect.fromRect({ x: panel.left, y: r.top, width: panel.width, height: r.height });
+      },
+    },
+  };
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-field text-[11px] text-foreground">
-        <span className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: isVar ? "transparent" : value }} />
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Anchor virtualRef={anchor as never} />
+    <div ref={row} className={cx("relative flex items-center gap-2", open && "before:absolute before:-inset-x-[15px] before:-inset-y-[2px] before:bg-[#3e4c69]")}>
+      <div className="relative flex h-6 min-w-0 flex-1 items-center rounded-md bg-field text-[11px] text-foreground">
+        <Popover.Trigger asChild>
+          <button type="button" aria-label="Edit colour" className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: swatch }} />
+        </Popover.Trigger>
         <input
-          value={isVar ? value : text}
-          readOnly={isVar}
+          value={isVar ? solid : solid ? text : "Linear"}
+          readOnly={isVar || !solid}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(`#${text}`)}
           onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
@@ -381,13 +418,25 @@ function ColourRow({ value, onChange, onRemove }: { value: string; onChange: (c:
         />
         <span className="border-l border-black/30 px-2 whitespace-nowrap">100 %</span>
       </div>
-      <Eye size={16} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
+      <Eye size={16} strokeWidth={1.5} className="relative shrink-0 text-muted-foreground" />
       {onRemove && (
-        <button type="button" aria-label="Remove" onClick={onRemove}>
+        <button type="button" aria-label="Remove" className="relative" onClick={onRemove}>
           <Minus size={16} strokeWidth={1.5} className="text-muted-foreground" />
         </button>
       )}
     </div>
+      <Popover.Portal>
+        <Popover.Content
+          side="left"
+          align="center"
+          sideOffset={4}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none"
+        >
+          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
