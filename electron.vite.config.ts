@@ -1,15 +1,20 @@
-// Builds the window (src/renderer). In development and headless checks, the dev server also serves
-// fonts (/fonts/…) and saved documents (/proof-output/…), standing in for the desktop app's host.
-import { defineConfig, type Plugin } from "vite";
+// Builds and runs the app: the main process (src/main), the preload bridge (src/preload) and the window
+// (src/renderer). `pnpm dev` serves the window live and restarts Electron when the main process changes.
+import { defineConfig } from "electron-vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { join } from "node:path";
 import { GoogleFonts } from "./src/text/google-fonts.js";
 
-function devHost(): Plugin {
+/**
+ * Serves fonts over HTTP (/fonts/…) so the window also works in a plain browser for headless checks,
+ * where there is no desktop host to ask. Development only.
+ */
+function devFonts(): Plugin {
   let fonts: Promise<GoogleFonts> | undefined;
   return {
-    name: "lemon-dev-host",
+    name: "lemon-dev-fonts",
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? "/", "http://x");
@@ -38,10 +43,19 @@ function devHost(): Plugin {
 }
 
 export default defineConfig({
-  root: "src/renderer",
-  base: "./",
-  publicDir: false,
-  plugins: [react(), tailwindcss(), devHost()],
-  build: { outDir: "../../out/renderer", emptyOutDir: true, target: "esnext" },
-  server: { fs: { allow: [import.meta.dirname] } },
+  main: {
+    build: { sourcemap: true },
+  },
+  preload: {
+    // Sandboxed windows need a single CommonJS preload file with nothing left to import.
+    build: {
+      externalizeDeps: false,
+      rollupOptions: { output: { format: "cjs", entryFileNames: "[name].cjs" } },
+    },
+  },
+  renderer: {
+    plugins: [react(), tailwindcss(), devFonts()],
+    build: { target: "esnext" },
+    server: { fs: { allow: [import.meta.dirname] } },
+  },
 });

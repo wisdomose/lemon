@@ -60,7 +60,7 @@ async function main() {
     title: PRODUCT.name,
     backgroundColor: "#1e1e1e",
     webPreferences: {
-      preload: join(import.meta.dirname, "preload.cjs"),
+      preload: join(import.meta.dirname, "..", "preload", "index.cjs"),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -138,7 +138,8 @@ async function main() {
     await capture();
   });
 
-  const devUrl = env.LEMON_DEV_URL;
+  // `pnpm dev` (electron-vite) serves the window live and passes its address.
+  const devUrl = !app.isPackaged ? env.ELECTRON_RENDERER_URL : undefined;
   if (devUrl) await win.loadURL(devUrl);
   else await win.loadURL(`${UI_SCHEME}://ui/index.html`);
 }

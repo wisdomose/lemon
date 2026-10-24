@@ -32,9 +32,11 @@ The proof script needs Claude Code installed and signed in (`claude auth status`
 ### Running the app from source
 
 ```sh
-cp .env.example .env     # then uncomment LEMON_DEV_URL in .env
-pnpm dev:web             # terminal 1: the window, reloads on save
-pnpm build && pnpm start # terminal 2: the app (rebuild after changes outside src/renderer)
+pnpm dev     # the app, live: the window updates on save; Electron restarts when the main process changes
+pnpm build   # build into out/
+pnpm start   # run the built app
 ```
 
-`.env` is read only when running from source; `.env.example` lists every setting.
+Optional developer settings (logging, opening a file, …) go in a `.env` file; `.env.example` lists them.
+`.env` is read only when running from source. On Linux machines where Chromium's sandbox won't start,
+use `pnpm dev --noSandbox`.
