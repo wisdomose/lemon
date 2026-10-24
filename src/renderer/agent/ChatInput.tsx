@@ -29,10 +29,10 @@ export function ChatInput() {
     setText("");
   };
   return (
-    <Island className="absolute left-2 bottom-2 flex min-h-[91px] w-[378px] flex-col px-3 pt-[14px] pb-2">
+    <Island className="flex max-h-[calc(50%-4px)] min-h-[91px] shrink-0 flex-col pt-[14px] pb-2 pl-3 pr-[11px]">
       {/* The selection sits inline at the start of the prompt, as in the reference: the box keeps its
           height and the placeholder goes away. */}
-      <div className="flex min-h-10 flex-wrap items-start gap-x-1.5">
+      <div className="mb-1 flex min-h-0 flex-1 flex-wrap content-start items-start gap-x-1.5 overflow-y-auto">
         {node && (
           <span className="mt-[1px] ml-1 inline-flex h-[21px] max-w-[200px] shrink-0 items-center gap-[3px] rounded-[4px] border border-input px-[5px] text-[10px] text-muted-foreground">
             <Frame size={11} strokeWidth={1.5} className="shrink-0" />
@@ -41,7 +41,12 @@ export function ChatInput() {
         )}
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            // Typing (or pasting) at the end keeps the end in view, as in the reference.
+            const t = e.target;
+            if (t.selectionEnd === t.value.length) requestAnimationFrame(() => t.parentElement?.scrollTo({ top: t.parentElement.scrollHeight }));
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -50,7 +55,9 @@ export function ChatInput() {
           }}
           rows={2}
           placeholder={node ? "" : "Design anything..."}
-          className="min-w-[120px] flex-1 resize-none bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-[#71717a]"
+          // Grows with its text (CSS field-sizing); past the box's maximum the area around it scrolls.
+          style={{ fieldSizing: "content" } as React.CSSProperties}
+          className="min-h-10 min-w-[120px] flex-1 resize-none overflow-hidden bg-transparent text-[13px] leading-[1.5] text-foreground outline-none placeholder:text-[#71717a]"
         />
       </div>
       <div ref={footer} className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">

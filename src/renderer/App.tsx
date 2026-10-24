@@ -55,9 +55,15 @@ export function App({ initial }: { initial: string }) {
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
           <TopBar fileName={`untitled.${PRODUCT.fileExtension}`} saveState="Auto-saved" initial={initial} />
-          {panelOpen && <LeftPanel />}
           <ToolRail panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
-          {panelOpen && <ChatInput />}
+          {panelOpen && (
+            // The panel and the chat box share the left column: the chat box grows with its text up to
+            // half the column, and the panel gives up that space (measured from the reference).
+            <div className="absolute top-[58px] bottom-2 left-2 flex w-[378px] flex-col gap-2">
+              <LeftPanel />
+              <ChatInput />
+            </div>
+          )}
           <PropertiesPanel />
           <ZoomControl />
         </div>

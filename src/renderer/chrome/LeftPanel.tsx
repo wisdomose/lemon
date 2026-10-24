@@ -38,7 +38,7 @@ const TABS: { tab: Tab; icon: LucideIcon; label: string }[] = [
 export function LeftPanel() {
   const tab = useEditor((s) => s.tab);
   return (
-    <Island className="absolute top-[58px] left-2 bottom-[107px] flex w-[378px] flex-col">
+    <Island className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-1 px-3 pt-3 pb-3">
         {TABS.map((t) => (
           <button
