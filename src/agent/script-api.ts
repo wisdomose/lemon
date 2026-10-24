@@ -35,6 +35,11 @@ globalThis.doc = doc; globalThis.log = log; globalThis.console = console;
 `;
 
 const GAP_BETWEEN_FRAMES = 120;
+
+/** An optional position from the sandbox: JSON turns a left-out argument into null, which means "at the end". */
+function position(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
 const MAX_LOG = 4000;
 
 function round(b: Box) {
@@ -143,7 +148,7 @@ export class ScriptSession {
         if (parent === ROOT_ID && spec && typeof spec === "object" && spec.x === undefined && spec.y === undefined) {
           Object.assign(spec, this.findSpace(0, 0));
         }
-        const id = store.insert(doc, parent, spec, args[2] as number | undefined, this.refs);
+        const id = store.insert(doc, parent, spec, position(args[2]), this.refs);
         this.touched.add(id);
         this.write();
         return id;
@@ -166,7 +171,7 @@ export class ScriptSession {
       }
       case "move": {
         const id = str(args[0], "id");
-        store.move(doc, id, args[1] == null ? ROOT_ID : str(args[1], "parent"), args[2] as number | undefined);
+        store.move(doc, id, args[1] == null ? ROOT_ID : str(args[1], "parent"), position(args[2]));
         this.touched.add(id);
         this.write();
         return null;

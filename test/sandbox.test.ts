@@ -84,6 +84,17 @@ describe("execute (the agent's tool)", () => {
     expect(page.box.w).toBe(1440);
   });
 
+  it("appends in order when a script leaves out the position", async () => {
+    const doc = new Y.Doc();
+    const r = await run(doc, `
+      const page = doc.insert(null, { type: "frame", name: "Page" });
+      for (const name of ["Header", "Hero", "Footer"]) doc.insert(page, { type: "frame", name });
+      doc.insert(page, { type: "frame", name: "Top" }, 0);
+      return doc.get(page, 1).children.map((c) => c.name);
+    `);
+    expect(r.value).toEqual(["Top", "Header", "Hero", "Footer"]);
+  });
+
   it("rolls back everything when the script fails part-way", async () => {
     const doc = new Y.Doc();
     await run(doc, `doc.insert(null, { type: "frame", name: "Existing" });`);
