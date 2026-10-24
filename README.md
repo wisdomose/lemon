@@ -28,3 +28,13 @@ npx tsx scripts/proof.ts --name landing --prompt "A landing page for a coffee sh
 ```
 
 The proof script needs Claude Code installed and signed in (`claude auth status`).
+
+### Running the app from source
+
+```sh
+cp .env.example .env     # then uncomment LEMON_DEV_URL in .env
+pnpm dev:web             # terminal 1: the window, reloads on save
+pnpm build && pnpm start # terminal 2: the app (rebuild after changes outside src/renderer)
+```
+
+`.env` is read only when running from source; `.env.example` lists every setting.

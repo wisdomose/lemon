@@ -15,15 +15,17 @@ import { AGENT_NAME } from "../agent/models.js";
 import { runAgent } from "../agent/agent.js";
 import type { FontFace } from "../text/fonts.js";
 
-// Developer switches (environment variables), all off in normal use:
-//   LEMON_NO_SANDBOX=1   run without Chromium's sandbox (only for machines where it can't start)
-//   LEMON_OPEN=<file>    open a saved document (.yjs)
-//   LEMON_PROMPT=<text>  send this prompt to the agent once the window is ready
-//   LEMON_CAPTURE=<png>  save a picture of the window when the agent finishes (or after loading), then quit
-//   LEMON_FILM=<dir>     save a picture of the window after every agent step
-//   LEMON_LOG=<file>     append start-up steps, the window's console and load errors to a file
+// Developer switches are environment variables, all off in normal use; .env.example lists them.
+// While developing (not in the installed app), a .env file in the project folder is read first; values
+// already set in the real environment win.
+if (!app.isPackaged) {
+  try {
+    process.loadEnvFile(join(app.getAppPath(), ".env"));
+  } catch {
+    // No .env file: nothing to load.
+  }
+}
 const env = process.env;
-if (env.LEMON_NO_SANDBOX === "1") app.commandLine.appendSwitch("no-sandbox");
 
 app.setName(PRODUCT.name);
 

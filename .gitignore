@@ -4,3 +4,4 @@ dist/
 .cache/
 proof-output/
 *.log
+.env
