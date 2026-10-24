@@ -16,10 +16,10 @@ function Keys({ keys }: { keys: string }) {
   return <span className="ml-4 text-[11px] tracking-[0.04em] text-[#a1a1aa] group-data-[highlighted]:text-white/80">{text}</span>;
 }
 
-export function MenuContent({ children, ...rest }: M.DropdownMenuContentProps) {
+export function MenuContent({ children, className, ...rest }: M.DropdownMenuContentProps) {
   return (
     <M.Portal>
-      <M.Content sideOffset={6} className={PANEL} {...rest}>
+      <M.Content sideOffset={6} className={cx(PANEL, className)} {...rest}>
         {children}
       </M.Content>
     </M.Portal>
@@ -30,6 +30,8 @@ export function MenuItem({
   label,
   keys,
   checked,
+  current,
+  hint,
   danger,
   icon,
   onSelect,
@@ -38,23 +40,29 @@ export function MenuItem({
   label: ReactNode;
   keys?: string;
   checked?: boolean;
+  /** The active choice in a picker: a grey row with a chevron, as in the reference's model picker. */
+  current?: boolean;
+  /** Muted text on the right, e.g. the current value of a submenu. */
+  hint?: ReactNode;
   danger?: boolean;
   icon?: ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
 }) {
   return (
-    <M.Item className={cx(ROW, "group", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
+    <M.Item className={cx(ROW, "group", current && "bg-[#3f3f46]", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}
+      {current && <ChevronRight size={12} strokeWidth={1.5} className="text-muted-foreground" />}
+      {hint && <span className="flex items-center gap-1 text-muted-foreground">{hint}</span>}
       {keys && <Keys keys={keys} />}
     </M.Item>
   );
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <M.Label className="px-2 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</M.Label>;
+  return <M.Label className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-[#71717a] uppercase">{children}</M.Label>;
 }
 
 export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-[#3f3f46]" />;
