@@ -1,0 +1,8 @@
+{
+  "name": "Lemon",
+  "slug": "lemon",
+  "appId": "com.wisdomose.lemon",
+  "fileExtension": "lemon",
+  "description": "A desktop design tool where AI agents and people design together on one canvas.",
+  "logo": "assets/logo.svg"
+}
