@@ -71,8 +71,19 @@ export function currentScene(onReady?: () => void): Scene | undefined {
         stale = true;
         waiting.forEach((f) => f());
         waiting.clear();
+        // Panels that show the document re-read it now that it can be laid out.
+        store.set((st) => ({ docVersion: st.docVersion + 1 }));
       });
     }
   }
   return scene;
+}
+
+/** Resolves once the document can be laid out (its fonts are loaded). */
+export async function laidOut(): Promise<Scene> {
+  for (;;) {
+    const s = currentScene();
+    if (s && !stale) return s;
+    await new Promise<void>((r) => (currentScene(r) ? r() : undefined));
+  }
 }

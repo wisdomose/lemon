@@ -14,6 +14,7 @@ import { doc, edit, currentScene } from "./scene.js";
 import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
 import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
+import { useEditor } from "./store.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,39 +49,7 @@ export function App({ initial }: { initial: string }) {
           <ContextTrigger asChild>
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
           </ContextTrigger>
-          <ContextContent>
-            <ContextItem label="Copy" keys="Ctrl C" />
-            <ContextSub label="Copy as">
-              <ContextItem label="HTML + CSS" />
-              <ContextItem label="HTML + Tailwind" />
-              <ContextItem label="JSON" />
-              <ContextItem label="PNG" keys="Ctrl Shift C" />
-            </ContextSub>
-            <ContextItem label="Paste here" />
-            <ContextItem label="Paste to replace" keys="Ctrl Shift R" />
-            <ContextSeparator />
-            <ContextItem label="Bring to Front" keys="]" onSelect={() => reorder(true)} />
-            <ContextItem label="Send to Back" keys="[" onSelect={() => reorder(false)} />
-            <ContextSeparator />
-            <ContextItem label="Group selection" keys="Ctrl G" />
-            <ContextItem label="Frame selection" keys="Ctrl Alt G" />
-            <ContextItem label="Ungroup" keys="Ctrl ⌫" />
-            <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("column")} />
-            <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
-            <ContextSeparator />
-            <ContextItem label="Create Component" keys="Ctrl Alt K" />
-            <ContextSeparator />
-            <ContextItem label="Flip horizontal" keys="Shift H" />
-            <ContextItem label="Flip vertical" keys="Shift V" />
-            <ContextSeparator />
-            <ContextItem label="Delete" keys="⌫" danger onSelect={deleteSelection} />
-            <ContextSeparator />
-            <ContextSub label="Settings">
-              <ContextItem label="Show pixel grid" />
-              <ContextItem label="Snap to pixel grid" />
-              <ContextItem label="Snap to objects" />
-            </ContextSub>
-          </ContextContent>
+          <CanvasMenu />
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
           <TopBar fileName={`untitled.${PRODUCT.fileExtension}`} saveState="Auto-saved" initial={initial} />
@@ -114,4 +83,50 @@ function setLayout(layout: "column" | "none") {
   const id = store.get().selection;
   if (!id || docStore.typeOf(doc, id) !== "frame") return;
   edit(() => docStore.update(doc, id, { layout }));
+}
+
+/** The canvas's right-click menu. Groups and labels follow the reference; items depend on the selection. */
+function CanvasMenu() {
+  const selection = useEditor((s) => s.selection);
+  useEditor((s) => s.docVersion);
+  const type = selection ? docStore.typeOf(doc, selection) : undefined;
+  const flex = type === "frame" && docStore.propsOf(doc, selection!).layout !== "none";
+  return (
+    <ContextContent>
+      <ContextItem label="Copy" keys="Ctrl C" />
+      <ContextSub label="Copy as">
+        <ContextItem label="Copy as HTML + CSS" />
+        <ContextItem label="Copy as HTML + Tailwind" />
+        <ContextItem label="Copy as JSON" />
+        <ContextItem label="Copy as PNG" keys="Ctrl Shift C" />
+      </ContextSub>
+      <ContextItem label="Paste here" />
+      <ContextItem label="Paste to replace" keys="Ctrl Shift R" />
+      <ContextSeparator />
+      <ContextItem label="Bring to Front" keys="]" onSelect={() => reorder(true)} />
+      <ContextItem label="Send to Back" keys="[" onSelect={() => reorder(false)} />
+      <ContextSeparator />
+      <ContextItem label="Group selection" keys="Ctrl G" />
+      <ContextItem label="Frame selection" keys="Ctrl Alt G" />
+      {flex ? (
+        <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
+      ) : (
+        <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("column")} />
+      )}
+      <ContextSeparator />
+      <ContextItem label="Create Component" keys="Ctrl Alt K" />
+      <ContextSeparator />
+      <ContextItem label="Flip horizontal" keys="Shift H" />
+      <ContextItem label="Flip vertical" keys="Shift V" />
+      <ContextSeparator />
+      <ContextItem label="Delete" keys="⌫" danger onSelect={deleteSelection} />
+      <ContextSeparator />
+      <ContextSub label="Settings">
+        <ContextItem label="Show pixel grid" />
+        <ContextItem label="Snap to pixel grid" />
+        <ContextItem label="Snap to objects" />
+        <ContextItem label="Open settings…" />
+      </ContextSub>
+    </ContextContent>
+  );
 }

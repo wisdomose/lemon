@@ -66,6 +66,11 @@ export function LeftPanel() {
 }
 
 // ---- Layers ---------------------------------------------------------------------------------------
+const expandAll = new URLSearchParams(location.search).get("expand") === "all";
+function allIds(n: TreeNode): string[] {
+  return [n.id, ...n.children.flatMap(allIds)];
+}
+
 function typeIcon(n: TreeNode): LucideIcon {
   if (n.type === "text") return Type;
   if (n.type === "rect") return Square;
@@ -80,7 +85,8 @@ function LayersPanel() {
   useEditor((s) => s.docVersion);
   const selection = useEditor((s) => s.selection);
   const tree = currentScene()?.tree;
-  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  // Headless checks can open every row with ?expand=all.
+  const [open, setOpen] = useState<Set<string>>(() => new Set(expandAll && tree ? allIds(tree) : []));
   const toggle = (id: string) =>
     setOpen((o) => {
       const n = new Set(o);
@@ -96,10 +102,10 @@ function LayersPanel() {
   // Newest frames last on the canvas, first in the list.
   [...(tree?.children ?? [])].reverse().forEach((f) => walk(f, 0));
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+    <div className="-mt-1 min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
       {rows.map(({ node, depth }) => {
         const Icon = typeIcon(node);
-        const label = node.props.name ?? (node.type === "text" ? node.props.text?.slice(0, 40) : node.type);
+        const label = node.props.name ?? (node.type === "text" ? node.props.text?.slice(0, 40) : node.type[0]!.toUpperCase() + node.type.slice(1));
         return (
           <div
             key={node.id}
@@ -107,8 +113,8 @@ function LayersPanel() {
             onMouseEnter={() => (store.set({ hover: node.id }), schedule())}
             onMouseLeave={() => (store.set({ hover: null }), schedule())}
             className={cx(
-              "flex h-7 cursor-default items-center gap-1.5 rounded-md pr-2 text-[13px] text-[#d4d4d8]",
-              node.id === selection ? "bg-[#1f3a5f]" : "hover:bg-white/[0.04]",
+              "flex h-7 cursor-default items-center rounded-[5px] pr-2 text-[12px] font-semibold",
+              node.id === selection ? "bg-[#283751] text-[#bfdbfe]" : "text-[#d4d4d8] hover:bg-white/[0.04]",
             )}
             style={{ paddingLeft: 6 + depth * 12 }}
           >
@@ -122,7 +128,7 @@ function LayersPanel() {
               {node.children.length > 0 &&
                 (open.has(node.id) ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />)}
             </span>
-            <Icon size={14} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
+            <Icon size={14} strokeWidth={1.5} className="mr-2 ml-1 shrink-0 text-muted-foreground" />
             <span className="truncate">{label}</span>
           </div>
         );

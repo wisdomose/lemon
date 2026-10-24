@@ -6,12 +6,13 @@ import type { AgentEvent } from "../agent/agent.js";
 import { App } from "./App.js";
 import { handleAgentEvent } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
-import { boot, bridge, currentScene } from "./scene.js";
+import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
 
 document.title = PRODUCT.name;
 document.documentElement.classList.add("dark");
 await boot();
+const firstScene = await laidOut();
 bridge.onAgentEvent(handleAgentEvent);
 
 // Headless checks set up a state from the address: ?view=x,y,zoom&select=id&tab=layers&chat=events.jsonl
@@ -25,7 +26,7 @@ if (q.get("view")) {
 if (q.get("select")) {
   // "@first" picks the first top-level frame (fixture ids are random).
   const want = q.get("select")!;
-  store.set({ selection: want === "@first" ? (currentScene()?.tree.children[0]?.id ?? null) : want });
+  store.set({ selection: want === "@first" ? (firstScene.tree.children[0]?.id ?? null) : want });
 }
 if (q.get("tab")) store.set({ tab: q.get("tab") as Tab });
 if (q.get("chat")) {

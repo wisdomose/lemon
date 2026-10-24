@@ -37,8 +37,8 @@ export function Tip({
       <T.Portal>
         <T.Content
           side={side}
-          sideOffset={6}
-          className="z-50 flex items-center gap-3 rounded-[10px] bg-white px-3 py-[5px] text-[13px] leading-4 text-zinc-900 shadow-md"
+          sideOffset={0}
+          className="z-50 flex h-[27px] items-center gap-[11px] rounded-[10px] bg-white px-3 text-[12px] leading-4 text-zinc-900 shadow-md"
         >
           {label}
           {keys && <span className="text-zinc-400">{keys}</span>}

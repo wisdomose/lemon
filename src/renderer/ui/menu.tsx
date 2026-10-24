@@ -1,13 +1,20 @@
-// Dropdown and context menus in Pen's style: popover fill, 14px rows, right-aligned muted shortcuts,
+// Dropdown and context menus in the reference's style: popover fill, right-aligned muted shortcuts,
 // small-caps section labels, destructive items in red.
 import type { ReactNode } from "react";
 import { ContextMenu as C, DropdownMenu as M } from "radix-ui";
 import { Check, ChevronRight } from "lucide-react";
 import { cx } from "./kit.js";
 
-const PANEL = "z-50 min-w-[180px] rounded-[10px] bg-popover p-1 text-[14px] text-popover-foreground shadow-island";
+// Measured from the reference: 28px rows, 12px text, blue highlight inset 4px, 9px between groups.
+const PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-popover-foreground shadow-island";
 const ROW =
-  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-md px-2 outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-40";
+  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 outline-none data-[highlighted]:bg-[#3b82f6] data-[highlighted]:text-white data-[state=open]:bg-[#3b82f6] data-[state=open]:text-white data-[disabled]:opacity-40";
+
+/** A shortcut as the reference shows it: compact, muted, Shift as ⇧ ("Ctrl⇧R", "CtrlAltK"). */
+function Keys({ keys }: { keys: string }) {
+  const text = keys.replace(/Shift\s?/g, "⇧").replace(/\s+/g, "");
+  return <span className="ml-4 text-[11px] tracking-[0.04em] text-[#a1a1aa] group-data-[highlighted]:text-white/80">{text}</span>;
+}
 
 export function MenuContent({ children, ...rest }: M.DropdownMenuContentProps) {
   return (
@@ -37,11 +44,11 @@ export function MenuItem({
   disabled?: boolean;
 }) {
   return (
-    <M.Item className={cx(ROW, danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
+    <M.Item className={cx(ROW, "group", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}
-      {keys && <span className="ml-6 text-[13px] text-muted-foreground">{keys}</span>}
+      {keys && <Keys keys={keys} />}
     </M.Item>
   );
 }
@@ -50,7 +57,7 @@ export function MenuLabel({ children }: { children: ReactNode }) {
   return <M.Label className="px-2 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</M.Label>;
 }
 
-export const MenuSeparator = () => <M.Separator className="my-1 h-px bg-white/5" />;
+export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-[#3f3f46]" />;
 
 export function SubMenu({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -75,21 +82,21 @@ export const ContextTrigger = C.Trigger;
 export function ContextContent({ children }: { children: ReactNode }) {
   return (
     <C.Portal>
-      <C.Content className={cx(PANEL, "min-w-[184px]")}>{children}</C.Content>
+      <C.Content className={cx(PANEL, "w-[186px]")}>{children}</C.Content>
     </C.Portal>
   );
 }
 
 export function ContextItem({ label, keys, danger, onSelect }: { label: string; keys?: string; danger?: boolean; onSelect?: () => void }) {
   return (
-    <C.Item className={cx(ROW, danger && "text-destructive")} onSelect={onSelect}>
+    <C.Item className={cx(ROW, "group", danger && "text-destructive")} onSelect={onSelect}>
       <span className="flex-1">{label}</span>
-      {keys && <span className="ml-6 text-[13px] text-muted-foreground">{keys}</span>}
+      {keys && <Keys keys={keys} />}
     </C.Item>
   );
 }
 
-export const ContextSeparator = () => <C.Separator className="my-1 h-px bg-white/5" />;
+export const ContextSeparator = () => <C.Separator className="-mx-1 my-1 h-px bg-[#3f3f46]" />;
 
 export function ContextSub({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -99,7 +106,7 @@ export function ContextSub({ label, children }: { label: string; children: React
         <ChevronRight size={14} strokeWidth={1.5} />
       </C.SubTrigger>
       <C.Portal>
-        <C.SubContent sideOffset={4} className={PANEL}>
+        <C.SubContent sideOffset={8} className={PANEL}>
           {children}
         </C.SubContent>
       </C.Portal>
