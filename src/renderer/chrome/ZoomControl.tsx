@@ -9,13 +9,15 @@ import { MenuContent, MenuItem } from "../ui/menu.js";
 
 export function ZoomControl() {
   const zoom = useEditor((s) => s.zoom);
+  // Sits 8px left of the properties panel while something is selected, as in the reference.
+  const panel = useEditor((s) => s.selection !== null);
   const zoomToSelection = () => {
     const id = store.get().selection;
     const box = id ? currentScene()?.boxes.get(id) : undefined;
     if (box) zoomToFit(true, box, 32);
   };
   return (
-    <Island className="absolute right-2 bottom-2 flex h-8 items-center gap-0.5 rounded-full px-1">
+    <Island className="absolute bottom-2 flex h-8 items-center gap-0.5 rounded-full px-1" style={{ right: panel ? 8 + 221 + 8 : 8 }}>
       <button type="button" aria-label="Zoom out" onClick={() => zoomStep(-1)} className="flex h-6 w-6 items-center justify-center rounded-full text-[#8d8d8f] hover:bg-white/5">
         <Minus size={14} strokeWidth={1.5} />
       </button>

@@ -36,7 +36,7 @@ export function AgentPanel() {
       <div className="flex gap-[9px] px-3 pb-3.5">
         <button
           type="button"
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-[#2b2b2f] px-3 text-left text-[14px] text-[#d4d4d8]"
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-[#2b2b2f] px-3 text-left text-[13px] text-[#d4d4d8]"
         >
           <span className="truncate">{session ?? "New Agent"}</span>
           {status && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
@@ -45,7 +45,7 @@ export function AgentPanel() {
         <button
           type="button"
           onClick={newSession}
-          className="flex h-8 w-[74px] items-center justify-center gap-1.5 rounded-[10px] border border-input bg-[#2b2b2f] text-[14px] font-semibold text-[#e4e4e7] hover:bg-white/5"
+          className="flex h-8 w-[74px] items-center justify-center gap-1.5 rounded-[10px] border border-input bg-[#2b2b2f] text-[13px] font-semibold text-[#e4e4e7] hover:bg-white/5"
         >
           <Plus size={16} strokeWidth={1.5} /> New
         </button>
@@ -59,7 +59,7 @@ export function AgentPanel() {
 function EmptyState() {
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-3 py-4">
-      <div className="mb-2.5 text-[14px] font-semibold text-[#d4d4d8]">Ask me to design anything</div>
+      <div className="mb-2.5 text-[13px] font-semibold text-[#d4d4d8]">Ask me to design anything</div>
       <div className="flex flex-col items-start gap-[10px]">
         {EXAMPLES.map((e) => (
           <button

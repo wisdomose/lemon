@@ -3,11 +3,12 @@
    (8px gaps, 42px top bar) comes from the reference captures. */
 @import "tailwindcss";
 
-@font-face { font-family: "Selawik"; font-weight: 300; src: url("./ui-fonts/selawkl.ttf") format("truetype"); }
-@font-face { font-family: "Selawik"; font-weight: 350; src: url("./ui-fonts/selawksl.ttf") format("truetype"); }
-@font-face { font-family: "Selawik"; font-weight: 400; src: url("./ui-fonts/selawk.ttf") format("truetype"); }
-@font-face { font-family: "Selawik"; font-weight: 600; src: url("./ui-fonts/selawksb.ttf") format("truetype"); }
-@font-face { font-family: "Selawik"; font-weight: 700; src: url("./ui-fonts/selawkb.ttf") format("truetype"); }
+/* Selawik carries Segoe UI's line metrics (ascender 2210, descender 514 per 2048 em) so text sits on the same baseline. */
+@font-face { font-family: "Selawik"; font-weight: 300; src: url("./ui-fonts/selawkl.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 350; src: url("./ui-fonts/selawksl.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 400; src: url("./ui-fonts/selawk.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 600; src: url("./ui-fonts/selawksb.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 700; src: url("./ui-fonts/selawkb.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
 @font-face { font-family: "Roboto Mono"; font-weight: 400; src: url("./ui-fonts/RobotoMono-400.ttf") format("truetype"); }
 @font-face { font-family: "Roboto Mono"; font-weight: 500; src: url("./ui-fonts/RobotoMono-500.ttf") format("truetype"); }
 

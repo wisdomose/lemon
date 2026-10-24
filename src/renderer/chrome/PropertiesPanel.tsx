@@ -13,20 +13,20 @@ import {
   AlignJustify,
   AlignStartHorizontal,
   AlignStartVertical,
-  ArrowDown,
+  ArrowDownFromLine,
   ArrowDownToLine,
-  ArrowRight,
+  ArrowRightFromLine,
   ArrowUpToLine,
-  Blend,
+  SquareSlash,
   Check,
   ChevronDown,
   Circle,
-  Component,
+  DiamondPlus,
+  Frame,
   Eye,
   EyeOff,
   FlipHorizontal2,
   FlipVertical2,
-  Hash,
   Image as ImageIcon,
   LayoutGrid,
   LayoutPanelLeft,
@@ -48,7 +48,8 @@ import { currentScene, doc, edit } from "../scene.js";
 import { useEditor } from "../store.js";
 import { Island, cx } from "../ui/kit.js";
 
-const FIELD = "flex h-6 min-w-0 items-center gap-1.5 rounded-md bg-[#303034] px-2 text-[13px] text-[#e4e4e7]";
+// Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
+const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-[#37373a] px-2 text-[11px] text-foreground";
 
 function set(id: string, props: Partial<NodeProps>) {
   edit(() => store.update(doc, id, props));
@@ -79,7 +80,7 @@ function NumberField({
   };
   return (
     <label className={cx(FIELD, disabled && "opacity-50", className)}>
-      <span className="shrink-0 text-[12px] font-semibold text-muted-foreground">{lead}</span>
+      <span className="flex w-3 shrink-0 justify-center text-[11px] font-semibold text-[#8e8e8f]">{lead}</span>
       <input
         value={text}
         disabled={disabled || !onCommit}
@@ -95,25 +96,25 @@ function NumberField({
 
 function Section({ title, action, children, last }: { title: ReactNode; action?: ReactNode; children?: ReactNode; last?: boolean }) {
   return (
-    <section className={cx("px-[15px] py-3.5", !last && "border-b border-white/[0.05]")}>
-      <div className="flex h-5 items-center text-[14px] font-semibold text-[#e4e4e7]">
+    <section className={cx("pr-[13px] pl-[15px]", children ? "pt-[10px] pb-[15px]" : "py-[9px]", !last && "border-b border-[#313134]")}>
+      <div className="flex h-5 items-center text-[11px] font-semibold text-[#e4e4e7]">
         {title}
         <span className="ml-auto flex items-center text-muted-foreground">{action}</span>
       </div>
-      {children && <div className="mt-3 space-y-2">{children}</div>}
+      {children && <div className="mt-[6px] space-y-[6px]">{children}</div>}
     </section>
   );
 }
 
-const Label = ({ children }: { children: ReactNode }) => <div className="text-[12px] text-muted-foreground">{children}</div>;
+const Label = ({ children }: { children: ReactNode }) => <div className="h-4 text-[9px] leading-4 text-muted-foreground">{children}</div>;
 
 function Check2({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex h-5 cursor-default items-center gap-2 text-[13px] text-[#d4d4d8]">
+    <label className="flex h-4 cursor-default items-center gap-1 text-[10px] text-[#d4d4d8]">
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={cx("flex h-4 w-4 items-center justify-center rounded-[4px] border", checked ? "border-white bg-white text-zinc-900" : "border-input")}
+        className={cx("flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border", checked ? "border-white bg-white text-zinc-900" : "border-input")}
       >
         {checked && <Check size={12} strokeWidth={2.5} />}
       </button>
@@ -124,14 +125,14 @@ function Check2({ label, checked, onChange }: { label: string; checked: boolean;
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; icon: LucideIcon; label: string }[]; onChange: (v: T) => void }) {
   return (
-    <div className="flex h-6 rounded-md bg-[#303034] p-px">
+    <div className="flex h-6 rounded-md bg-[#37373a] p-px">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           aria-label={o.label}
           onClick={() => onChange(o.value)}
-          className={cx("flex flex-1 items-center justify-center rounded-[5px] text-[#d4d4d8]", o.value === value && "bg-[#4a4a4f]")}
+          className={cx("flex flex-1 items-center justify-center rounded-[5px] text-[#d4d4d8]", o.value === value && "bg-[#4e4e51]")}
         >
           <o.icon size={14} strokeWidth={1.5} />
         </button>
@@ -142,7 +143,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 
 function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
   return (
-    <div className="flex h-6 flex-1 items-center justify-around rounded-md bg-[#303034] text-[#a1a1aa]">
+    <div className="flex h-6 flex-1 items-center justify-around rounded-md bg-[#37373a] text-[#a1a1aa]">
       {icons.map((I, i) => (
         <I key={i} size={14} strokeWidth={1.5} />
       ))}
@@ -155,7 +156,7 @@ function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.type === "rect") return { icon: Square, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
   if (n.type === "image") return { icon: ImageIcon, label: "Image" };
-  return { icon: n.props.layout === "none" ? Hash : AlignHorizontalJustifyStart, label: "Frame" };
+  return { icon: n.props.layout === "none" ? Frame : AlignHorizontalJustifyStart, label: "Frame" };
 }
 
 const sizeNum = (v: Size | undefined, measured: number) => (typeof v === "number" ? v : Math.round(measured * 10) / 10);
@@ -180,29 +181,29 @@ export function PropertiesPanel() {
   const colour = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : fill;
 
   return (
-    <Island className="absolute top-[58px] right-2 bottom-2 flex w-[220px] flex-col overflow-hidden">
+    <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="px-[15px] pt-3 pb-3.5 border-b border-white/[0.05]">
-          <div className="flex h-6 items-center gap-2 text-[14px] text-[#e4e4e7]">
+        <div className="border-b border-[#313134] pt-2 pr-[13px] pb-2 pl-[11px]">
+          <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-[#e4e4e7]">
             <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
             <PanelRight size={16} strokeWidth={1.5} className="ml-auto text-muted-foreground" />
           </div>
-          <button type="button" className="mt-2.5 flex h-6 w-full items-center justify-center gap-2 rounded-md bg-[#3a3a3e] text-[13px] text-[#e4e4e7]">
-            <Component size={14} strokeWidth={1.5} /> Create Component
+          <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-[#37373a] text-[11px] text-foreground">
+            <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
           </button>
         </div>
 
         <Section title="Context" action={<ChevronDown size={14} strokeWidth={1.5} />} />
 
         <Section title="Alignment">
-          <div className="flex gap-2">
+          <div className="flex gap-[6px]">
             <ButtonGroup icons={[AlignStartVertical, AlignCenterVertical, AlignEndVertical]} />
             <ButtonGroup icons={[AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal]} />
           </div>
         </Section>
 
         <Section title="Position">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-[6px]">
             <NumberField
               lead="X"
               value={Math.round((box.x - (parentBox?.x ?? 0)) * 10) / 10}
@@ -231,14 +232,14 @@ export function PropertiesPanel() {
               onChange={(layout) => set(node.id, { layout })}
               options={[
                 { value: "none", icon: LayoutGrid, label: "No layout" },
-                { value: "column", icon: ArrowDown, label: "Vertical" },
-                { value: "row", icon: ArrowRight, label: "Horizontal" },
+                { value: "column", icon: ArrowDownFromLine, label: "Vertical" },
+                { value: "row", icon: ArrowRightFromLine, label: "Horizontal" },
               ]}
             />
           )}
           {flex && <FlexControls node={node} />}
           <Label>Dimensions</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-[6px]">
             <NumberField lead="W" value={sizeNum(p.width, box.w)} onCommit={(width) => set(node.id, { width })} />
             <NumberField lead="H" value={sizeNum(p.height, box.h)} onCommit={(height) => set(node.id, { height })} />
             <Check2 label="Fill Width" checked={p.width === "fill"} onChange={(v) => set(node.id, { width: v ? "fill" : Math.round(box.w) })} />
@@ -260,10 +261,10 @@ export function PropertiesPanel() {
             </button>
           }
         >
-          <div className="flex gap-2">
+          <div className="flex gap-[6px]">
             <NumberField
               className="flex-1"
-              lead={<Blend size={12} strokeWidth={1.5} />}
+              lead={<SquareSlash size={12} strokeWidth={1.5} />}
               value={Math.round((p.opacity ?? 1) * 100)}
               onCommit={(v) => set(node.id, { opacity: Math.max(0, Math.min(100, v)) / 100 })}
             />
@@ -317,7 +318,7 @@ export function PropertiesPanel() {
                 onChange={(color) => set(node.id, { stroke: { ...p.stroke!, color } })}
                 onRemove={() => set(node.id, { stroke: null as never })}
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-[6px]">
                 <Label>Position</Label>
                 <Label>Weight</Label>
                 <div className={FIELD}>Inside <ChevronDown size={12} className="ml-auto" /></div>
@@ -343,7 +344,7 @@ export function PropertiesPanel() {
           <div className={FIELD}>
             HTML + Tailwind <ChevronDown size={12} className="ml-auto" />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-[6px]">
             <button type="button" className={cx(FIELD, "justify-center")}>Copy HTML</button>
             <button type="button" className={cx(FIELD, "justify-center")}>Export HTML</button>
           </div>
@@ -351,7 +352,7 @@ export function PropertiesPanel() {
         </Section>
 
         <Section title="Export" last>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-[6px]">
             <div className={FIELD}>1x <ChevronDown size={12} className="ml-auto" /></div>
             <div className={FIELD}>PNG <ChevronDown size={12} className="ml-auto" /></div>
           </div>
@@ -368,7 +369,7 @@ function ColourRow({ value, onChange, onRemove }: { value: string; onChange: (c:
   const isVar = value.startsWith("$");
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-[#303034] text-[13px] text-[#e4e4e7]">
+      <div className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-[#37373a] text-[11px] text-foreground">
         <span className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-white/10" style={{ background: isVar ? "transparent" : value }} />
         <input
           value={isVar ? value : text}
@@ -406,10 +407,10 @@ function FlexControls({ node }: { node: TreeNode }) {
   const [py, px] = pad.length === 4 ? [pad[0], pad[1]] : [pad[0], pad[1]];
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-[6px]">
         <Label>Alignment</Label>
         <Label>Gap</Label>
-        <div className="grid h-[68px] grid-cols-3 grid-rows-3 place-items-center rounded-md bg-[#303034]">
+        <div className="grid h-[68px] grid-cols-3 grid-rows-3 place-items-center rounded-md bg-[#37373a]">
           {[0, 1, 2].map((r) =>
             [0, 1, 2].map((c) => (
               <button key={`${r}${c}`} type="button" onClick={() => pick(c, r)} className="flex h-full w-full items-center justify-center">
@@ -418,7 +419,7 @@ function FlexControls({ node }: { node: TreeNode }) {
             )),
           )}
         </div>
-        <div className="space-y-1.5 text-[13px] text-[#d4d4d8]">
+        <div className="space-y-1.5 text-[10px] text-[#d4d4d8]">
           <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={p.gap ?? 0} onCommit={(gap) => set(node.id, { gap, justify: p.justify === "between" ? "start" : p.justify })} />
           <button type="button" className="flex items-center gap-2" onClick={() => set(node.id, { justify: "between" })}>
             <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justify === "between" && "border-[4px] border-white")} /> Space Between
@@ -426,7 +427,7 @@ function FlexControls({ node }: { node: TreeNode }) {
         </div>
       </div>
       <Label>Padding</Label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-[6px]">
         <NumberField lead="↔" value={Number(px)} onCommit={(v) => set(node.id, { padding: [Number(py), v] })} />
         <NumberField lead="↕" value={Number(py)} onCommit={(v) => set(node.id, { padding: [v, Number(px)] })} />
       </div>
@@ -446,7 +447,7 @@ function Typography({ node }: { node: TreeNode }) {
       <div className={FIELD}>
         {typeof p.font === "string" ? p.font : "Inter"} <ChevronDown size={12} className="ml-auto" />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-[6px]">
         <div className={FIELD}>
           {weightName} <ChevronDown size={12} className="ml-auto" />
         </div>

@@ -22,7 +22,7 @@ export function ChatInput() {
     setText("");
   };
   return (
-    <Island className="absolute left-2 bottom-2 flex min-h-[91px] w-[378px] flex-col px-3 pt-2.5 pb-2">
+    <Island className="absolute left-2 bottom-2 flex min-h-[91px] w-[378px] flex-col px-3 pt-[14px] pb-2">
       {node && (
         <span className="mb-1 inline-flex h-6 max-w-[200px] items-center gap-1 self-start rounded-md bg-white/5 px-2 text-[12px] text-[#d4d4d8]">
           <Frame size={12} strokeWidth={1.5} className="shrink-0" />
@@ -40,21 +40,21 @@ export function ChatInput() {
         }}
         rows={2}
         placeholder="Design anything..."
-        className="w-full resize-none bg-transparent text-[14px] leading-5 text-[#e4e4e7] outline-none placeholder:text-[#71717a]"
+        className="w-full resize-none bg-transparent text-[13px] leading-5 text-[#e4e4e7] outline-none placeholder:text-[#71717a]"
       />
-      <div className="mt-auto flex h-6 items-center text-[12px] text-muted-foreground">
+      <div className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
         <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-white/5">
           <Plus size={14} strokeWidth={1.5} />
         </button>
-        <span className="ml-auto flex items-center gap-1 font-semibold text-amber-500">
+        <span className="ml-auto flex items-center gap-[3px] font-semibold text-amber-500">
           <Zap size={12} strokeWidth={1.75} /> 1x
         </span>
-        <span className="ml-[19px] flex items-center gap-1">
+        <span className="ml-[14px] flex items-center gap-[3px]">
           <LayoutGrid size={12} strokeWidth={1.5} /> 1x
         </span>
         <M.Root>
           <M.Trigger asChild>
-            <button type="button" className="ml-[15px] flex items-center gap-1 rounded-md hover:text-foreground">
+            <button type="button" className="ml-[11px] flex items-center gap-1 rounded-md hover:text-foreground">
               {modelLabel(model)} <ChevronDown size={12} strokeWidth={1.5} />
             </button>
           </M.Trigger>
@@ -73,10 +73,10 @@ export function ChatInput() {
           aria-label={status ? "Stop" : "Send"}
           onClick={() => (status ? void bridge.stopAgent() : send())}
           disabled={!status && !text.trim()}
-          className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#52525b] text-[#18181b] disabled:bg-[#3f3f46] disabled:text-[#71717a] data-[running=true]:bg-[#e4e4e7]"
+          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-[#e4e4e7] text-[#18181b] disabled:bg-[#3f3f46]"
           data-running={!!status}
         >
-          {status ? <Square size={10} fill="currentColor" strokeWidth={0} /> : <ArrowUp size={14} strokeWidth={2} />}
+          {status ? <Square size={10} fill="currentColor" strokeWidth={0} /> : <ArrowUp size={12} strokeWidth={2.25} />}
         </button>
       </div>
     </Island>

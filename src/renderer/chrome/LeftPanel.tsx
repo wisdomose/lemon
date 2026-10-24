@@ -46,7 +46,7 @@ export function LeftPanel() {
             type="button"
             onClick={() => store.set({ tab: t.tab })}
             className={cx(
-              "flex h-[29px] items-center gap-1.5 rounded-[8px] text-[14px] font-semibold text-[#d4d4d8]",
+              "flex h-[29px] items-center gap-1.5 rounded-[8px] text-[13px] font-semibold text-[#d4d4d8]",
               t.tab === tab ? "bg-[#3a3a3c] px-2.5" : "w-[33px] justify-center hover:bg-white/5",
             )}
             aria-label={t.label}
