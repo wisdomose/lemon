@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { PRODUCT } from "../product.js";
 import type { AgentEvent } from "../agent/agent.js";
 import { App } from "./App.js";
-import { handleAgentEvent } from "./agent/chat.js";
+import { handleAgentEvent, loadHistory } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
 import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
@@ -13,6 +13,12 @@ import { applyTheme, setSetting } from "./settings.js";
 document.title = PRODUCT.name;
 if (new URLSearchParams(location.search).get("theme") === "light") setSetting("theme", "light");
 applyTheme();
+// Headless checks can preload the conversation history with ?history=<url>.
+const historyUrl = new URLSearchParams(location.search).get("history");
+if (historyUrl) {
+  localStorage.setItem("agent-history", await (await fetch(historyUrl)).text());
+  loadHistory();
+}
 await boot();
 const firstScene = await laidOut();
 bridge.onAgentEvent(handleAgentEvent);

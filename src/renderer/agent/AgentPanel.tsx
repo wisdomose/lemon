@@ -4,7 +4,9 @@ import { ChevronDown, ChevronsUpDown, CircleCheck, CircleX, Plus } from "lucide-
 import { useEditor, type ChatItem } from "../store.js";
 import { markdown } from "../markdown.js";
 import { cx } from "../ui/kit.js";
-import { formatDuration, newSession, sendPrompt } from "./chat.js";
+import { clearHistory, formatDuration, newSession, openSession, sendPrompt } from "./chat.js";
+import { DropdownMenu as M } from "radix-ui";
+import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
 
 // Our own example prompts and tips, laid out as Pen lays out its empty state.
 const EXAMPLES = [
@@ -34,14 +36,7 @@ export function AgentPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex gap-[9px] px-3 pb-3.5">
-        <button
-          type="button"
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-select-bg px-3 text-left text-[13px] text-muted-foreground"
-        >
-          <span className="overflow-hidden whitespace-nowrap">{session ?? "New Agent"}</span>
-          {status && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
-          <ChevronDown size={14} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
-        </button>
+        <HistoryMenu session={session} running={!!status} />
         <button
           type="button"
           onClick={newSession}
@@ -202,3 +197,60 @@ function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {
   );
 }
 
+
+/** The session picker: the current conversation's title, opening the history grouped by day. */
+function HistoryMenu({ session, running }: { session: string | null; running: boolean }) {
+  const history = useEditor((s) => s.history);
+  const groups = groupByDay(history);
+  return (
+    <M.Root>
+      <M.Trigger asChild>
+        <button
+          type="button"
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-select-bg px-3 text-left text-[13px] text-muted-foreground"
+        >
+          <span className="overflow-hidden whitespace-nowrap">{session ?? "New Agent"}</span>
+          {running && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
+          <ChevronDown size={14} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
+        </button>
+      </M.Trigger>
+      <MenuContent align="start" sideOffset={4} className="w-[var(--radix-dropdown-menu-trigger-width)]">
+        {groups.length === 0 && <div className="px-2 py-1.5 text-muted-foreground">No earlier conversations</div>}
+        {groups.map(([label, items]) => (
+          <div key={label}>
+            <MenuLabel caps={false}>{label}</MenuLabel>
+            {items.map((h) => (
+              <MenuItem
+                key={h.id}
+                label={<span className="block max-w-[240px] truncate text-[11px] font-semibold">{h.title}</span>}
+                current={h.title === session}
+                plain
+                onSelect={() => openSession(h.id)}
+              />
+            ))}
+          </div>
+        ))}
+        {groups.length > 0 && (
+          <>
+            <MenuSeparator />
+            <MenuItem label="Clear Agent History" danger onSelect={clearHistory} />
+          </>
+        )}
+      </MenuContent>
+    </M.Root>
+  );
+}
+
+function groupByDay(history: { id: string; title: string; at: number }[]): [string, typeof history][] {
+  const day = 86_400_000;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const t = start.getTime();
+  const label = (at: number) => (at >= t ? "Today" : at >= t - day ? "Yesterday" : at >= t - 7 * day ? "Previous 7 days" : "Older");
+  const out = new Map<string, typeof history>();
+  for (const h of history) {
+    const l = label(h.at);
+    out.set(l, [...(out.get(l) ?? []), h]);
+  }
+  return [...out];
+}

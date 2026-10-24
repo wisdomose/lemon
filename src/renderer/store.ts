@@ -38,6 +38,15 @@ export interface EditorState {
   session: string | null;
   model: string;
   settingsOpen: boolean;
+  /** Past conversations, newest first. */
+  history: Session[];
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  at: number;
+  chat: ChatItem[];
 }
 
 const initial: EditorState = {
@@ -52,6 +61,7 @@ const initial: EditorState = {
   session: null,
   model: DEFAULT_MODEL,
   settingsOpen: false,
+  history: [],
 };
 
 let state = initial;

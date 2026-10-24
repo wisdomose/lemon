@@ -3,7 +3,7 @@ import type { AgentEvent } from "../../agent/agent.js";
 import { modelLabel } from "../../agent/models.js";
 import { cursor, schedule, zoomToFit } from "../canvas/canvas.js";
 import { bridge } from "../scene.js";
-import { store, type ChatItem } from "../store.js";
+import { store, type ChatItem, type Session } from "../store.js";
 
 const pngUrl = (png: Uint8Array) => URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
 
@@ -67,9 +67,45 @@ export function sendPrompt(text: string): void {
   void bridge.runAgent(text.trim(), store.get().model);
 }
 
+// Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's
+// folder or the main process once files are saved; pictures are not kept).
+const HISTORY_KEY = "agent-history";
+export function loadHistory(): void {
+  store.set({ history: JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]") as Session[] });
+}
+loadHistory();
+const saveHistory = () => localStorage.setItem(HISTORY_KEY, JSON.stringify(store.get().history));
+let currentId: string = crypto.randomUUID();
+
+function stripPictures(chat: ChatItem[]): ChatItem[] {
+  return chat.map((c) => (c.kind === "step" ? { ...c, pictures: [] } : c));
+}
+
+/** Files the current conversation in the history (if it has anything) and starts an empty one. */
 export function newSession(): void {
-  if (store.get().agentStatus) return;
+  const s = store.get();
+  if (s.agentStatus) return;
+  if (s.chat.length) {
+    const entry: Session = { id: currentId, title: s.session ?? "Untitled", at: Date.now(), chat: stripPictures(s.chat) };
+    store.set({ history: [entry, ...s.history.filter((h) => h.id !== currentId)] });
+    saveHistory();
+  }
+  currentId = crypto.randomUUID();
   store.set({ chat: [], session: null });
+}
+
+/** Shows a past conversation (filing the current one first). */
+export function openSession(id: string): void {
+  const entry = store.get().history.find((h) => h.id === id);
+  if (!entry || store.get().agentStatus) return;
+  newSession();
+  currentId = entry.id;
+  store.set({ chat: entry.chat, session: entry.title });
+}
+
+export function clearHistory(): void {
+  store.set({ history: [] });
+  saveHistory();
 }
 
 export function formatDuration(seconds: number): string {

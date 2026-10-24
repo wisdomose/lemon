@@ -1,7 +1,8 @@
 // The chat input island under the left panel: selection chip, prompt box and footer controls.
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ParallelAgents, Variants } from "./RunOptions.js";
 import { DropdownMenu as M } from "radix-ui";
-import { ArrowUp, ChevronDown, ChevronRight, Frame, Image as ImageIcon, LayoutGrid, Plus, Search, Square, Zap } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, Frame, Image as ImageIcon, Plus, Search, Square } from "lucide-react";
 import { MODELS, modelLabel } from "../../agent/models.js";
 import { bridge, currentScene } from "../scene.js";
 import { store, useEditor } from "../store.js";
@@ -12,6 +13,7 @@ import { sendPrompt } from "./chat.js";
 
 export function ChatInput() {
   const [text, setText] = useState("");
+  const footer = useRef<HTMLDivElement>(null);
   const status = useEditor((s) => s.agentStatus);
   const model = useEditor((s) => s.model);
   const selection = useEditor((s) => s.selection);
@@ -42,19 +44,15 @@ export function ChatInput() {
         placeholder="Design anything..."
         className="w-full resize-none bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-[#71717a]"
       />
-      <div className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
+      <div ref={footer} className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
         <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-foreground/5">
           <Plus size={14} strokeWidth={1.5} />
         </button>
-        <span className="ml-auto flex items-center gap-[3px] font-semibold text-amber-500">
-          <Zap size={12} strokeWidth={1.75} /> 1x
-        </span>
-        <span className="ml-[14px] flex items-center gap-[3px]">
-          <LayoutGrid size={12} strokeWidth={1.5} /> 1x
-        </span>
+        <ParallelAgents anchor={footer} />
+        <Variants anchor={footer} />
         <M.Root>
           <M.Trigger asChild>
-            <button type="button" className="ml-[11px] flex items-center gap-1 rounded-md hover:text-foreground">
+            <button type="button" className="ml-[7px] flex items-center gap-1 rounded-md hover:text-foreground">
               {modelLabel(model)} <ChevronDown size={12} strokeWidth={1.5} />
             </button>
           </M.Trigger>

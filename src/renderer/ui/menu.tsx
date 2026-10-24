@@ -31,6 +31,7 @@ export function MenuItem({
   keys,
   checked,
   current,
+  plain,
   hint,
   danger,
   icon,
@@ -40,8 +41,9 @@ export function MenuItem({
   label: ReactNode;
   keys?: string;
   checked?: boolean;
-  /** The active choice in a picker: a grey row with a chevron, as in the reference's model picker. */
+  /** The active choice: a grey row, with a chevron unless `plain` (as in the reference's history list). */
   current?: boolean;
+  plain?: boolean;
   /** Muted text on the right, e.g. the current value of a submenu. */
   hint?: ReactNode;
   danger?: boolean;
@@ -54,15 +56,20 @@ export function MenuItem({
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}
-      {current && <ChevronRight size={12} strokeWidth={1.5} className="text-muted-foreground" />}
+      {current && !plain && <ChevronRight size={12} strokeWidth={1.5} className="text-muted-foreground" />}
       {hint && <span className="flex items-center gap-1 text-muted-foreground">{hint}</span>}
       {keys && <Keys keys={keys} />}
     </M.Item>
   );
 }
 
-export function MenuLabel({ children }: { children: ReactNode }) {
-  return <M.Label className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-[#71717a] uppercase">{children}</M.Label>;
+/** A group label: small caps in pickers (model list), sentence case in lists (history). */
+export function MenuLabel({ children, caps = true }: { children: ReactNode; caps?: boolean }) {
+  return (
+    <M.Label className={cx("px-2 text-[11px] font-semibold text-[#71717a]", caps ? "pt-1.5 pb-1 tracking-wide uppercase" : "pt-1 pb-0")}>
+      {children}
+    </M.Label>
+  );
 }
 
 export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-input" />;
