@@ -2,21 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:" />
     <title></title>
-    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <canvas id="canvas"></canvas>
-    <aside id="panel">
-      <header><span class="brand"></span><span class="file">Untitled</span></header>
-      <div id="chat"></div>
-      <form id="prompt">
-        <textarea name="text" rows="3" placeholder="Design anything…"></textarea>
-        <div class="row"><span id="model"></span><button type="submit" id="send">Send</button></div>
-      </form>
-    </aside>
-    <div id="zoom"><button data-zoom="-1">−</button><span id="zoom-level">100%</span><button data-zoom="1">+</button></div>
-    <script type="module" src="./app.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>

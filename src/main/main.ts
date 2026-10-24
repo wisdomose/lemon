@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
+import { newFile } from "../doc/store.js";
 import { PRODUCT } from "../product.js";
 import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
@@ -36,6 +37,7 @@ if (process.platform === "win32") app.setAppUserModelId(PRODUCT.appId);
 const log = (msg: string) => env.LEMON_LOG && appendFileSync(env.LEMON_LOG, `${new Date().toISOString().slice(11, 23)} ${msg}\n`);
 const doc = new Y.Doc();
 if (env.LEMON_OPEN) Y.applyUpdate(doc, readFileSync(env.LEMON_OPEN));
+else if (!env.LEMON_PROMPT) newFile(doc);
 
 async function main() {
   await app.whenReady();
@@ -71,16 +73,18 @@ async function main() {
     win.webContents.on("render-process-gone", (_e, d) => log(`[window] gone: ${d.reason}`));
   }
 
-  doc.on("update", (update: Uint8Array) => {
-    if (!win.isDestroyed()) win.webContents.send("doc:update", update);
+  const FROM_WINDOW = "window";
+  doc.on("update", (update: Uint8Array, origin: unknown) => {
+    if (origin !== FROM_WINDOW && !win.isDestroyed()) win.webContents.send("doc:update", update);
   });
+  ipcMain.on("doc:push", (_e, update: Uint8Array) => Y.applyUpdate(doc, update, FROM_WINDOW));
 
   ipcMain.handle("doc:state", () => Y.encodeStateAsUpdate(doc));
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
 
   let running: AbortController | undefined;
-  const run = async (prompt: string) => {
+  const run = async (prompt: string, model?: string) => {
     running?.abort();
     running = new AbortController();
     const stats = await runAgent({
@@ -88,6 +92,7 @@ async function main() {
       engine,
       sandbox,
       prompt,
+      ...(model ? { model } : {}),
       name: AGENT_NAME,
       signal: running.signal,
       onEvent: (e) => {
@@ -103,7 +108,7 @@ async function main() {
     running = undefined;
     return stats;
   };
-  ipcMain.handle("agent:run", (_e, prompt: string) => run(prompt));
+  ipcMain.handle("agent:run", (_e, prompt: string, model?: string) => run(prompt, model));
   ipcMain.handle("agent:stop", () => running?.abort());
 
   const capture = async () => {

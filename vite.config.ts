@@ -1,6 +1,8 @@
 // Builds the window (src/renderer). In development and headless checks, the dev server also serves
 // fonts (/fonts/…) and saved documents (/proof-output/…), standing in for the desktop app's host.
 import { defineConfig, type Plugin } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { join } from "node:path";
 import { GoogleFonts } from "./src/text/google-fonts.js";
 
@@ -39,7 +41,7 @@ export default defineConfig({
   root: "src/renderer",
   base: "./",
   publicDir: false,
-  plugins: [devHost()],
+  plugins: [react(), tailwindcss(), devHost()],
   build: { outDir: "../../out/renderer", emptyOutDir: true, target: "esnext" },
-  server: { fs: { allow: [".."] } },
+  server: { fs: { allow: [import.meta.dirname] } },
 });

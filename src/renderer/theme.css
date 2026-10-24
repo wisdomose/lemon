@@ -1,0 +1,137 @@
+/* Design tokens: the one source for colours, type, radii and shadows in the window. Values from the
+   PRD's token tables (dark theme on .dark, the default; light on :root). Measured island geometry
+   (8px gaps, 42px top bar) comes from the reference captures. */
+@import "tailwindcss";
+
+@font-face { font-family: "Selawik"; font-weight: 300; src: url("./ui-fonts/selawkl.ttf") format("truetype"); }
+@font-face { font-family: "Selawik"; font-weight: 350; src: url("./ui-fonts/selawksl.ttf") format("truetype"); }
+@font-face { font-family: "Selawik"; font-weight: 400; src: url("./ui-fonts/selawk.ttf") format("truetype"); }
+@font-face { font-family: "Selawik"; font-weight: 600; src: url("./ui-fonts/selawksb.ttf") format("truetype"); }
+@font-face { font-family: "Selawik"; font-weight: 700; src: url("./ui-fonts/selawkb.ttf") format("truetype"); }
+@font-face { font-family: "Roboto Mono"; font-weight: 400; src: url("./ui-fonts/RobotoMono-400.ttf") format("truetype"); }
+@font-face { font-family: "Roboto Mono"; font-weight: 500; src: url("./ui-fonts/RobotoMono-500.ttf") format("truetype"); }
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #fafafa;
+  --foreground: #020202;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --accent-active: #3b82f6;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #d4d4d8;
+  --canvas-bg: #f6f6f6;
+  --island-bg: var(--background);
+  --island-ring: #00000014;
+  --light-blue: #3d99ff;
+  --scroll-thumb: #00000038;
+  --scroll-thumb-active: #0000006b;
+}
+.dark {
+  --background: #18181b;
+  --foreground: #c8c8c8;
+  --card: #141414;
+  --card-foreground: #bebebe;
+  --popover: #27272a;
+  --popover-foreground: #f4f4f5;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #828282;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #3f3f46;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f87171;
+  --destructive-foreground: #18181b;
+  --border: #202020;
+  --input: #3f3f46;
+  --ring: #52525b;
+  --canvas-bg: #18181b;
+  --island-bg: var(--popover);
+  --island-ring: #ffffff14;
+  --scroll-thumb: #ffffff3d;
+  --scroll-thumb-active: #ffffff73;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-active: var(--accent-active);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-canvas: var(--canvas-bg);
+  --color-island: var(--island-bg);
+  --color-island-ring: var(--island-ring);
+  --color-light-blue: var(--light-blue);
+
+  /* Pen's stack starts with system-ui, which is Segoe UI on Windows. Naming Segoe UI first keeps that,
+     and Selawik (its open, same-width twin, bundled) stands in elsewhere. */
+  --font-sans: "Segoe UI", "Selawik", -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+
+  --text-3xs: 9px;
+  --text-2xs: 10px;
+  --text-xxs: 11px;
+  --text-xxs--line-height: 16px;
+
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-island: 20px;
+
+  /* The ring sits inside the island: measured #37393f at the edge = #ffffff14 over #27272a, not over the canvas. */
+  --shadow-island: inset 0 0 0 1px var(--island-ring), 0 12px 32px #00000012;
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    background: var(--canvas-bg);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:active { background: var(--scroll-thumb-active); background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@utility island {
+  background: var(--island-bg);
+  box-shadow: var(--shadow-island);
+  border-radius: var(--radius-island);
+}

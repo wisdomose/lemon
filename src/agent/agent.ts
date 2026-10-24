@@ -31,10 +31,19 @@ export interface StepRecord {
   at: number;
 }
 
+/** What a step card shows when opened: the script, what it returned, and any pictures. */
+export interface StepDetail {
+  script: string;
+  output: string;
+  pictures: { id: string; png: Uint8Array; width: number; height: number }[];
+}
+
 export type AgentEvent =
-  | { type: "started"; directions: string[] }
+  | { type: "started"; directions: string[]; name: string; model: string; prompt: string }
+  /** Time the model spent before its next action (shown as "Thought for Ns"). */
+  | { type: "thought"; seconds: number }
   | { type: "step-start"; index: number; title: string }
-  | { type: "step-end"; step: StepRecord; focus?: ExecuteResult["focus"]; frames: string[] }
+  | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
   | { type: "text"; text: string }
   | { type: "done"; stats: AgentStats }
   | { type: "error"; message: string };
@@ -104,7 +113,13 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const started = performance.now();
   const steps: StepRecord[] = [];
   const directions = pickStartingPoints(o.recentDirections);
-  emit({ type: "started", directions: directions.map((d) => d.id) });
+  emit({ type: "started", directions: directions.map((d) => d.id), name: o.name ?? "agent", model, prompt: o.prompt });
+  // "Thought for Ns": time from the last thing the agent did to its next action.
+  let lastActivity = performance.now();
+  const thought = () => {
+    const seconds = Math.round((performance.now() - lastActivity) / 1000);
+    if (seconds >= 1) emit({ type: "thought", seconds });
+  };
 
   const executeTool = tool(
     "execute",
@@ -115,6 +130,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     },
     async ({ title, script }) => {
       const index = steps.length + 1;
+      thought();
       emit({ type: "step-start", index, title });
       const r = await execute(o.doc, o.engine, o.sandbox, script, { agent: o.name ?? "agent" });
       const issueKinds: Record<string, number> = {};
@@ -132,10 +148,18 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         at: (performance.now() - started) / 1000,
       };
       steps.push(step);
-      emit({ type: "step-end", step, ...(r.focus ? { focus: r.focus } : {}), frames: r.frames });
+      const output = summarise(r);
+      emit({
+        type: "step-end",
+        step,
+        detail: { script, output, pictures: r.pictures },
+        ...(r.focus ? { focus: r.focus } : {}),
+        frames: r.frames,
+      });
+      lastActivity = performance.now();
       return {
         content: [
-          { type: "text" as const, text: summarise(r) },
+          { type: "text" as const, text: output },
           ...r.pictures.map((p) => ({
             type: "image" as const,
             data: Buffer.from(p.png).toString("base64"),
@@ -194,7 +218,11 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     })) {
       if (m.type === "assistant" && !m.parent_tool_use_id) {
         for (const block of m.message.content) {
-          if (block.type === "text" && block.text.trim()) emit({ type: "text", text: block.text });
+          if (block.type === "text" && block.text.trim()) {
+            thought();
+            emit({ type: "text", text: block.text });
+            lastActivity = performance.now();
+          }
         }
       } else if (m.type === "result") {
         stats.ok = m.subtype === "success" && !m.is_error;

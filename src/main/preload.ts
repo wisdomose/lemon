@@ -7,9 +7,10 @@ const bridge: Bridge = {
   onDocUpdate: (fn) => {
     ipcRenderer.on("doc:update", (_e, update: Uint8Array) => fn(update));
   },
+  pushDocUpdate: (update) => ipcRenderer.send("doc:push", update),
   fontCatalogue: () => ipcRenderer.invoke("fonts:catalogue"),
   loadFont: (face) => ipcRenderer.invoke("fonts:load", face),
-  runAgent: (prompt) => ipcRenderer.invoke("agent:run", prompt),
+  runAgent: (prompt, model) => ipcRenderer.invoke("agent:run", prompt, model),
   stopAgent: () => ipcRenderer.invoke("agent:stop"),
   onAgentEvent: (fn) => {
     ipcRenderer.on("agent:event", (_e, event) => fn(event));

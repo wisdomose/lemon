@@ -7,9 +7,11 @@ import type { FontFace } from "../text/fonts.js";
 export interface Bridge {
   docState(): Promise<Uint8Array>;
   onDocUpdate(fn: (update: Uint8Array) => void): void;
+  /** Sends a change made in this window to the host's document. */
+  pushDocUpdate(update: Uint8Array): void;
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
-  runAgent(prompt: string): Promise<AgentStats>;
+  runAgent(prompt: string, model: string): Promise<AgentStats>;
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: AgentEvent) => void): void;
   canRunAgent: boolean;
@@ -31,6 +33,7 @@ export function browserBridge(): Bridge {
       return new Uint8Array(await res.arrayBuffer());
     },
     onDocUpdate() {},
+    pushDocUpdate() {},
     async fontCatalogue() {
       return (await fetch("/fonts/catalogue.json")).json();
     },

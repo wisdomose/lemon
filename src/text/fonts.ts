@@ -44,20 +44,31 @@ export class FontLibrary {
     this.collection.enableFontFallback();
   }
 
+  /** Families registered from bytes the host already has (e.g. the window's own UI font). */
+  private local = new Map<string, string[]>();
+
   /** Whether the family exists at all. */
   known(family: string): boolean {
-    return this.source.styles(family) !== undefined;
+    return this.styles(family) !== undefined;
   }
 
   /** Styles the family offers ("400", "700i", …), or undefined for an unknown family. */
   styles(family: string): string[] | undefined {
-    return this.source.styles(family);
+    return this.local.get(family) ?? this.source.styles(family);
+  }
+
+  /** Registers a font file that doesn't come from the font source. */
+  addLocal(face: FontFace, bytes: ArrayBuffer): void {
+    const styles = this.local.get(face.family) ?? [];
+    styles.push(`${face.weight}${face.italic ? "i" : ""}`);
+    this.local.set(face.family, styles);
+    this.add(face, bytes);
   }
 
   /** The face that will actually be used for a request: the nearest style the family has. */
   resolve(face: FontFace): FontFace {
     const family = this.known(face.family) ? face.family : DEFAULT_FONT;
-    const styles = this.source.styles(family) ?? ["400"];
+    const styles = this.styles(family) ?? ["400"];
     const want = face.italic ? styles.filter((s) => s.endsWith("i")) : styles.filter((s) => !s.endsWith("i"));
     const pool = (want.length ? want : styles).map((s) => ({ w: parseInt(s, 10), i: s.endsWith("i") }));
     pool.sort((a, b) => Math.abs(a.w - face.weight) - Math.abs(b.w - face.weight) || a.w - b.w);
