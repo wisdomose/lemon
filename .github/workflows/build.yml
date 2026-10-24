@@ -1,0 +1,63 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Package
+        run: pnpm exec electron-builder --config electron-builder.config.mjs
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # Start the packaged app, open a sample document and save a picture of the window: proof that the
+      # build starts and draws on this platform.
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:LEMON_OPEN = "$PWD\test\fixtures\sample.yjs"
+          $env:LEMON_CAPTURE = "$PWD\smoke.png"
+          $env:LEMON_LOG = "$PWD\smoke.log"
+          $p = Start-Process -FilePath "dist\win-unpacked\lemon.exe" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "app did not finish" }
+          Get-Content smoke.log
+          if (-not (Test-Path smoke.png)) { throw "no picture" }
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          LEMON_OPEN=$PWD/test/fixtures/sample.yjs LEMON_CAPTURE=$PWD/smoke.png LEMON_LOG=$PWD/smoke.log \
+            timeout 120 xvfb-run -a dist/linux-unpacked/lemon --no-sandbox || true
+          cat smoke.log
+          test -f smoke.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lemon-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.AppImage
+            smoke.png
+            smoke.log
+          if-no-files-found: warn
