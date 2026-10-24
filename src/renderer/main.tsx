@@ -8,9 +8,10 @@ import { handleAgentEvent } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
 import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
+import { applyTheme } from "./settings.js";
 
 document.title = PRODUCT.name;
-document.documentElement.classList.add("dark");
+applyTheme();
 await boot();
 const firstScene = await laidOut();
 bridge.onAgentEvent(handleAgentEvent);
@@ -29,6 +30,7 @@ if (q.get("select")) {
   store.set({ selection: want === "@first" ? (firstScene.tree.children[0]?.id ?? null) : want });
 }
 if (q.get("tab")) store.set({ tab: q.get("tab") as Tab });
+if (q.get("settings")) store.set({ settingsOpen: true });
 if (q.get("chat")) {
   const lines = (await (await fetch(q.get("chat")!)).text()).split("\n").filter(Boolean);
   for (const line of lines) {

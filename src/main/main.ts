@@ -2,6 +2,7 @@
 // receive every change as a Yjs update.
 import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
 import { pathToFileURL } from "node:url";
+import { execFile } from "node:child_process";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
@@ -110,6 +111,7 @@ async function main() {
   };
   ipcMain.handle("agent:run", (_e, prompt: string, model?: string) => run(prompt, model));
   ipcMain.handle("agent:stop", () => running?.abort());
+  ipcMain.handle("claude:status", () => claudeStatus());
 
   const capture = async () => {
     if (!env.LEMON_CAPTURE) return;
@@ -137,6 +139,21 @@ async function main() {
   const devUrl = env.LEMON_DEV_URL;
   if (devUrl) await win.loadURL(devUrl);
   else await win.loadURL(`${UI_SCHEME}://ui/index.html`);
+}
+
+/** `claude auth status`: whether Claude Code is signed in, and as whom. Lemon never sees credentials. */
+function claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }> {
+  return new Promise((resolve) => {
+    execFile("claude", ["auth", "status"], { timeout: 10_000 }, (err, stdout) => {
+      try {
+        const s = JSON.parse(stdout) as { loggedIn?: boolean; email?: string; subscriptionType?: string };
+        resolve({ loggedIn: !!s.loggedIn, ...(s.email ? { email: s.email } : {}), ...(s.subscriptionType ? { plan: s.subscriptionType } : {}) });
+      } catch {
+        resolve({ loggedIn: false });
+      }
+      void err;
+    });
+  });
 }
 
 app.on("window-all-closed", () => app.quit());

@@ -16,6 +16,7 @@ const bridge: Bridge = {
     ipcRenderer.on("agent:event", (_e, event) => fn(event));
   },
   canRunAgent: true,
+  claudeStatus: () => ipcRenderer.invoke("claude:status"),
 };
 
 contextBridge.exposeInMainWorld("lemon", bridge);

@@ -15,6 +15,7 @@ import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
 import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
 import { useEditor } from "./store.js";
+import { SettingsDialog } from "./chrome/SettingsDialog.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,7 +26,8 @@ export function App({ initial }: { initial: string }) {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       const mod = e.ctrlKey || e.metaKey;
-      if (e.key === "Escape") store.set({ selection: null });
+      if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      else if (e.key === "Escape") store.set({ selection: null });
       else if (e.shiftKey && e.code === "Digit1") zoomToFit();
       else if (e.shiftKey && e.code === "Digit2") {
         const id = store.get().selection;
@@ -59,6 +61,7 @@ export function App({ initial }: { initial: string }) {
           <PropertiesPanel />
           <ZoomControl />
         </div>
+        <SettingsHost />
       </div>
       <Toaster position="bottom-center" theme="dark" />
     </TipProvider>
@@ -125,8 +128,13 @@ function CanvasMenu() {
         <ContextItem label="Show pixel grid" />
         <ContextItem label="Snap to pixel grid" />
         <ContextItem label="Snap to objects" />
-        <ContextItem label="Open settings…" />
+        <ContextItem label="Open settings…" onSelect={() => store.set({ settingsOpen: true })} />
       </ContextSub>
     </ContextContent>
   );
+}
+
+function SettingsHost() {
+  const open = useEditor((s) => s.settingsOpen);
+  return <SettingsDialog open={open} onOpenChange={(o) => store.set({ settingsOpen: o })} />;
 }

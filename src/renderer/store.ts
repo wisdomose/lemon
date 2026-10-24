@@ -37,6 +37,7 @@ export interface EditorState {
   /** The chat session's title (its first prompt). */
   session: string | null;
   model: string;
+  settingsOpen: boolean;
 }
 
 const initial: EditorState = {
@@ -50,6 +51,7 @@ const initial: EditorState = {
   agentStatus: null,
   session: null,
   model: DEFAULT_MODEL,
+  settingsOpen: false,
 };
 
 let state = initial;

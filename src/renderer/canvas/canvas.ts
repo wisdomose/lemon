@@ -6,6 +6,7 @@ import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
 import { CANVAS_UI_FONT, currentScene, engine } from "../scene.js";
 import { store } from "../store.js";
+import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
 const SELECT = "#3d99ff";
@@ -292,7 +293,12 @@ export function attach(canvasEl: HTMLCanvasElement): () => void {
   const onResize = () => (makeSurface(), schedule());
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) setZoom(view.zoom * Math.exp(-e.deltaY * 0.01), e.offsetX, e.offsetY);
+    const { wheelZooms, invertZoom } = getSettings();
+    // Ctrl/⌘ + wheel always zooms; the plain wheel zooms only when that setting is on.
+    if (e.ctrlKey || e.metaKey || wheelZooms) {
+      const dy = invertZoom ? -e.deltaY : e.deltaY;
+      setZoom(view.zoom * Math.exp(-dy * 0.01), e.offsetX, e.offsetY);
+    }
     else {
       view.x += (e.shiftKey ? e.deltaY : e.deltaX) / view.zoom;
       view.y += (e.shiftKey ? 0 : e.deltaY) / view.zoom;

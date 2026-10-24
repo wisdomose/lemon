@@ -15,6 +15,8 @@ export interface Bridge {
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: AgentEvent) => void): void;
   canRunAgent: boolean;
+  /** Whether Claude Code is signed in on this computer, and as whom. */
+  claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
 }
 
 declare global {
@@ -49,5 +51,8 @@ export function browserBridge(): Bridge {
     async stopAgent() {},
     onAgentEvent() {},
     canRunAgent: false,
+    async claudeStatus() {
+      return { loggedIn: false };
+    },
   };
 }
