@@ -38,7 +38,7 @@ export function AgentPanel() {
           type="button"
           className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-input bg-[#2b2b2f] px-3 text-left text-[13px] text-[#d4d4d8]"
         >
-          <span className="truncate">{session ?? "New Agent"}</span>
+          <span className="overflow-hidden whitespace-nowrap">{session ?? "New Agent"}</span>
           {status && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
           <ChevronDown size={14} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
         </button>
@@ -101,7 +101,7 @@ function Thread({ chat, status }: { chat: ChatItem[]; status: "planning" | "thin
           const el = e.currentTarget;
           setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
         }}
-        className="h-full overflow-y-auto px-3 pt-3 pb-6"
+        className="h-full overflow-y-auto pt-3 pr-[17px] pb-6 pl-[13px]"
       >
         <div className="flex flex-col gap-3">
           {chat.map((item, i) => (
@@ -131,29 +131,29 @@ function Working({ text }: { text: string }) {
     const t = setInterval(() => setN((v) => (v + 1) % 4), 500);
     return () => clearInterval(t);
   }, []);
-  return <div className="text-[14px] text-muted-foreground">{text + ".".repeat(n)}</div>;
+  return <div className="text-[13px] text-muted-foreground">{text + ".".repeat(n)}</div>;
 }
 
 function Item({ item }: { item: ChatItem }) {
   switch (item.kind) {
     case "user":
       return (
-        <div className="ml-10 rounded-2xl bg-[#323236] px-4 py-3 text-[14px] leading-5 whitespace-pre-wrap text-[#e4e4e7]">{item.text}</div>
+        <div className="ml-[52px] rounded-2xl bg-[#323238] px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">{item.text}</div>
       );
     case "agent-head":
       return (
-        <div className="-mb-2 flex items-center gap-1.5 text-[13px]">
+        <div className="-mb-2 flex items-center gap-1.5 text-[12px]">
           <span className="h-[7px] w-[7px] rounded-full bg-[#a855f7]" />
           <span className="font-semibold text-[#e4e4e7]">{item.name}</span>
           <span className="text-muted-foreground">{item.model}</span>
         </div>
       );
     case "thought":
-      return <div className="text-[14px] text-muted-foreground">Thought for {item.seconds}s</div>;
+      return <div className="text-[13px] text-muted-foreground">Thought for {item.seconds}s</div>;
     case "step":
       return <StepCard step={item} />;
     case "text":
-      return <div className="chat-md text-[14px] leading-5 text-[#d4d4d8]" dangerouslySetInnerHTML={{ __html: markdown(item.text) }} />;
+      return <div className="chat-md text-[13px] leading-5 text-foreground" dangerouslySetInnerHTML={{ __html: markdown(item.text) }} />;
     case "designed":
       return <div className="text-[13px] text-muted-foreground">Designed for {formatDuration(item.seconds)}</div>;
     case "error":
@@ -165,21 +165,21 @@ function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {
   const [open, setOpen] = useState(false);
   const picture = step.pictures?.[0];
   return (
-    <div className="overflow-hidden rounded-[10px] border border-[#36363b]">
+    <div className="overflow-hidden rounded-[8px] border border-[#36363b]">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-[38px] w-full items-center gap-2 px-3 text-left text-[13px] font-semibold text-[#c8c8c8]"
+        className="flex h-[28px] w-full items-center gap-1.5 px-2 text-left text-[11px] font-semibold text-[#c8c8c8]"
       >
         <span className="truncate">{step.title}</span>
-        {step.state === "ok" && <CircleCheck size={14} strokeWidth={1.75} className="shrink-0 text-[#22c55e]" />}
+        {step.state === "ok" && <CircleCheck size={12} strokeWidth={1.75} className="shrink-0 text-[#22c55e]" />}
         {step.state === "failed" && <CircleX size={14} strokeWidth={1.75} className="shrink-0 text-destructive" />}
         {step.state === "running" && <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-transparent" />}
         <ChevronsUpDown size={14} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
       </button>
       {picture && !open && (
-        <div className="px-3 pb-3">
-          <img src={picture.url} alt="" className="max-h-[300px] w-full rounded-md object-cover object-top" />
+        <div className="border-t border-[#36363b] px-[9px] pt-[7px] pb-[10px]">
+          <img src={picture.url} alt="" className="max-h-[300px] w-full object-cover object-top" />
         </div>
       )}
       {open && (

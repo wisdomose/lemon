@@ -31,9 +31,20 @@ if (q.get("tab")) store.set({ tab: q.get("tab") as Tab });
 if (q.get("chat")) {
   const lines = (await (await fetch(q.get("chat")!)).text()).split("\n").filter(Boolean);
   for (const line of lines) {
-    const e = JSON.parse(line) as AgentEvent;
-    if (e.type === "step-end") e.detail = { script: e.detail?.script ?? "", output: e.detail?.output ?? "", pictures: [] };
+    const e = JSON.parse(line) as AgentEvent | { type: "user"; text: string };
+    if (e.type === "user") {
+      store.set((s) => ({ chat: [...s.chat, { kind: "user", text: e.text }] }));
+      continue;
+    }
     handleAgentEvent(e);
+    // Fixture pictures are given by address rather than as bytes.
+    if (e.type === "step-end") {
+      const urls = (e.detail.pictures as unknown as { url?: string; width: number; height: number }[]).filter((p) => p.url);
+      if (urls.length)
+        store.set((s) => ({
+          chat: s.chat.map((c) => (c.kind === "step" && c.index === e.step.index ? { ...c, pictures: urls as { url: string; width: number; height: number }[] } : c)),
+        }));
+    }
   }
   if (q.get("running") === null) store.set({ agentStatus: null });
 }

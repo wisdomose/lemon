@@ -73,10 +73,10 @@ export function ChatInput() {
           aria-label={status ? "Stop" : "Send"}
           onClick={() => (status ? void bridge.stopAgent() : send())}
           disabled={!status && !text.trim()}
-          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-[#e4e4e7] text-[#18181b] disabled:bg-[#3f3f46]"
+          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-[#e4e4e7] text-[#18181b] disabled:bg-[#3f3f46] data-[running=true]:bg-[#52525b] data-[running=true]:text-[#e4e4e7]"
           data-running={!!status}
         >
-          {status ? <Square size={10} fill="currentColor" strokeWidth={0} /> : <ArrowUp size={12} strokeWidth={2.25} />}
+          {status ? <Square size={9} strokeWidth={2} /> : <ArrowUp size={12} strokeWidth={2.25} />}
         </button>
       </div>
     </Island>
