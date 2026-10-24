@@ -19,31 +19,40 @@ export function ChatInput() {
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
   const node = selection ? findNode(currentScene()?.tree ?? { id: "", type: "frame", props: {}, children: [] }, selection) : undefined;
+  const nodeName = node ? (node.props.name ?? node.type) : undefined;
+  // With something selected the prompt can be empty: the agent is asked about the selection.
+  const canSend = !!text.trim() || !!nodeName;
   const send = () => {
-    sendPrompt(text);
+    if (!canSend) return;
+    const prompt = text.trim() || "Improve the selected design.";
+    sendPrompt(prompt, nodeName ? `<selection>The person has selected "${nodeName}" (id ${node!.id}).</selection>` : undefined);
     setText("");
   };
   return (
     <Island className="absolute left-2 bottom-2 flex min-h-[91px] w-[378px] flex-col px-3 pt-[14px] pb-2">
-      {node && (
-        <span className="mb-1 inline-flex h-6 max-w-[200px] items-center gap-1 self-start rounded-md bg-foreground/5 px-2 text-[12px] text-foreground">
-          <Frame size={12} strokeWidth={1.5} className="shrink-0" />
-          <span className="truncate">{node.props.name ?? node.type}</span>
-        </span>
-      )}
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
-          }
-        }}
-        rows={2}
-        placeholder="Design anything..."
-        className="w-full resize-none bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-[#71717a]"
-      />
+      {/* The selection sits inline at the start of the prompt, as in the reference: the box keeps its
+          height and the placeholder goes away. */}
+      <div className="flex min-h-10 flex-wrap items-start gap-x-1.5">
+        {node && (
+          <span className="mt-[1px] ml-1 inline-flex h-[21px] max-w-[200px] shrink-0 items-center gap-[3px] rounded-[4px] border border-input px-[5px] text-[10px] text-muted-foreground">
+            <Frame size={11} strokeWidth={1.5} className="shrink-0" />
+            <span className="truncate">{node.props.name ?? node.type}</span>
+          </span>
+        )}
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          rows={2}
+          placeholder={node ? "" : "Design anything..."}
+          className="min-w-[120px] flex-1 resize-none bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-[#71717a]"
+        />
+      </div>
       <div ref={footer} className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
         <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-foreground/5">
           <Plus size={14} strokeWidth={1.5} />
@@ -62,7 +71,7 @@ export function ChatInput() {
           type="button"
           aria-label={status ? "Stop" : "Send"}
           onClick={() => (status ? void bridge.stopAgent() : send())}
-          disabled={!status && !text.trim()}
+          disabled={!status && !canSend}
           className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background disabled:bg-send-off disabled:text-send-off-icon data-[running=true]:bg-send-off data-[running=true]:text-foreground"
           data-running={!!status}
         >
