@@ -24,7 +24,7 @@ export function ChatInput() {
   return (
     <Island className="absolute left-2 bottom-2 flex min-h-[91px] w-[378px] flex-col px-3 pt-[14px] pb-2">
       {node && (
-        <span className="mb-1 inline-flex h-6 max-w-[200px] items-center gap-1 self-start rounded-md bg-white/5 px-2 text-[12px] text-[#d4d4d8]">
+        <span className="mb-1 inline-flex h-6 max-w-[200px] items-center gap-1 self-start rounded-md bg-foreground/5 px-2 text-[12px] text-foreground">
           <Frame size={12} strokeWidth={1.5} className="shrink-0" />
           <span className="truncate">{node.props.name ?? node.type}</span>
         </span>
@@ -40,10 +40,10 @@ export function ChatInput() {
         }}
         rows={2}
         placeholder="Design anything..."
-        className="w-full resize-none bg-transparent text-[13px] leading-5 text-[#e4e4e7] outline-none placeholder:text-[#71717a]"
+        className="w-full resize-none bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-[#71717a]"
       />
       <div className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
-        <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-white/5">
+        <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-foreground/5">
           <Plus size={14} strokeWidth={1.5} />
         </button>
         <span className="ml-auto flex items-center gap-[3px] font-semibold text-amber-500">
@@ -65,7 +65,7 @@ export function ChatInput() {
           aria-label={status ? "Stop" : "Send"}
           onClick={() => (status ? void bridge.stopAgent() : send())}
           disabled={!status && !text.trim()}
-          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-[#e4e4e7] text-[#18181b] disabled:bg-[#3f3f46] data-[running=true]:bg-[#52525b] data-[running=true]:text-[#e4e4e7]"
+          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background disabled:bg-send-off disabled:text-send-off-icon data-[running=true]:bg-send-off data-[running=true]:text-foreground"
           data-running={!!status}
         >
           {status ? <Square size={9} strokeWidth={2} /> : <ArrowUp size={12} strokeWidth={2.25} />}

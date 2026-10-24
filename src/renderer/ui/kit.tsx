@@ -70,7 +70,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       className={cx(
         "inline-flex shrink-0 items-center justify-center transition-colors duration-150 ease-[var(--ease-ui)]",
         round ? "rounded-full" : "rounded-md",
-        active ? "bg-[#2e2e32] ring-1 ring-inset ring-input" : "hover:bg-white/5",
+        active ? "bg-rail-active ring-1 ring-inset ring-input" : "hover:bg-foreground/5",
         className ?? "text-foreground",
       )}
       style={{ width: size, height: size }}
@@ -82,5 +82,5 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 });
 
 export function Divider({ className }: { className?: string }) {
-  return <span className={cx("inline-block h-[15px] w-px shrink-0 bg-white/10", className)} />;
+  return <span className={cx("inline-block h-[15px] w-px shrink-0 bg-input", className)} />;
 }

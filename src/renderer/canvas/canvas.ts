@@ -10,7 +10,8 @@ import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
 const SELECT = "#3d99ff";
-const LABEL = "#a1a1aa";
+/** Frame names use the theme's muted text colour. */
+const label = () => getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa";
 const LABEL_SIZE = 12;
 const HANDLE = 8;
 const PILL_H = 20;
@@ -159,7 +160,7 @@ function uiText(text: string, size: number, color: string, weight = 400) {
   return engine.text.paragraph({ text, font: CANVAS_UI_FONT, size, weight, color, lineHeight: 1.2 }, {});
 }
 function labelWidth(f: TreeNode) {
-  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, LABEL);
+  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, label());
   p.layout(10000);
   return p.getMaxIntrinsicWidth();
 }
@@ -199,7 +200,7 @@ function draw() {
 function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: boolean) {
   if (!b) return;
   const [x, y] = toScreen(b.x, b.y);
-  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, selected ? SELECT : LABEL);
+  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, selected ? SELECT : label());
   p.layout(Math.max(40, b.w * view.zoom));
   canvas.drawParagraph(p, x, y - LABEL_SIZE - 8);
 }

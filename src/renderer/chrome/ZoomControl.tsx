@@ -18,12 +18,12 @@ export function ZoomControl() {
   };
   return (
     <Island className="absolute bottom-2 flex h-8 items-center gap-0.5 rounded-full px-1" style={{ right: panel ? 8 + 221 + 8 : 8 }}>
-      <button type="button" aria-label="Zoom out" onClick={() => zoomStep(-1)} className="flex h-6 w-6 items-center justify-center rounded-full text-[#8d8d8f] hover:bg-white/5">
+      <button type="button" aria-label="Zoom out" onClick={() => zoomStep(-1)} className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5">
         <Minus size={14} strokeWidth={1.5} />
       </button>
       <M.Root>
         <M.Trigger asChild>
-          <button type="button" className="h-6 min-w-[44px] rounded-md px-1 text-[13px] font-semibold text-[#dededf] tabular-nums hover:bg-white/5">
+          <button type="button" className="h-6 min-w-[44px] rounded-md px-1 text-[13px] font-semibold text-foreground tabular-nums hover:bg-foreground/5">
             {Math.round(zoom * 100)}%
           </button>
         </M.Trigger>
@@ -37,7 +37,7 @@ export function ZoomControl() {
           <MenuItem label="Zoom to 200%" onSelect={() => setZoom(2)} />
         </MenuContent>
       </M.Root>
-      <button type="button" aria-label="Zoom in" onClick={() => zoomStep(1)} className="flex h-6 w-6 items-center justify-center rounded-full text-[#8d8d8f] hover:bg-white/5">
+      <button type="button" aria-label="Zoom in" onClick={() => zoomStep(1)} className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5">
         <Plus size={14} strokeWidth={1.5} />
       </button>
     </Island>

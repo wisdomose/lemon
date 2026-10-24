@@ -41,6 +41,24 @@
   --light-blue: #3d99ff;
   --scroll-thumb: #00000038;
   --scroll-thumb-active: #0000006b;
+  /* Chrome colours measured from the reference captures (light: 18, 19; dark: 02–17). */
+  --field: #efefef;
+  --line: #ebebeb;
+  --tab-active: #ededed;
+  --seg-active: #ffffff;
+  --select-bg: #fafafa;
+  --bubble: #efefef;
+  --rail-icon: #52525b;
+  --rail-active: #f4f4f5;
+  --nav-active: #e6e6e7;
+  --row-line: #ededef;
+  --switch-off: #d5d5d5;
+  /* Not in the light captures; chosen to match their system (light blue selection, pale thumbnails). */
+  --layer-active: #dbeafe;
+  --layer-active-text: #1e40af;
+  --thumb: #f4f4f5;
+  --send-off: #52525b;
+  --send-off-icon: #ffffff;
 }
 .dark {
   --background: #18181b;
@@ -67,6 +85,22 @@
   --island-ring: #ffffff14;
   --scroll-thumb: #ffffff3d;
   --scroll-thumb-active: #ffffff73;
+  --field: #37373a;
+  --line: #313134;
+  --tab-active: #3a3a3c;
+  --seg-active: #4e4e51;
+  --select-bg: #2b2b2f;
+  --bubble: #323238;
+  --rail-icon: #f4f4f5;
+  --rail-active: #2e2e32;
+  --nav-active: #313134;
+  --row-line: #1d1d1e;
+  --switch-off: #323235;
+  --layer-active: #283751;
+  --layer-active-text: #bfdbfe;
+  --thumb: #202023;
+  --send-off: #3f3f46;
+  --send-off-icon: #18181b;
 }
 
 @theme inline {
@@ -93,6 +127,22 @@
   --color-island: var(--island-bg);
   --color-island-ring: var(--island-ring);
   --color-light-blue: var(--light-blue);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-tab-active: var(--tab-active);
+  --color-seg-active: var(--seg-active);
+  --color-select-bg: var(--select-bg);
+  --color-bubble: var(--bubble);
+  --color-rail-icon: var(--rail-icon);
+  --color-rail-active: var(--rail-active);
+  --color-nav-active: var(--nav-active);
+  --color-row-line: var(--row-line);
+  --color-switch-off: var(--switch-off);
+  --color-layer-active: var(--layer-active);
+  --color-layer-active-text: var(--layer-active-text);
+  --color-thumb: var(--thumb);
+  --color-send-off: var(--send-off);
+  --color-send-off-icon: var(--send-off-icon);
 
   /* Pen's stack starts with system-ui, which is Segoe UI on Windows. Naming Segoe UI first keeps that,
      and Selawik (its open, same-width twin, bundled) stands in elsewhere. */
@@ -144,6 +194,6 @@
   .chat-md ol { list-style: decimal; margin: 0 0 8px; padding-left: 16px; }
   .chat-md ul { list-style: disc; margin: 0 0 8px; padding-left: 16px; }
   .chat-md li { margin-bottom: 4px; padding-left: 2px; }
-  .chat-md strong { font-weight: 600; color: #e4e4e7; }
-  .chat-md code { font-family: var(--font-mono); font-size: 10px; background: #3f3f46; border-radius: 4px; padding: 1px 4px; }
+  .chat-md strong { font-weight: 600; }
+  .chat-md code { font-family: var(--font-mono); font-size: 10px; background: var(--input); border-radius: 4px; padding: 1px 4px; }
 }

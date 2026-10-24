@@ -46,8 +46,8 @@ export function LeftPanel() {
             type="button"
             onClick={() => store.set({ tab: t.tab })}
             className={cx(
-              "flex h-[29px] items-center gap-1.5 rounded-[8px] text-[13px] font-semibold text-[#d4d4d8]",
-              t.tab === tab ? "bg-[#3a3a3c] px-2.5" : "w-[33px] justify-center hover:bg-white/5",
+              "flex h-[29px] items-center gap-1.5 rounded-[8px] text-[13px] font-semibold text-foreground",
+              t.tab === tab ? "bg-tab-active px-2.5" : "w-[33px] justify-center hover:bg-foreground/5",
             )}
             aria-label={t.label}
           >
@@ -114,7 +114,7 @@ function LayersPanel() {
             onMouseLeave={() => (store.set({ hover: null }), schedule())}
             className={cx(
               "flex h-7 cursor-default items-center rounded-[5px] pr-2 text-[12px] font-semibold",
-              node.id === selection ? "bg-[#283751] text-[#bfdbfe]" : "text-[#d4d4d8] hover:bg-white/[0.04]",
+              node.id === selection ? "bg-layer-active text-layer-active-text" : "text-foreground hover:bg-foreground/[0.04]",
             )}
             style={{ paddingLeft: 6 + depth * 12 }}
           >
@@ -156,13 +156,13 @@ function SlidesPanel() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3">
         {thumbs.map((t, i) => (
-          <div key={t.id} className="relative flex h-[160px] items-center justify-center rounded-[10px] bg-[#202023]">
-            <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#3f3f46] text-[11px]">{i + 1}</span>
+          <div key={t.id} className="relative flex h-[160px] items-center justify-center rounded-[10px] bg-thumb">
+            <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full bg-input text-[11px]">{i + 1}</span>
             {t.url && <img src={t.url} alt="" className="max-h-[148px] max-w-[200px] object-contain" />}
           </div>
         ))}
       </div>
-      <div className="flex h-12 items-center justify-around text-[14px] font-semibold text-[#e4e4e7]">
+      <div className="flex h-12 items-center justify-around text-[14px] font-semibold text-foreground">
         <button type="button" className="flex items-center gap-2"><Play size={14} strokeWidth={1.5} /> Present</button>
         <button type="button" className="flex items-center gap-2">Export PDF <ChevronDown size={14} strokeWidth={1.5} /></button>
       </div>
@@ -174,27 +174,27 @@ function SlidesPanel() {
 function ComponentsPanel() {
   const selection = useEditor((s) => s.selection);
   return (
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 text-[13px] leading-5 text-[#c8c8c8]">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 text-[13px] leading-5 text-foreground">
       <div className="flex h-8 items-center gap-2 rounded-md border border-input px-2 text-muted-foreground">
         <Search size={14} strokeWidth={1.5} /> Search components...
       </div>
       <button
         type="button"
         disabled={!selection}
-        className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-[#a1a1aa] font-semibold text-[#27272a] disabled:opacity-80"
+        className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-muted-foreground font-semibold text-background disabled:opacity-80"
       >
         <Component size={14} strokeWidth={1.5} /> Create Component
       </button>
       <p>Select an element to make it a component.</p>
-      <p className="font-semibold text-[#e4e4e7]">No components yet.</p>
+      <p className="font-semibold text-foreground">No components yet.</p>
       <div>
-        <div className="font-semibold text-[#e4e4e7]">Why components</div>
+        <div className="font-semibold text-foreground">Why components</div>
         <p className="mt-1">Change the main component once and every copy of it updates.</p>
       </div>
       <div>
-        <div className="font-semibold text-[#e4e4e7]">Making one</div>
+        <div className="font-semibold text-foreground">Making one</div>
         <p className="mt-1">
-          Select a frame, shape or text and press <kbd className="rounded bg-white/10 px-1 font-mono text-[11px]">Ctrl Alt K</kbd>, or click
+          Select a frame, shape or text and press <kbd className="rounded bg-input px-1 font-mono text-[11px]">Ctrl Alt K</kbd>, or click
           “Create Component” above. The original shows a magenta outline; copies show violet.
         </p>
       </div>
@@ -204,10 +204,10 @@ function ComponentsPanel() {
 
 function LibrariesPanel() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 text-[13px] text-[#c8c8c8]">
-      <div className="font-semibold text-[#e4e4e7]">No libraries yet</div>
+    <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 text-[13px] text-foreground">
+      <div className="font-semibold text-foreground">No libraries yet</div>
       <p className="mt-2 text-muted-foreground">Libraries let several files share the same components and variables.</p>
-      <button type="button" className="mt-auto h-9 text-[14px] text-[#e4e4e7] hover:underline">
+      <button type="button" className="mt-auto h-9 text-[14px] text-foreground hover:underline">
         Turn this file into a library
       </button>
     </div>

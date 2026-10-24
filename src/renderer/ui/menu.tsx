@@ -6,14 +6,14 @@ import { Check, ChevronRight } from "lucide-react";
 import { cx } from "./kit.js";
 
 // Measured from the reference: 28px rows, 12px text, blue highlight inset 4px, 9px between groups.
-const PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-popover-foreground shadow-island";
+const PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-foreground shadow-island";
 const ROW =
   "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 outline-none data-[highlighted]:bg-[#3b82f6] data-[highlighted]:text-white data-[state=open]:bg-[#3b82f6] data-[state=open]:text-white data-[disabled]:opacity-40";
 
 /** A shortcut as the reference shows it: compact, muted, Shift as ⇧ ("Ctrl⇧R", "CtrlAltK"). */
 function Keys({ keys }: { keys: string }) {
   const text = keys.replace(/Shift\s?/g, "⇧").replace(/\s+/g, "");
-  return <span className="ml-4 text-[11px] tracking-[0.04em] text-[#a1a1aa] group-data-[highlighted]:text-white/80">{text}</span>;
+  return <span className="ml-4 text-[11px] tracking-[0.04em] text-muted-foreground group-data-[highlighted]:text-white/80">{text}</span>;
 }
 
 export function MenuContent({ children, className, ...rest }: M.DropdownMenuContentProps) {
@@ -50,7 +50,7 @@ export function MenuItem({
   disabled?: boolean;
 }) {
   return (
-    <M.Item className={cx(ROW, "group", current && "bg-[#3f3f46]", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
+    <M.Item className={cx(ROW, "group", current && "bg-input", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}
@@ -65,7 +65,7 @@ export function MenuLabel({ children }: { children: ReactNode }) {
   return <M.Label className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-wide text-[#71717a] uppercase">{children}</M.Label>;
 }
 
-export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-[#3f3f46]" />;
+export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-input" />;
 
 export function SubMenu({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -104,7 +104,7 @@ export function ContextItem({ label, keys, danger, onSelect }: { label: string; 
   );
 }
 
-export const ContextSeparator = () => <C.Separator className="-mx-1 my-1 h-px bg-[#3f3f46]" />;
+export const ContextSeparator = () => <C.Separator className="-mx-1 my-1 h-px bg-input" />;
 
 export function ContextSub({ label, children }: { label: string; children: ReactNode }) {
   return (

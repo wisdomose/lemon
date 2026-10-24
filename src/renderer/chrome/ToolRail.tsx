@@ -36,7 +36,7 @@ export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onT
     <div data-rail className="absolute top-[58px] flex w-9 flex-col gap-2" style={{ left: panelOpen ? 394 : 8 }}>
       <Island className="flex h-9 w-9 items-center justify-center rounded-full">
         <Tip label={panelOpen ? "Hide sidebar" : "Show sidebar"} side="right">
-          <IconButton icon={PanelLeft} round aria-label="Toggle sidebar" onClick={onTogglePanel} className="text-popover-foreground" />
+          <IconButton icon={PanelLeft} round aria-label="Toggle sidebar" onClick={onTogglePanel} className="text-rail-icon" />
         </Tip>
       </Island>
       <Island className="flex w-9 flex-col items-center gap-1 rounded-full py-1">
@@ -48,7 +48,7 @@ export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onT
                 round
                 aria-label={t.label}
                 active={t.tool === active}
-                className="text-popover-foreground"
+                className="text-rail-icon"
                 onClick={() => t.tool && store.set({ tool: t.tool })}
               />
             </Tip>

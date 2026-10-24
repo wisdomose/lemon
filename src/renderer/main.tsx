@@ -8,9 +8,10 @@ import { handleAgentEvent } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
 import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
-import { applyTheme } from "./settings.js";
+import { applyTheme, setSetting } from "./settings.js";
 
 document.title = PRODUCT.name;
+if (new URLSearchParams(location.search).get("theme") === "light") setSetting("theme", "light");
 applyTheme();
 await boot();
 const firstScene = await laidOut();

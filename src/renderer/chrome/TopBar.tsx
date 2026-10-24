@@ -11,7 +11,7 @@ export function TopBar({ fileName, saveState, initial }: { fileName: string; sav
       <Island className="absolute left-2 top-2 flex h-[42px] items-center rounded-full pr-4 pl-3">
         <div className="flex items-center gap-[5px] pr-3">
           <img src={logoUrl} alt="" className="h-4 w-4" />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-[#f4f4f5]">{PRODUCT.name}</span>
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">{PRODUCT.name}</span>
         </div>
         <Tip label="Dashboard" keys="Ctrl N">
           <IconButton icon={LayoutGrid} aria-label="Dashboard" />
@@ -19,13 +19,13 @@ export function TopBar({ fileName, saveState, initial }: { fileName: string; sav
         <Divider className="mx-2" />
         <div className="flex items-center gap-2 pl-1">
           <Folder {...ICON} className="text-foreground" />
-          <span className="text-[14px] font-semibold text-[#e4e4e7]">{fileName}</span>
+          <span className="text-[14px] font-semibold text-foreground">{fileName}</span>
           <span className="-ml-2 text-[14px] text-muted-foreground">— {saveState}</span>
         </div>
       </Island>
 
       <Island className="absolute right-2 top-2 flex h-[42px] items-center gap-1 rounded-full pr-[18px] pl-[15px]">
-        <button type="button" className="flex h-7 items-center gap-1.5 rounded-md pr-0 pl-[5px] text-[14px] text-foreground hover:bg-white/5">
+        <button type="button" className="flex h-7 items-center gap-1.5 rounded-md pr-0 pl-[5px] text-[14px] text-foreground hover:bg-foreground/5">
           <Share {...ICON} /> Share
         </button>
         <Tip label="Goodies">
@@ -38,10 +38,10 @@ export function TopBar({ fileName, saveState, initial }: { fileName: string; sav
           <IconButton icon={Globe} aria-label="Browser" />
         </Tip>
         <Divider className="ml-1 mr-2" />
-        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[12px] font-semibold text-[#e4e4e7]">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-input text-[12px] font-semibold text-foreground">
           {initial}
         </span>
-        <span className="ml-0.5 flex h-[23px] items-center gap-1.5 rounded-full border border-white/10 pr-2 pl-2.5 text-[13px] font-semibold text-[#e4e4e7]">
+        <span className="ml-0.5 flex h-[23px] items-center gap-1.5 rounded-full border border-input pr-2 pl-2.5 text-[13px] font-semibold text-foreground">
           Free <span className="h-[7px] w-[7px] rounded-full bg-amber-500" />
         </span>
         <ChevronDown size={14} strokeWidth={1.5} className="text-muted-foreground" />

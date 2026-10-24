@@ -49,7 +49,7 @@ import { useEditor } from "../store.js";
 import { Island, cx } from "../ui/kit.js";
 
 // Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
-const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-[#37373a] px-2 text-[11px] text-foreground";
+const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
 
 function set(id: string, props: Partial<NodeProps>) {
   edit(() => store.update(doc, id, props));
@@ -80,7 +80,7 @@ function NumberField({
   };
   return (
     <label className={cx(FIELD, disabled && "opacity-50", className)}>
-      <span className="flex w-3 shrink-0 justify-center text-[11px] font-semibold text-[#8e8e8f]">{lead}</span>
+      <span className="flex w-3 shrink-0 justify-center text-[11px] font-semibold text-muted-foreground">{lead}</span>
       <input
         value={text}
         disabled={disabled || !onCommit}
@@ -96,8 +96,8 @@ function NumberField({
 
 function Section({ title, action, children, last }: { title: ReactNode; action?: ReactNode; children?: ReactNode; last?: boolean }) {
   return (
-    <section className={cx("pr-[13px] pl-[15px]", children ? "pt-[10px] pb-[15px]" : "py-[9px]", !last && "border-b border-[#313134]")}>
-      <div className="flex h-5 items-center text-[11px] font-semibold text-[#e4e4e7]">
+    <section className={cx("pr-[13px] pl-[15px]", children ? "pt-[10px] pb-[15px]" : "py-[9px]", !last && "border-b border-line")}>
+      <div className="flex h-5 items-center text-[11px] font-semibold text-foreground">
         {title}
         <span className="ml-auto flex items-center text-muted-foreground">{action}</span>
       </div>
@@ -110,11 +110,11 @@ const Label = ({ children }: { children: ReactNode }) => <div className="h-4 tex
 
 function Check2({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex h-4 cursor-default items-center gap-1 text-[10px] text-[#d4d4d8]">
+    <label className="flex h-4 cursor-default items-center gap-1 text-[10px] text-foreground">
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={cx("flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border", checked ? "border-white bg-white text-zinc-900" : "border-input")}
+        className={cx("flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border", checked ? "border-foreground bg-foreground text-background" : "border-input")}
       >
         {checked && <Check size={12} strokeWidth={2.5} />}
       </button>
@@ -125,14 +125,14 @@ function Check2({ label, checked, onChange }: { label: string; checked: boolean;
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; icon: LucideIcon; label: string }[]; onChange: (v: T) => void }) {
   return (
-    <div className="flex h-6 rounded-md bg-[#37373a] p-px">
+    <div className="flex h-6 rounded-md bg-field p-px">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           aria-label={o.label}
           onClick={() => onChange(o.value)}
-          className={cx("flex flex-1 items-center justify-center rounded-[5px] text-[#d4d4d8]", o.value === value && "bg-[#4e4e51]")}
+          className={cx("flex flex-1 items-center justify-center rounded-[5px] text-foreground", o.value === value && "bg-seg-active")}
         >
           <o.icon size={14} strokeWidth={1.5} />
         </button>
@@ -143,7 +143,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 
 function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
   return (
-    <div className="flex h-6 flex-1 items-center justify-around rounded-md bg-[#37373a] text-[#a1a1aa]">
+    <div className="flex h-6 flex-1 items-center justify-around rounded-md bg-field text-muted-foreground">
       {icons.map((I, i) => (
         <I key={i} size={14} strokeWidth={1.5} />
       ))}
@@ -183,12 +183,12 @@ export function PropertiesPanel() {
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="border-b border-[#313134] pt-2 pr-[13px] pb-2 pl-[11px]">
-          <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-[#e4e4e7]">
+        <div className="border-b border-line pt-2 pr-[13px] pb-2 pl-[11px]">
+          <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-foreground">
             <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
             <PanelRight size={16} strokeWidth={1.5} className="ml-auto text-muted-foreground" />
           </div>
-          <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-[#37373a] text-[11px] text-foreground">
+          <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
             <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
           </button>
         </div>
@@ -369,8 +369,8 @@ function ColourRow({ value, onChange, onRemove }: { value: string; onChange: (c:
   const isVar = value.startsWith("$");
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-[#37373a] text-[11px] text-foreground">
-        <span className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-white/10" style={{ background: isVar ? "transparent" : value }} />
+      <div className="flex h-6 min-w-0 flex-1 items-center rounded-md bg-field text-[11px] text-foreground">
+        <span className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: isVar ? "transparent" : value }} />
         <input
           value={isVar ? value : text}
           readOnly={isVar}
@@ -410,19 +410,19 @@ function FlexControls({ node }: { node: TreeNode }) {
       <div className="grid grid-cols-2 gap-[6px]">
         <Label>Alignment</Label>
         <Label>Gap</Label>
-        <div className="grid h-[68px] grid-cols-3 grid-rows-3 place-items-center rounded-md bg-[#37373a]">
+        <div className="grid h-[68px] grid-cols-3 grid-rows-3 place-items-center rounded-md bg-field">
           {[0, 1, 2].map((r) =>
             [0, 1, 2].map((c) => (
               <button key={`${r}${c}`} type="button" onClick={() => pick(c, r)} className="flex h-full w-full items-center justify-center">
-                <span className={at(c, r) ? "h-2 w-2 rounded-[2px] bg-[#3b82f6]" : "h-[3px] w-[3px] rounded-full bg-[#a1a1aa]"} />
+                <span className={at(c, r) ? "h-2 w-2 rounded-[2px] bg-[#3b82f6]" : "h-[3px] w-[3px] rounded-full bg-muted-foreground"} />
               </button>
             )),
           )}
         </div>
-        <div className="space-y-1.5 text-[10px] text-[#d4d4d8]">
+        <div className="space-y-1.5 text-[10px] text-foreground">
           <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={p.gap ?? 0} onCommit={(gap) => set(node.id, { gap, justify: p.justify === "between" ? "start" : p.justify })} />
           <button type="button" className="flex items-center gap-2" onClick={() => set(node.id, { justify: "between" })}>
-            <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justify === "between" && "border-[4px] border-white")} /> Space Between
+            <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justify === "between" && "border-[4px] border-foreground")} /> Space Between
           </button>
         </div>
       </div>
