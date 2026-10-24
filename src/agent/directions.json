@@ -1,0 +1,332 @@
+[
+  {
+    "id": "editorial-magazine",
+    "name": "Editorial magazine",
+    "idea": "The page reads like a printed feature story: confident serif display type, a strong grid, room to breathe.",
+    "composition": "Asymmetric 12-column grid; a headline that spans most of the width over a narrow standfirst; pull quotes breaking the grid; sections numbered like chapters; generous margins; text set in measured columns, not cards.",
+    "type": "High-contrast serif display (Playfair Display, Bodoni Moda, DM Serif Display, Gloock) with a quiet grotesk or book serif for text (Newsreader, Spectral, Hanken Grotesk). Italics for emphasis, small caps or tracked capitals for kickers, drop caps welcome.",
+    "colour": "Paper-white or bone background, near-black ink, one editorial accent (oxblood, cobalt, saffron) used sparingly for kickers and rules.",
+    "imagery": "Large photographs at magazine proportions (4:5, 3:2) with captions and photo credits; one full-bleed image breaking the column.",
+    "details": "Hairline rules between sections, bylines, issue numbers, folio-style page markers, no rounded corners, no shadows."
+  },
+  {
+    "id": "swiss-grid",
+    "name": "Swiss international",
+    "idea": "Objective, rational, grid-first: information arranged with mathematical clarity and flush-left type.",
+    "composition": "Visible modular grid; flush-left ragged-right text; strong horizontal bands; content aligned hard to column edges; big numbers and labels as structure; lots of deliberate empty space.",
+    "type": "One neo-grotesk family in several weights (Schibsted Grotesk, Hanken Grotesk, Familjen Grotesk, Work Sans), very large headline sizes against small text, tight leading on display, generous on body.",
+    "colour": "White and black with a single primary signal colour (signal red, Swiss blue or yellow) used as a field, not a decoration.",
+    "imagery": "Photography cropped tightly into grid cells, or replaced entirely by geometric blocks of colour and type.",
+    "details": "Thin rules, index numbers, arrows (→), no ornament, no rounded corners, no gradients."
+  },
+  {
+    "id": "brutalist-raw",
+    "name": "Raw brutalist",
+    "idea": "Deliberately unpolished, honest, web-native: default-looking elements used with conviction.",
+    "composition": "Stacked full-width blocks; visible borders around everything; text that runs edge to edge; deliberately awkward alignments; long lists and tables shown plainly; little hierarchy beyond size.",
+    "type": "System-like or monospaced faces (Space Mono, IBM Plex Mono, Courier Prime, Archivo) at large sizes; underlined links; uppercase labels.",
+    "colour": "Stark: white or grey background, black text, one loud web colour (pure blue links, acid green, hot pink) or none at all.",
+    "imagery": "Raw rectangles, unprocessed photos, or none; ASCII-like separators.",
+    "details": "Thick black borders, default-looking buttons, visible table lines, no shadows, no radius, no smooth transitions."
+  },
+  {
+    "id": "neo-brutalism",
+    "name": "Neo-brutal pop",
+    "idea": "Bold, friendly and loud: chunky outlines and hard offset shadows on saturated colour.",
+    "composition": "Card-heavy layouts where every card has a thick black border and a hard offset shadow; tilted stickers and badges; elements that overlap slightly; big CTA buttons.",
+    "type": "Chunky geometric or grotesk display (Archivo Black, Rubik, Space Grotesk, Lexend) with a plain sans for body.",
+    "colour": "Saturated flat colours — lemon, lilac, mint, tomato, sky — each section on a different one, all outlined in black.",
+    "imagery": "Placeholders as flat colour fields with bold outlines; simple inline SVG shapes (stars, squiggles, arrows).",
+    "details": "3–4px black borders, solid offset shadows (e.g. shadow-[6px_6px_0_0] in ink), small radius or none, rotated labels."
+  },
+  {
+    "id": "luxury-minimal",
+    "name": "Quiet luxury",
+    "idea": "Expensive by restraint: very little on the page, all of it perfect.",
+    "composition": "Centred or strongly symmetric; vast whitespace; one idea per screen; small amounts of text; slow vertical rhythm; images given entire sections.",
+    "type": "Elegant light serif or refined display (Cormorant Garamond, Italiana, Marcellus, Cinzel) in widely tracked capitals and large light italics; a fine sans for small text (Jost, Montserrat light).",
+    "colour": "Ivory, champagne, stone, deep espresso or black; a hint of metallic (muted gold, bronze) only in thin lines.",
+    "imagery": "Large, calm, single photographs with lots of negative space; product shown as an object on a plain field.",
+    "details": "Hairlines, tiny tracked labels, no icons, buttons as text with an underline or thin outline, no radius."
+  },
+  {
+    "id": "retro-print",
+    "name": "Retro print / risograph",
+    "idea": "Feels printed: limited ink colours, overprint, grain and mid-century confidence.",
+    "composition": "Poster-like hero; blocks offset as if misregistered; stacked bands of flat colour; playful but grid-based.",
+    "type": "Rounded or chunky retro display (Shrikhand, Righteous, Bungee, Abril Fatface, Rubik Mono One) with a sturdy text face (Work Sans, Karla, Courier Prime for labels).",
+    "colour": "Two or three ink colours that overprint (fluorescent pink, teal, federal blue, sunflower) on cream paper.",
+    "imagery": "Duotone placeholders, halftone-dot patterns via CSS radial gradients, simple SVG shapes in ink colours.",
+    "details": "Mix-blend-multiply overlaps, slightly offset duplicate shapes, stamps and badges, grain implied by dotted patterns."
+  },
+  {
+    "id": "playful-collage",
+    "name": "Cut-paper collage",
+    "idea": "Hand-assembled and joyful: pieces of paper, photos and type layered at angles.",
+    "composition": "Overlapping elements at slight rotations; scattered composition in the hero; content blocks pinned like notes; free placement over a loose grid.",
+    "type": "A bold expressive display (Syne, Unbounded, Gochi Hand, Permanent Marker) mixed with a clean sans; words broken onto separate coloured strips.",
+    "colour": "Kraft, cream and white paper tones with two bright accents and black.",
+    "imagery": "Placeholders shaped like torn or taped photos (rotated, with tape strips made from translucent rectangles); SVG scribbles.",
+    "details": "Tape, pins, stickers, hand-drawn arrows and underlines, small rotations (rotate-[-3deg]), drop shadows like paper on a table."
+  },
+  {
+    "id": "dark-tech",
+    "name": "Dark technical",
+    "idea": "Precise, engineered, after-hours: product as instrument.",
+    "composition": "Dark canvas; a product screenshot or diagram as the hero; feature grids drawn with 1px borders; code-like snippets; metrics and specs as structure.",
+    "type": "Precise grotesk (Geist-like: Manrope, Sora, Space Grotesk, IBM Plex Sans) with a mono (JetBrains Mono, IBM Plex Mono) for labels and numbers.",
+    "colour": "Near-black and graphite surfaces, cool greys, one luminous accent (electric lime, cyan, violet) used for glows and active states.",
+    "imagery": "UI mockups built from divs; grid backgrounds; subtle radial glows; thin line diagrams in SVG.",
+    "details": "1px borders at low opacity, small radius, keyboard-key chips, status dots, monospaced numbers."
+  },
+  {
+    "id": "type-poster",
+    "name": "Typographic poster",
+    "idea": "Type is the image: enormous words carry the whole design.",
+    "composition": "Headlines at 15–25vw-equivalent sizes (use fixed large rem sizes), words breaking across lines, text cropped by the edges, very few other elements, sections each built around one huge word.",
+    "type": "Condensed or extended display (Anton, Big Shoulders Display, Bebas Neue, Unbounded, Archivo at its widest width) at extreme sizes, tight leading, mixed with a small sans.",
+    "colour": "Two colours at most, high contrast, often one inverted section.",
+    "imagery": "Little or none; images can sit inside or behind the type.",
+    "details": "Negative letter-spacing on display, outlined text (text-transparent with stroke via [-webkit-text-stroke]), marquee-like repeated words."
+  },
+  {
+    "id": "warm-handmade",
+    "name": "Warm handmade",
+    "idea": "Made by people: craft, warmth and imperfection.",
+    "composition": "Relaxed, slightly irregular layout; rounded organic shapes as section backgrounds; text blocks like recipe cards or labels; personal story placed prominently.",
+    "type": "A characterful soft serif or hand-feel display (Young Serif, Caprasimo, Gloock, Kalam, Caveat for notes) with a friendly readable text face (Nunito Sans, Karla, Lora).",
+    "colour": "Earthy, cooked colours — terracotta, butter, sage, cocoa, flour-white.",
+    "imagery": "Placeholders with irregular blob shapes (border-radius in percentages), hand-drawn SVG doodles and underlines.",
+    "details": "Wavy section dividers (SVG), stamp-like badges, handwritten annotations, generous rounded corners."
+  },
+  {
+    "id": "y2k-chrome",
+    "name": "Y2K futurism",
+    "idea": "Glossy optimism from the year 2000: chrome, bubbles and techno-pop.",
+    "composition": "Centred hero with floating objects; pill-shaped panels; starbursts; layered translucent windows.",
+    "type": "Wide techno display (Michroma, Orbitron, Syne, Unbounded) with a rounded sans for body (Varela Round, Nunito).",
+    "colour": "Iridescent: silver, ice blue, lilac, bubblegum pink, lime, on pale or deep-blue backgrounds.",
+    "imagery": "Chrome-like gradients (multi-stop linear gradients), glossy blobs, star and sparkle SVGs.",
+    "details": "Pill buttons with inner highlights, heavy blur glows, outlined stars, gradient borders."
+  },
+  {
+    "id": "scandi-calm",
+    "name": "Nordic calm",
+    "idea": "Soft, functional, quietly warm: daylight and good materials.",
+    "composition": "Simple balanced layouts; two-column image-and-text pairs; plenty of air; content in a gentle stepped rhythm.",
+    "type": "Clean humanist sans (Figtree, Plus Jakarta Sans, Outfit) with an optional soft serif for headings (Newsreader).",
+    "colour": "Oat, fog, pale sage, dusty blue, warm white; text in soft charcoal rather than black.",
+    "imagery": "Natural-light photos of materials and spaces; placeholders in soft tints.",
+    "details": "Medium radius, very soft or no shadows, thin dividers, unhurried spacing."
+  },
+  {
+    "id": "bauhaus-geometric",
+    "name": "Bauhaus geometric",
+    "idea": "Primary shapes and primary colours as the building blocks of the page.",
+    "composition": "Sections built from circles, squares and half-circles as structural elements; strong diagonals; balanced asymmetry.",
+    "type": "Geometric sans (Josefin Sans, Jost, Poppins, Lexend) in bold weights, often all caps, sometimes set vertically.",
+    "colour": "Red, yellow, blue, black and off-white — flat, no gradients.",
+    "imagery": "Compositions of SVG/CSS shapes instead of photos; photos, when used, cropped into circles or semicircles.",
+    "details": "Thick bars, circles as bullets, rotated text, no shadows."
+  },
+  {
+    "id": "art-deco",
+    "name": "Art deco",
+    "idea": "Glamour and geometry of the 1920s: symmetry, fans, gold lines.",
+    "composition": "Strict symmetry; framed panels with stepped corners; centred headings between ornamental lines; tall vertical proportions.",
+    "type": "Deco display (Poiret One, Limelight, Italiana, Marcellus, Cinzel) with an elegant sans (Josefin Sans) for text.",
+    "colour": "Black, emerald or navy with gold or brass lines; cream text.",
+    "imagery": "Arched or stepped photo frames; fan and sunburst SVG ornaments.",
+    "details": "Double borders, chevrons, sunbursts, corner ornaments, tracked capitals."
+  },
+  {
+    "id": "broadsheet",
+    "name": "Newspaper broadsheet",
+    "idea": "News-dense and authoritative: columns, datelines and a masthead.",
+    "composition": "Masthead across the top; multi-column text; headline hierarchy of several sizes; lead story with image; sidebars and boxed briefs.",
+    "type": "Old-style or news serif (Old Standard TT, Libre Caslon Text, EB Garamond, Newsreader); a blackletter or condensed serif for the masthead (UnifrakturMaguntia, Playfair Display SC).",
+    "colour": "Newsprint off-white and black; at most one spot colour.",
+    "imagery": "Photos with captions in columns; small engravings implied with line SVGs.",
+    "details": "Column rules, datelines, 'continued' markers, boxed briefs, no rounded corners."
+  },
+  {
+    "id": "zine-xerox",
+    "name": "Punk zine",
+    "idea": "Photocopied, DIY, rebellious: cut-and-paste urgency.",
+    "composition": "Chaotic but readable; ransom-note headlines; rotated blocks; text over images; hand-numbered sections.",
+    "type": "Typewriter and marker faces (Special Elite, Courier Prime, Permanent Marker, Rock Salt) mixed with heavy condensed sans (Anton).",
+    "colour": "Black, white and photocopy grey with one fluorescent highlight (safety orange, neon yellow).",
+    "imagery": "High-contrast black-and-white placeholders, halftone patterns, scribbled SVG marks.",
+    "details": "Highlighter strokes behind words, tape, staples, rotated stamps, crossed-out words."
+  },
+  {
+    "id": "botanical-wellness",
+    "name": "Botanical wellness",
+    "idea": "Calm, natural, restorative: plants, light and slow breathing.",
+    "composition": "Flowing layouts with organic curved section edges; centred quiet headlines; generous padding; content in soft cards.",
+    "type": "Gentle serif (Cormorant, Lora, Newsreader) with a light rounded sans (Quicksand, Nunito).",
+    "colour": "Sage, eucalyptus, clay, sand, blush; low contrast backgrounds with readable ink.",
+    "imagery": "Arched photo frames (rounded-t-full); leaf and stem line illustrations in SVG.",
+    "details": "Arches, soft blobs, thin botanical line art, large radius."
+  },
+  {
+    "id": "glass-aurora",
+    "name": "Glass and aurora",
+    "idea": "Luminous and dimensional: frosted panels floating over soft colour light.",
+    "composition": "Hero over a blurred multi-colour gradient field; content on frosted translucent cards; layered depth.",
+    "type": "Modern geometric sans (Sora, Outfit, Plus Jakarta Sans) with medium weights.",
+    "colour": "Deep indigo or white base with aurora gradients (violet, teal, coral) behind translucent white panels.",
+    "imagery": "Gradient orbs (blurred circles), device mockups built from divs.",
+    "details": "backdrop-blur panels, 1px light borders at low opacity, soft large shadows, generous radius."
+  },
+  {
+    "id": "japanese-minimal",
+    "name": "Japanese minimal",
+    "idea": "Ma — meaningful emptiness: restraint, balance and quiet detail.",
+    "composition": "Off-centre balance; large empty areas; small precise text blocks; vertical text accents; slow, sparse sections.",
+    "type": "Refined serif or gothic (Shippori Mincho, Noto Serif JP, Zen Kaku Gothic New) with tiny tracked labels.",
+    "colour": "Rice paper, sumi ink black, indigo, a single vermilion seal-like accent.",
+    "imagery": "Small framed images with wide margins; brush-like SVG strokes.",
+    "details": "Vertical writing-mode labels, seal-stamp squares, hairlines, no radius."
+  },
+  {
+    "id": "memphis-80s",
+    "name": "Memphis 80s",
+    "idea": "Irreverent postmodern pattern party: squiggles, confetti and clashing colour.",
+    "composition": "Busy decorated backgrounds behind clear content panels; shapes scattered around headings; playful zig-zag section breaks.",
+    "type": "Bold quirky display (Bungee, Righteous, Lilita One) with a geometric sans (Poppins, Lexend).",
+    "colour": "Clashing pastels and brights — mint, coral, lemon, lavender, black accents.",
+    "imagery": "Pattern fills (dots, stripes, triangles via CSS gradients), squiggle SVGs.",
+    "details": "Zig-zag borders, confetti shapes, black outlines, slight rotations."
+  },
+  {
+    "id": "industrial-utility",
+    "name": "Industrial utility",
+    "idea": "Spec-sheet honesty: labels, codes, measurements — the product as equipment.",
+    "composition": "Dense information grids; tables of specs; part numbers and codes as headings; modular panels like equipment labels.",
+    "type": "Condensed industrial sans (Barlow Condensed, Saira Condensed, Oswald, Chakra Petch) with a mono for data.",
+    "colour": "Steel grey, concrete, black, with hazard yellow or safety orange.",
+    "imagery": "Technical line drawings in SVG; product placeholders on grid paper.",
+    "details": "Barcodes implied with stripes, warning stripes, serial numbers, corner brackets, measurement ticks."
+  },
+  {
+    "id": "textile-maximal",
+    "name": "Textile maximalism",
+    "idea": "Rich pattern and colour drawn from woven and printed fabrics: celebratory, bold, vibrant.",
+    "composition": "Patterned bands framing calm content areas; bold geometric borders; full-colour sections alternating with pattern strips.",
+    "type": "Strong display (Unbounded, Syne, Rubik, Lexend Zetta) with a sturdy sans.",
+    "colour": "Rich saturated combinations — indigo, marigold, emerald, crimson, cocoa — confidently mixed.",
+    "imagery": "Repeating geometric patterns built with CSS gradients or inline SVG; photos framed by pattern borders.",
+    "details": "Pattern strips as dividers, diamond and zig-zag motifs, bold frames."
+  },
+  {
+    "id": "apothecary-label",
+    "name": "Vintage label",
+    "idea": "Old shop labels and packaging: ornate frames, careful lettering, heritage.",
+    "composition": "Centred label-like blocks; framed panels; product cards styled as labels; established-in dates.",
+    "type": "Vintage serif and slab (Abril Fatface, Rye, Playfair Display, Old Standard TT) with small capitals and italic script accents (Pinyon Script, sparingly).",
+    "colour": "Aged paper, deep green, burgundy, faded gold, black.",
+    "imagery": "Oval and circular frames; engraved-style SVG ornaments.",
+    "details": "Double-rule frames, ribbons, 'Est.' dates, fleurons, numbered batches."
+  },
+  {
+    "id": "cinematic-dark",
+    "name": "Cinematic",
+    "idea": "Like a film title sequence: dark, full-bleed, atmospheric, dramatic pacing.",
+    "composition": "Full-bleed image sections with text over gradients; one statement per screen; letterbox proportions (21:9); credits-like lists.",
+    "type": "Elegant condensed or wide display (Bebas Neue, Oswald light, Cormorant for drama) with a light sans for text.",
+    "colour": "Deep blacks and shadows with one warm or cold grade (amber, teal).",
+    "imagery": "Large atmospheric placeholders with gradient vignettes and captions describing the shot.",
+    "details": "Letterbox bars, scene numbers, film-credit typography, subtle grain implied by noise patterns."
+  },
+  {
+    "id": "scrapbook-notes",
+    "name": "Scrapbook notebook",
+    "idea": "A personal notebook: lined paper, sticky notes, doodles and handwriting.",
+    "composition": "Sections as notebook pages; sticky notes and polaroids pinned around; checklists; margins with notes.",
+    "type": "Handwriting accents (Caveat, Patrick Hand, Kalam) with a readable serif or sans for body (Lora, Nunito Sans).",
+    "colour": "Notebook white with ruled blue lines and red margin, sticky-note yellow, pink and blue.",
+    "imagery": "Polaroid-framed placeholders (white border, caption below), doodle SVGs.",
+    "details": "Ruled-line backgrounds via repeating gradients, tape, circled words, arrows, checkmarks."
+  },
+  {
+    "id": "blueprint",
+    "name": "Architectural blueprint",
+    "idea": "Drawn plans and elevations: precise lines, annotations, construction logic.",
+    "composition": "Grid-paper backgrounds; diagrams as heroes; annotated callouts with leader lines; sections labelled like drawing sheets.",
+    "type": "Technical sans and mono (IBM Plex Sans, IBM Plex Mono, Space Mono), small tracked labels.",
+    "colour": "Blueprint blue with white lines, or white with cyan/graphite lines.",
+    "imagery": "Line drawings in SVG; images framed by dimension lines.",
+    "details": "Dimension arrows, sheet numbers, title blocks, crosshair markers, dashed lines."
+  },
+  {
+    "id": "athletic",
+    "name": "Athletic energy",
+    "idea": "Speed and power: slanted type, motion, competition.",
+    "composition": "Diagonal cuts between sections; huge italic headlines; stats as hero numbers; dynamic off-axis layouts.",
+    "type": "Heavy condensed italic (Barlow Condensed, Saira Condensed, Anton, Big Shoulders Display), all caps.",
+    "colour": "Team colours: black, white and one or two high-energy colours (volt, red, cobalt).",
+    "imagery": "Action placeholders with skewed frames; speed-line SVGs.",
+    "details": "Skewed containers (skew-x), numbered jerseys, stripes, timers and stats."
+  },
+  {
+    "id": "soft-playful",
+    "name": "Soft playful",
+    "idea": "Friendly and approachable: round, bouncy and kind.",
+    "composition": "Rounded blobs and pills; characters or mascots implied with simple SVG; stacked friendly cards; big clear buttons.",
+    "type": "Rounded sans (Fredoka, Baloo 2, Nunito, Quicksand) at generous sizes.",
+    "colour": "Candy pastels with one darker anchor colour for text.",
+    "imagery": "Simple SVG illustrations (faces, stars, clouds) rather than photos.",
+    "details": "Very large radius, soft coloured shadows, wavy dividers, emoji-free icon shapes."
+  },
+  {
+    "id": "product-ui-hero",
+    "name": "Product-led interface",
+    "idea": "Show the product working: the interface itself is the hero and the proof.",
+    "composition": "Large realistic UI mockups (built from divs) in hero and features; annotated callouts; before/after comparisons; metrics strips.",
+    "type": "Clean UI sans (Manrope, Plus Jakarta Sans, Figtree) with tabular numbers.",
+    "colour": "Light neutral UI greys with the brand colour for active elements and charts.",
+    "imagery": "Mock dashboards, phones and cards with believable data; small charts drawn with SVG.",
+    "details": "Realistic UI chrome (tabs, toggles, avatars), subtle shadows, medium radius."
+  },
+  {
+    "id": "monochrome-gallery",
+    "name": "Monochrome gallery",
+    "idea": "A gallery or portfolio: the work fills the walls, the interface disappears.",
+    "composition": "Masonry or strict image grids; minimal text; captions as small labels; generous gutters; case studies as image sequences.",
+    "type": "Neutral sans (Hanken Grotesk, Work Sans) very small, or a single elegant serif for titles.",
+    "colour": "Pure white or gallery grey, black text; colour comes only from the work.",
+    "imagery": "Many image placeholders of varied proportions with exhibition-style captions.",
+    "details": "Index numbers, small arrows, hover-free calm, no radius, no shadows."
+  },
+  {
+    "id": "hand-drawn",
+    "name": "Hand-drawn sketch",
+    "idea": "Drawn with a pen: wobbly lines, doodled icons, an illustrator's notebook.",
+    "composition": "Loose layouts framed by sketchy boxes; arrows connecting ideas; illustrations beside text.",
+    "type": "Hand lettering (Gochi Hand, Patrick Hand, Kalam) for headings and a simple sans for body.",
+    "colour": "Paper white with ink black and one or two marker colours.",
+    "imagery": "Inline SVG doodles with irregular strokes (stroke-linecap round, hand-like paths).",
+    "details": "Sketchy borders (slightly irregular radius like rounded-[255px_15px_225px_15px/15px_225px_15px_255px]), scribbled underlines, hand-drawn arrows."
+  },
+  {
+    "id": "civic-trust",
+    "name": "Civic and trustworthy",
+    "idea": "Clear, accessible and serious: institutions, finance, health — trust through plainness.",
+    "composition": "Clear hierarchy; left-aligned content; task-led sections; plain lists; prominent help and contact.",
+    "type": "Highly legible sans (Source Sans 3, Public Sans, IBM Plex Sans) with a sober serif option (Source Serif 4).",
+    "colour": "Deep blue or green, white, light grey panels; strong accessible contrast.",
+    "imagery": "Modest photos of real people and places; simple icons.",
+    "details": "Clear focus states, underlined links, simple cards with borders, small radius."
+  },
+  {
+    "id": "afro-futurist",
+    "name": "Afrofuturist",
+    "idea": "Bold, celebratory futures: cosmic scale, metallic richness and pattern woven with technology.",
+    "composition": "Monumental centred heroes; circular and radial compositions; layered pattern and light; sections as chapters of a story.",
+    "type": "Wide or geometric display (Unbounded, Syne, Michroma) with a strong humanist sans (Outfit, Lexend).",
+    "colour": "Deep purples, midnight blues and blacks with gold, copper and electric accents.",
+    "imagery": "Radial gradient suns and planets, geometric pattern overlays, portrait placeholders in circular frames.",
+    "details": "Concentric rings, metallic gradient text, star fields made with radial gradients."
+  }
+]
