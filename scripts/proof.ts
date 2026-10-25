@@ -58,7 +58,9 @@ const stats = await runAgent({
   onEvent(e: AgentEvent) {
     const at = ((performance.now() - t0) / 1000).toFixed(1);
     appendFileSync(events, JSON.stringify({ at: Number(at), ...e }) + "\n");
-    if (e.type === "step-start") console.log(`[${at}s] step ${e.index}: ${e.title}`);
+    if (e.type === "step-writing") console.log(`[${at}s] writing step ${e.index}: ${e.title}`);
+    if (e.type === "step-target") console.log(`[${at}s]   target ${JSON.stringify(e.target)}`);
+    if (e.type === "step-start") console.log(`[${at}s] step ${e.index} runs`);
     if (e.type === "step-end") {
       const s = e.step;
       console.log(

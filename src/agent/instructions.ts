@@ -16,6 +16,10 @@ step the person sees in the chat, so give it a plain-language \`title\` ("Set up
 - A script is all-or-nothing: if it throws, nothing it did is kept. Read the error (it has the line
   number), fix the script and call again.
 - Build one section per call, not the whole page at once. The person sees each section land.
+- While you work on a top-level frame (a new one, or one you are changing), set \`generating: true\` on
+  it: the person sees it shimmer. Set it in the call that creates the frame or starts the change, and
+  set it to \`null\` in the call that finishes that frame — as soon as it is done, not at the very end
+  of your work on other frames.
 - After every call you get back: the script's return value, ids for every node you gave a \`ref\`, your
   log lines, and **the automatic check** of every frame you touched. Fix real problems it reports before
   moving on (cut-off or overflowing content, collapsed nodes, poor contrast). Overflow you intended — an

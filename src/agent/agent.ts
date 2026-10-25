@@ -3,7 +3,7 @@
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { z } from "zod";
 import { PRODUCT } from "../product.js";
@@ -13,10 +13,13 @@ import { execute, type ExecuteResult } from "./execute.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { pickStartingPoints } from "./directions.js";
-import { toTree } from "../doc/store.js";
+import { exists, nodesOf, toTree } from "../doc/store.js";
+import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { DEFAULT_MODEL } from "./models.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
+/** How often the script being written is re-read for where it will work next. */
+const READ_EVERY_MS = 100;
 
 export interface StepRecord {
   index: number;
@@ -43,6 +46,10 @@ export type AgentEvent =
   | { type: "started"; directions: string[]; name: string; model: string; prompt: string }
   /** Time the model spent before its next action (shown as "Thought for Ns"). */
   | { type: "thought"; seconds: number }
+  /** The agent has begun writing a step's script (sent once its title is written). */
+  | { type: "step-writing"; index: number; title: string }
+  /** Where the script being written will work next, read from the unfinished script. */
+  | { type: "step-target"; index: number; target: Target }
   | { type: "step-start"; index: number; title: string }
   | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
   | { type: "text"; text: string }
@@ -125,6 +132,37 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const thought = () => {
     const seconds = Math.round((performance.now() - lastActivity) / 1000);
     if (seconds >= 1) emit({ type: "thought", seconds });
+  };
+
+  // The execute call the model is writing right now, read as it streams (see live-script.ts).
+  let writing: { block: number; index: number; json: string; titled: boolean; target: string; readAt: number } | undefined;
+  let blocksInMessage = 0;
+  const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
+    if (ev.type === "message_start") blocksInMessage = 0;
+    else if (ev.type === "content_block_start") {
+      if (ev.content_block.type === "tool_use" && ev.content_block.name === TOOL_NAME) {
+        writing = { block: ev.index, index: steps.length + 1 + blocksInMessage++, json: "", titled: false, target: "", readAt: 0 };
+      }
+    } else if (ev.type === "content_block_delta") {
+      if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
+      writing.json += ev.delta.partial_json;
+      const title = writing.titled ? undefined : partialField(writing.json, "title");
+      if (title?.done) {
+        writing.titled = true;
+        thought();
+        emit({ type: "step-writing", index: writing.index, title: title.value });
+      }
+      const now = performance.now();
+      if (!writing.titled || now - writing.readAt < READ_EVERY_MS) return;
+      writing.readAt = now;
+      const script = partialField(writing.json, "script")?.value;
+      const target = script ? scriptTarget(script, (id) => exists(o.doc, id)) : undefined;
+      const key = JSON.stringify(target ?? null);
+      if (target && key !== writing.target) {
+        writing.target = key;
+        emit({ type: "step-target", index: writing.index, target });
+      }
+    } else if (ev.type === "content_block_stop" && ev.index === writing?.block) writing = undefined;
   };
 
   const executeTool = tool(
@@ -220,11 +258,13 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         settingSources: [], // ignore the person's Claude settings and memory files
         persistSession: false,
         maxTurns: 60,
+        includePartialMessages: true, // the script as it is written, for the live cursor
         cwd,
         abortController: abort,
       },
     })) {
-      if (m.type === "assistant" && !m.parent_tool_use_id) {
+      if (m.type === "stream_event" && !m.parent_tool_use_id) onStream(m.event);
+      else if (m.type === "assistant" && !m.parent_tool_use_id) {
         for (const block of m.message.content) {
           if (block.type === "text" && block.text.trim()) {
             thought();
@@ -250,6 +290,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     emit({ type: "error", message: e instanceof Error ? e.message : String(e) });
     stats.reply = stats.reply || `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
+  // A frame the agent left marked as being built (it stopped, or forgot) is no longer being built.
+  const marked = [...nodesOf(o.doc).entries()].filter(([, rec]) => rec.get("generating")).map(([id]) => id);
+  if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("generating")), new AgentChange(o.name ?? "agent", steps.length));
   stats.durationMs = performance.now() - started;
   personEdits.dispose();
   emit({ type: "done", stats });

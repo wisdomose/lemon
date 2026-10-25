@@ -53,6 +53,8 @@ export interface NodeProps {
   /** One radius, or [top-left, top-right, bottom-right, bottom-left]. */
   radius?: number | [number, number, number, number];
   shadow?: Shadow;
+  /** A top-level frame an agent is building: drawn with the "Generating" shimmer until cleared. */
+  generating?: boolean;
 
   // Frame layout: a single axis, no wrapping.
   layout?: "row" | "column" | "none";

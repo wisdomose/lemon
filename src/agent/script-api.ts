@@ -6,6 +6,7 @@ import * as store from "../doc/store.js";
 import type { Touched } from "../doc/live.js";
 import { check, type Issue } from "../layout/check.js";
 import { layout, type Box, type Boxes } from "../layout/layout.js";
+import { emptySpot } from "../layout/space.js";
 import { findNode } from "../render/screenshot.js";
 import { FontsNeeded } from "../text/fonts.js";
 import { Abort } from "../sandbox/sandbox.js";
@@ -34,8 +35,6 @@ const log = (...a) => { __call("log", [a.map(__fmt).join(" ")]); };
 const console = Object.freeze({ log, info: log, warn: log, error: log });
 globalThis.doc = doc; globalThis.log = log; globalThis.console = console;
 `;
-
-const GAP_BETWEEN_FRAMES = 120;
 
 /** An optional position from the sandbox: JSON turns a left-out argument into null, which means "at the end". */
 function position(v: unknown): number | undefined {
@@ -125,20 +124,9 @@ export class ScriptSession {
     return cur;
   }
 
-  findSpace(width: number, height: number): { x: number; y: number } {
+  findSpace(): { x: number; y: number } {
     const { tree, boxes } = this.measured();
-    let right = -Infinity;
-    let top = 0;
-    for (const t of tree.children) {
-      const b = boxes.get(t.id);
-      if (b && b.x + b.w > right) {
-        right = b.x + b.w;
-        top = b.y;
-      }
-    }
-    void width;
-    void height;
-    return right === -Infinity ? { x: 0, y: 0 } : { x: Math.round(right + GAP_BETWEEN_FRAMES), y: Math.round(top) };
+    return emptySpot(tree, boxes);
   }
 
   host = (op: string, args: unknown[]): unknown => {
@@ -152,7 +140,7 @@ export class ScriptSession {
         const parent = args[0] === null || args[0] === undefined ? ROOT_ID : str(args[0], "parent");
         const spec = args[1] as NodeSpec;
         if (parent === ROOT_ID && spec && typeof spec === "object" && spec.x === undefined && spec.y === undefined) {
-          Object.assign(spec, this.findSpace(0, 0));
+          Object.assign(spec, this.findSpace());
         }
         const id = store.insert(doc, parent, spec, position(args[2]), this.refs);
         this.touched.add(id);
@@ -244,7 +232,7 @@ export class ScriptSession {
         }));
       }
       case "findSpace":
-        return this.findSpace(Number(args[0]) || 0, Number(args[1]) || 0);
+        return this.findSpace();
       case "screenshot": {
         const id = str(args[0], "id");
         if (!store.exists(doc, id) || id === ROOT_ID) throw new Error(`screenshot: no node with id "${id}".`);

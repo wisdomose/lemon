@@ -1,10 +1,10 @@
 // The design canvas: draws the document with CanvasKit, plus the editor's overlays (frame names,
 // hover and selection outlines, size pill, agent cursor), and handles panning, zooming and selecting.
-import type { Canvas, Surface } from "canvaskit-wasm";
+import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode } from "../../render/draw.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, currentScene, engine } from "../scene.js";
+import { CANVAS_UI_FONT, currentScene, engine, type Scene } from "../scene.js";
 import { store } from "../store.js";
 import { getSettings } from "../settings.js";
 
@@ -17,13 +17,41 @@ const HANDLE = 8;
 const PILL_H = 20;
 const PILL_GAP = 6;
 const BADGE = 16;
+/** A frame an agent is building: outline, tint and "Generating" label (measured from captures 22a and 23). */
+const LIVE = "#607dff";
+const LIVE_RGB = [96 / 255, 125 / 255, 255 / 255] as const;
+/** The tint's strength at the bottom of the frame; it fades to nothing at the top. */
+const LIVE_TINT = 0.36;
+/** How long the agent cursor takes to glide to a new spot. */
+const GLIDE_MS = 350;
 
 /** Zoom steps for the zoom buttons and Ctrl +/−. */
 export const ZOOM_PRESETS = [0.02, 0.03, 0.05, 0.08, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
 /** Page coordinates at the canvas's top-left corner, and the zoom. */
 export const view = { x: 0, y: 0, zoom: 1 };
-export const cursor = { name: "", x: 0, y: 0, shown: false, since: 0 };
+/** The agent's cursor: glides (page coordinates) from `from` to `to`, starting at `movedAt`. */
+export const cursor = { name: "", shown: false, since: 0, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, movedAt: 0 };
+
+function cursorAt(now: number): { x: number; y: number } {
+  const k = Math.min(1, (now - cursor.movedAt) / GLIDE_MS);
+  const e = 1 - (1 - k) ** 3;
+  return { x: cursor.from.x + (cursor.to.x - cursor.from.x) * e, y: cursor.from.y + (cursor.to.y - cursor.from.y) * e };
+}
+
+/** Sends the agent's cursor to a page point: it fades in there the first time, then glides. */
+export function moveCursor(x: number, y: number): void {
+  const now = performance.now();
+  if (!cursor.shown) Object.assign(cursor, { shown: true, since: now, from: { x, y } });
+  else cursor.from = cursorAt(now);
+  Object.assign(cursor, { to: { x, y }, movedAt: now });
+  schedule();
+}
+
+export function hideCursor(): void {
+  cursor.shown = false;
+  schedule();
+}
 
 let el: HTMLCanvasElement;
 let surface: Surface | null = null;
@@ -159,10 +187,32 @@ function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
 function uiText(text: string, size: number, color: string, weight = 400) {
   return engine.text.paragraph({ text, font: CANVAS_UI_FONT, size, weight, color, lineHeight: 1.2 }, {});
 }
+/** A frame's label: its name, or "Generating: <name>" (after a sparkle) while an agent builds it. */
+const labelText = (f: TreeNode) => (f.props.generating ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
+const SPARKLE_W = 17;
 function labelWidth(f: TreeNode) {
-  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, label());
+  const p = uiText(labelText(f), LABEL_SIZE, label());
   p.layout(10000);
-  return p.getMaxIntrinsicWidth();
+  return p.getMaxIntrinsicWidth() + (f.props.generating ? SPARKLE_W : 0);
+}
+
+/** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
+function fitLabel(text: string, color: string, max: number) {
+  let p = uiText(text, LABEL_SIZE, color);
+  p.layout(10000);
+  if (p.getMaxIntrinsicWidth() <= max) return p;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    p = uiText(text.slice(0, mid).trimEnd() + "…", LABEL_SIZE, color);
+    p.layout(10000);
+    if (p.getMaxIntrinsicWidth() <= max) lo = mid;
+    else hi = mid - 1;
+  }
+  p = uiText(text.slice(0, lo).trimEnd() + "…", LABEL_SIZE, color);
+  p.layout(10000);
+  return p;
 }
 
 function draw() {
@@ -185,8 +235,11 @@ function draw() {
     canvas.save();
     canvas.scale(view.zoom, view.zoom);
     canvas.translate(-view.x, -view.y);
-    for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes }, canvas, frame);
+    canvas.drawPicture(documentPicture(s));
     canvas.restore();
+    for (const frame of s.tree.children) {
+      if (frame.props.generating) drawGenerating(canvas, s.boxes.get(frame.id));
+    }
     for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), frame.id === st.selection);
     if (st.hover && st.hover !== st.selection) outline(canvas, s.boxes.get(st.hover));
     if (st.selection) drawSelection(canvas, s.tree, s.boxes.get(st.selection), st.selection);
@@ -194,15 +247,94 @@ function draw() {
     canvas.restore();
   }
   surface.flush();
-  if (cursor.shown && performance.now() - cursor.since < 250) schedule(); // fade in
+  // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
+  // itself is a recorded picture, so a frame costs little).
+  if (cursor.shown || s?.tree.children.some((f) => f.props.generating)) schedule();
+}
+
+/** The document drawn once per change and replayed for every frame of animation. */
+let recorded: { scene: Scene; picture: SkPicture } | undefined;
+function documentPicture(s: Scene): SkPicture {
+  if (recorded?.scene === s) return recorded.picture;
+  const { ck } = engine;
+  const recorder = new ck.PictureRecorder();
+  const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
+  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes }, c, frame);
+  const picture = recorder.finishRecordingAsPicture();
+  recorder.delete();
+  recorded?.picture.delete();
+  recorded = { scene: s, picture };
+  return picture;
+}
+
+/** A frame an agent is building: a blue-violet tint growing towards the bottom, a slow sheen, a blue outline. */
+function drawGenerating(canvas: Canvas, b: Box | undefined) {
+  if (!b) return;
+  const { ck } = engine;
+  const [x, y] = toScreen(b.x, b.y);
+  const w = b.w * view.zoom;
+  const h = b.h * view.zoom;
+  const rect = ck.XYWHRect(x, y, w, h);
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  const tint = ck.Shader.MakeLinearGradient([x, y], [x, y + h], [ck.Color4f(...LIVE_RGB, 0), ck.Color4f(...LIVE_RGB, LIVE_TINT)], null, ck.TileMode.Clamp);
+  paint.setShader(tint);
+  canvas.drawRect(rect, paint);
+  tint.delete();
+  // The sheen: a soft light band crossing the frame diagonally every couple of seconds.
+  const span = w + h;
+  const at = x - h + ((performance.now() / 2400) % 1) * (span + h);
+  const sheen = ck.Shader.MakeLinearGradient(
+    [at, y],
+    [at + h * 0.6, y + h * 0.6],
+    [ck.Color4f(1, 1, 1, 0), ck.Color4f(1, 1, 1, 0.12), ck.Color4f(1, 1, 1, 0)],
+    [0, 0.5, 1],
+    ck.TileMode.Decal,
+  );
+  canvas.save();
+  canvas.clipRect(rect, ck.ClipOp.Intersect, true);
+  paint.setShader(sheen);
+  canvas.drawRect(rect, paint);
+  canvas.restore();
+  sheen.delete();
+  paint.setShader(null);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(2);
+  paint.setColor(ck.parseColorString(LIVE));
+  canvas.drawRect(ck.XYWHRect(Math.round(x) - 1, Math.round(y) - 1, Math.round(w) + 2, Math.round(h) + 2), paint);
+  paint.delete();
 }
 
 function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: boolean) {
   if (!b) return;
   const [x, y] = toScreen(b.x, b.y);
+  if (f.props.generating) {
+    drawSparkle(canvas, x + 6, y - LABEL_SIZE / 2 - 9);
+    const p = fitLabel(labelText(f), LIVE, Math.max(40, b.w * view.zoom - SPARKLE_W));
+    canvas.drawParagraph(p, x + SPARKLE_W, y - LABEL_SIZE - 8);
+    return;
+  }
   const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, selected ? SELECT : label());
   p.layout(Math.max(40, b.w * view.zoom));
   canvas.drawParagraph(p, x, y - LABEL_SIZE - 8);
+}
+
+/** The sparkle before "Generating": a four-point star with a small one above it. */
+function drawSparkle(canvas: Canvas, cx: number, cy: number) {
+  const { ck } = engine;
+  const star = (x: number, y: number, r: number) => {
+    const k = r * 0.28;
+    return [x, y - r, x + k, y - k, x + r, y, x + k, y + k, x, y + r, x - k, y + k, x - r, y, x - k, y - k];
+  };
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setColor(ck.parseColorString(LIVE));
+  for (const pts of [star(cx, cy + 1, 5), star(cx + 5, cy - 4, 2.5)]) {
+    const path = new ck.PathBuilder().addPolygon(pts, true).detachAndDelete();
+    canvas.drawPath(path, paint);
+    path.delete();
+  }
+  paint.delete();
 }
 
 function outline(canvas: Canvas, b: Box | undefined) {
@@ -271,8 +403,13 @@ function drawSelection(canvas: Canvas, tree: TreeNode, b: Box | undefined, id: s
 
 function drawCursor(canvas: Canvas) {
   const { ck } = engine;
-  const alpha = Math.min(1, (performance.now() - cursor.since) / 200);
-  const [x, y] = toScreen(cursor.x, cursor.y);
+  const now = performance.now();
+  const alpha = Math.min(1, (now - cursor.since) / 200);
+  const at = cursorAt(now);
+  // At rest it wobbles by a pixel or two, as Pen's does.
+  const [sx, sy] = toScreen(at.x, at.y);
+  const x = sx + Math.sin(now / 650) * 1.5;
+  const y = sy + Math.sin(now / 830 + 1) * 1.5;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
   paint.setColor(ck.Color4f(0.66, 0.33, 0.97, alpha));

@@ -106,7 +106,7 @@ async function main() {
       onEvent: (e) => {
         if (win.isDestroyed()) return;
         win.webContents.send("agent:event", e);
-        log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "index" in e ? ` ${e.index} ${e.title}` : ""}`);
+        if (e.type !== "step-target") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
         if (env.LEMON_FILM && e.type === "step-end") {
           const n = String(e.step.index).padStart(2, "0");
           setTimeout(() => win.webContents.capturePage().then((img) => writeFileSync(join(env.LEMON_FILM!, `step-${n}.png`), img.toPNG())), 600);
