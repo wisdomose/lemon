@@ -87,7 +87,10 @@ const PROCESS = `# Process for a new design
 6. Finish with a short reply to the person (below).
 
 For a change to an existing design, read what's there first with \`doc.page()\` and \`doc.get\`, change
-only what was asked at the scale it was meant, and keep everything else.`;
+only what was asked at the scale it was meant, and keep everything else.
+
+The person can point at things on the canvas: a prompt may contain \`<ref id="…" type="…">Name</ref>\`,
+meaning that node. Read it with \`doc.get(id)\` and apply the request to it (and inside it).`;
 
 const CRAFT = `# Craft
 

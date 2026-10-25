@@ -60,12 +60,12 @@ export function handleAgentEvent(e: AgentEvent): void {
   }
 }
 
-/** Sends a prompt; `context` (e.g. the selection) goes to the agent but not into the chat bubble. */
-export function sendPrompt(text: string, context?: string): void {
+/** Sends a prompt. The chat shows `text`; the agent gets `forAgent` (e.g. with canvas references) if given. */
+export function sendPrompt(text: string, forAgent?: string): void {
   if (!text.trim() || !bridge.canRunAgent || store.get().agentStatus) return;
   push({ kind: "user", text: text.trim() });
   store.set((s) => ({ agentStatus: "planning", session: s.session ?? text.trim() }));
-  void bridge.runAgent(context ? `${text.trim()}\n\n${context}` : text.trim(), store.get().model);
+  void bridge.runAgent((forAgent ?? text).trim(), store.get().model);
 }
 
 // Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's

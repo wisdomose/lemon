@@ -197,3 +197,16 @@
   .chat-md strong { font-weight: 600; }
   .chat-md code { font-family: var(--font-mono); font-size: 10px; background: var(--input); border-radius: 4px; padding: 1px 4px; }
 }
+
+/* The prompt editor (ProseMirror): 13px text at 1.5 line height, two lines tall when empty, placeholder
+   from data-placeholder. Measured from the reference's chat box. */
+@layer components {
+  .prompt-editor .ProseMirror { position: relative; min-height: 40px; outline: none; font-size: 13px; line-height: 1.5; color: var(--foreground); }
+  .prompt-editor .ProseMirror p { margin: 0; }
+  .prompt-editor .ProseMirror.is-empty::before {
+    content: attr(data-placeholder);
+    position: absolute;
+    color: #71717a;
+    pointer-events: none;
+  }
+}

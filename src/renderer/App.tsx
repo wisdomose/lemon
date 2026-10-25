@@ -24,7 +24,8 @@ export function App({ initial }: { initial: string }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      // Keys typed into a text field (including the prompt editor) are not shortcuts.
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
       else if (e.key === "Escape") store.set({ selection: null });

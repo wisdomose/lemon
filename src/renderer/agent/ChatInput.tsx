@@ -1,8 +1,9 @@
-// The chat input island under the left panel: selection chip, prompt box and footer controls.
+// The chat input island under the left panel: the prompt (with canvas references) and footer controls.
 import { useRef, useState } from "react";
+import { PromptEditor, type PromptEditorHandle } from "./PromptEditor.js";
 import { ParallelAgents, Variants } from "./RunOptions.js";
 import { DropdownMenu as M } from "radix-ui";
-import { ArrowUp, ChevronDown, ChevronRight, Frame, Image as ImageIcon, Plus, Search, Square } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, Image as ImageIcon, Plus, Search, Square } from "lucide-react";
 import { MODELS, modelLabel } from "../../agent/models.js";
 import { bridge, currentScene } from "../scene.js";
 import { store, useEditor } from "../store.js";
@@ -12,53 +13,29 @@ import { findNode } from "../../render/screenshot.js";
 import { sendPrompt } from "./chat.js";
 
 export function ChatInput() {
-  const [text, setText] = useState("");
   const footer = useRef<HTMLDivElement>(null);
   const status = useEditor((s) => s.agentStatus);
   const model = useEditor((s) => s.model);
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
   const node = selection ? findNode(currentScene()?.tree ?? { id: "", type: "frame", props: {}, children: [] }, selection) : undefined;
-  const nodeName = node ? (node.props.name ?? node.type) : undefined;
-  // With something selected the prompt can be empty: the agent is asked about the selection.
-  const canSend = !!text.trim() || !!nodeName;
+  const ref = node ? { id: node.id, name: node.props.name ?? node.type[0]!.toUpperCase() + node.type.slice(1), kind: node.type } : null;
+  const editor = useRef<PromptEditorHandle>(null);
+  const [canSend, setCanSend] = useState(false);
   const send = () => {
-    if (!canSend) return;
-    const prompt = text.trim() || "Improve the selected design.";
-    sendPrompt(prompt, nodeName ? `<selection>The person has selected "${nodeName}" (id ${node!.id}).</selection>` : undefined);
-    setText("");
+    const p = editor.current?.read();
+    if (!p || p.isEmpty) return;
+    // A prompt of references only asks the agent to work on them.
+    const forAgent = p.hasText ? p.forAgent : `${p.forAgent}\nImprove this.`;
+    sendPrompt(p.shown, forAgent);
+    editor.current!.clear();
   };
   return (
     <Island className="flex max-h-[calc(50%-4px)] min-h-[91px] shrink-0 flex-col pt-[14px] pb-2 pl-3 pr-[11px]">
-      {/* The selection sits inline at the start of the prompt, as in the reference: the box keeps its
-          height and the placeholder goes away. */}
-      <div className="mb-1 flex min-h-0 flex-1 flex-wrap content-start items-start gap-x-1.5 overflow-y-auto">
-        {node && (
-          <span className="mt-[1px] ml-1 inline-flex h-[21px] max-w-[200px] shrink-0 items-center gap-[3px] rounded-[4px] border border-input px-[5px] text-[10px] text-muted-foreground">
-            <Frame size={11} strokeWidth={1.5} className="shrink-0" />
-            <span className="truncate">{node.props.name ?? node.type}</span>
-          </span>
-        )}
-        <textarea
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            // Typing (or pasting) at the end keeps the end in view, as in the reference.
-            const t = e.target;
-            if (t.selectionEnd === t.value.length) requestAnimationFrame(() => t.parentElement?.scrollTo({ top: t.parentElement.scrollHeight }));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          rows={2}
-          placeholder={node ? "" : "Design anything..."}
-          // Grows with its text (CSS field-sizing); past the box's maximum the area around it scrolls.
-          style={{ fieldSizing: "content" } as React.CSSProperties}
-          className="min-h-10 min-w-[120px] flex-1 resize-none overflow-hidden bg-transparent text-[13px] leading-[1.5] text-foreground outline-none placeholder:text-[#71717a]"
-        />
+      {/* The prompt, with canvas references inline (PromptEditor). Grows with its text up to the box's
+          maximum, then scrolls. */}
+      <div className="mb-1 flex min-h-0 flex-1 overflow-y-auto">
+        <PromptEditor ref={editor} selection={ref} placeholder="Design anything..." onSubmit={send} onChange={setCanSend} />
       </div>
       <div ref={footer} className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
         <button type="button" aria-label="Add to context" className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-foreground/5">
