@@ -1,8 +1,9 @@
 // Turns agent events from the host into chat items, and sends prompts.
 import type { AgentEvent } from "../../agent/agent.js";
 import { modelLabel } from "../../agent/models.js";
-import { cursor, schedule, zoomToFit } from "../canvas/canvas.js";
-import { bridge } from "../scene.js";
+import { cursor, hideCursor, moveCursor, schedule, zoomToFit } from "../canvas/canvas.js";
+import { bridge, currentScene } from "../scene.js";
+import { targetPoint } from "./targets.js";
 import { store, type ChatItem, type Session } from "../store.js";
 
 const pngUrl = (png: Uint8Array) => URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
@@ -26,10 +27,20 @@ export function handleAgentEvent(e: AgentEvent): void {
     case "thought":
       push({ kind: "thought", seconds: e.seconds });
       break;
+    // The card appears as soon as the agent starts writing the step (step-writing); step-start
+    // covers a step whose writing wasn't seen.
+    case "step-writing":
     case "step-start":
       store.set({ agentStatus: null });
-      push({ kind: "step", index: e.index, title: e.title, state: "running" });
+      if (store.get().chat.some((c) => c.kind === "step" && c.index === e.index)) updateStep(e.index, { title: e.title });
+      else push({ kind: "step", index: e.index, title: e.title, state: "running" });
       break;
+    case "step-target": {
+      const s = currentScene();
+      const at = s && targetPoint(e.target, s);
+      if (at) moveCursor(at.x, at.y);
+      break;
+    }
     case "step-end":
       updateStep(e.step.index, {
         state: e.step.ok ? "ok" : "failed",
@@ -38,10 +49,7 @@ export function handleAgentEvent(e: AgentEvent): void {
         pictures: e.detail.pictures.map((p) => ({ url: pngUrl(p.png), width: p.width, height: p.height })),
       });
       store.set({ agentStatus: "thinking" });
-      if (e.focus) {
-        if (!cursor.shown) cursor.since = performance.now();
-        Object.assign(cursor, { x: e.focus.x, y: e.focus.y, shown: true });
-      }
+      if (e.focus) moveCursor(e.focus.x, e.focus.y);
       if (e.step.index === 1) zoomToFit();
       schedule();
       break;
@@ -49,8 +57,9 @@ export function handleAgentEvent(e: AgentEvent): void {
       push({ kind: "text", text: e.text });
       break;
     case "done":
-      cursor.shown = false;
-      store.set({ agentStatus: null });
+      hideCursor();
+      // A card for a step the agent began writing but that never ran (its call was rejected).
+      store.set((s) => ({ agentStatus: null, chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
       push({ kind: "designed", seconds: Math.round(e.stats.durationMs / 1000) });
       schedule();
       break;
