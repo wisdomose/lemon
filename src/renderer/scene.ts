@@ -90,8 +90,12 @@ export function currentScene(onReady?: () => void): Scene | undefined {
 /** Resolves once the document can be laid out (its fonts are loaded). */
 export async function laidOut(): Promise<Scene> {
   for (;;) {
-    const s = currentScene();
+    // While fonts load, currentScene returns the previous scene (if any) and calls `ready` once they
+    // have loaded; only a fresh layout ends the wait.
+    let ready!: () => void;
+    const fontsLoaded = new Promise<void>((r) => (ready = r));
+    const s = currentScene(ready);
     if (s && !stale) return s;
-    await new Promise<void>((r) => (currentScene(r) ? r() : undefined));
+    await fontsLoaded;
   }
 }
