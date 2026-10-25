@@ -2,7 +2,9 @@
 import type { AgentEvent } from "../../agent/agent.js";
 import { modelLabel } from "../../agent/models.js";
 import { cursor, hideCursor, moveCursor, schedule, zoomToFit } from "../canvas/canvas.js";
-import { bridge, currentScene } from "../scene.js";
+import { bridge, currentScene, doc, laidOut } from "../scene.js";
+import { childIds } from "../../doc/store.js";
+import { ROOT_ID } from "../../doc/schema.js";
 import { targetPoint } from "./targets.js";
 import { store, type ChatItem, type Session } from "../store.js";
 
@@ -17,9 +19,13 @@ function updateStep(index: number, patch: Partial<Extract<ChatItem, { kind: "ste
   }));
 }
 
+/** Top-level frames before this run; cleared once the view has been fitted to a new one. */
+let framesBefore: Set<string> | undefined;
+
 export function handleAgentEvent(e: AgentEvent): void {
   switch (e.type) {
     case "started":
+      framesBefore = new Set(childIds(doc, ROOT_ID));
       cursor.name = e.name;
       store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
       push({ kind: "agent-head", name: e.name, model: modelLabel(e.model) });
@@ -50,7 +56,12 @@ export function handleAgentEvent(e: AgentEvent): void {
       });
       store.set({ agentStatus: "thinking" });
       if (e.focus) moveCursor(e.focus.x, e.focus.y);
-      if (e.step.index === 1) zoomToFit();
+      // The first time a step adds a top-level frame, fit the view to it once it can be laid out
+      // (its fonts may still be loading).
+      if (framesBefore && e.frames.some((id) => !framesBefore!.has(id))) {
+        framesBefore = undefined;
+        void laidOut().then(() => zoomToFit());
+      }
       schedule();
       break;
     case "text":
