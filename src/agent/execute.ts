@@ -1,6 +1,7 @@
 // The agent's one tool: run a script against the document as a single all-or-nothing change.
 import type * as Y from "yjs";
 import { stage } from "../doc/store.js";
+import { agentClientId, type Touched } from "../doc/live.js";
 import type { Issue } from "../layout/check.js";
 import { screenshot } from "../render/screenshot.js";
 import { Abort, type Sandbox, type RunResult } from "../sandbox/sandbox.js";
@@ -15,6 +16,8 @@ export interface ExecuteResult {
   error?: { name: string; message: string; line?: number };
   refs: Record<string, string>;
   logs: string[];
+  /** Changes skipped because a person had just made their own (see doc/live.ts, rule b). */
+  leftAlone: string[];
   /** The automatic check of every top-level frame the script changed. */
   issues: Issue[];
   /** Top-level frames the script changed. */
@@ -39,6 +42,8 @@ export async function execute(
   sandbox: Sandbox,
   script: string,
   origin: unknown,
+  /** Properties people changed since this agent last reported back; the step leaves them alone. */
+  protect?: Touched,
 ): Promise<ExecuteResult> {
   const t0 = performance.now();
   let fontsMs = 0;
@@ -50,7 +55,7 @@ export async function execute(
     let scriptLayoutMs = 0;
     try {
       const staged = stage(doc, (copy) => {
-        session = new ScriptSession(copy, engine);
+        session = new ScriptSession(copy, engine, protect);
         const s0 = performance.now();
         const result = sandbox.run(PRELUDE, script, session.host);
         scriptMs = performance.now() - s0;
@@ -68,7 +73,7 @@ export async function execute(
         const lastId = [...session.touched].reverse().find((id) => boxes.has(id));
         const focus = lastId ? { id: lastId, ...boxes.get(lastId)! } : undefined;
         return { value: result.value, frames, issues, pictures, focus, picturesMs: performance.now() - p0 };
-      });
+      }, agentClientId());
       staged.commit(origin);
       const v = staged.value;
       return {
@@ -76,6 +81,7 @@ export async function execute(
         value: v.value,
         refs: session!.refs,
         logs: session!.logs,
+        leftAlone: session!.leftAlone,
         issues: v.issues,
         frames: v.frames,
         ...(v.focus ? { focus: v.focus } : {}),
@@ -104,6 +110,7 @@ export async function execute(
           error,
           refs: {},
           logs: e.session.logs,
+          leftAlone: [],
           issues: [],
           frames: [],
           pictures: [],

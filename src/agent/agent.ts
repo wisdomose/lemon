@@ -10,6 +10,7 @@ import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import { execute, type ExecuteResult } from "./execute.js";
+import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { pickStartingPoints } from "./directions.js";
 import { toTree } from "../doc/store.js";
@@ -87,6 +88,9 @@ function summarise(r: ExecuteResult): string {
       lines.push(`Returned: ${v.length > 6000 ? v.slice(0, 6000) + " …(cut)" : v}`);
     }
     if (Object.keys(r.refs).length) lines.push(`Refs: ${JSON.stringify(r.refs)}`);
+    if (r.leftAlone.length) {
+      lines.push(`Left alone — the person changed these while you were working, so their values stay:\n${r.leftAlone.map((l) => `- ${l}`).join("\n")}`);
+    }
   }
   if (r.logs.length) lines.push(`Log:\n${r.logs.join("\n")}`);
   if (r.ok) {
@@ -112,6 +116,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const emit = o.onEvent ?? (() => {});
   const started = performance.now();
   const steps: StepRecord[] = [];
+  // People's edits during this run: a step doesn't overwrite what the agent couldn't have seen.
+  const personEdits = new PersonEdits(o.doc);
   const directions = pickStartingPoints(o.recentDirections);
   emit({ type: "started", directions: directions.map((d) => d.id), name: o.name ?? "agent", model, prompt: o.prompt });
   // "Thought for Ns": time from the last thing the agent did to its next action.
@@ -132,7 +138,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       const index = steps.length + 1;
       thought();
       emit({ type: "step-start", index, title });
-      const r = await execute(o.doc, o.engine, o.sandbox, script, { agent: o.name ?? "agent" });
+      const r = await execute(o.doc, o.engine, o.sandbox, script, new AgentChange(o.name ?? "agent", index), personEdits.peek());
+      // From here the agent has reported back; edits after this are ones its next script can't know about.
+      personEdits.take();
       const issueKinds: Record<string, number> = {};
       for (const i of r.issues) issueKinds[i.kind] = (issueKinds[i.kind] ?? 0) + 1;
       const step: StepRecord = {
@@ -243,6 +251,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     stats.reply = stats.reply || `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
   stats.durationMs = performance.now() - started;
+  personEdits.dispose();
   emit({ type: "done", stats });
   return stats;
 }

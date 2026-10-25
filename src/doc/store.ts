@@ -191,10 +191,13 @@ export function setVars(doc: Y.Doc, vars: Record<string, string | number | null>
 /**
  * Runs `fn` against a private copy of `doc`. If it succeeds, its changes are applied to `doc` as one
  * update tagged with `origin` (one undo step, one message to other windows); if it throws, `doc` is
- * untouched. Changes made to `doc` meanwhile (a person editing) merge as usual.
+ * untouched. Changes made to `doc` meanwhile (a person editing) merge as usual; `copyClientId` decides
+ * which side wins a tie on the same property.
  */
-export function stage<T>(doc: Y.Doc, fn: (copy: Y.Doc) => T): { value: T; commit: (origin: unknown) => void } {
+export function stage<T>(doc: Y.Doc, fn: (copy: Y.Doc) => T, copyClientId?: number): { value: T; commit: (origin: unknown) => void } {
   const copy = new Y.Doc();
+  // The copy's client id decides ties with concurrent edits (see doc/live.ts).
+  if (copyClientId !== undefined) copy.clientID = copyClientId;
   Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
   const value = copy.transact(() => fn(copy));
   return {
