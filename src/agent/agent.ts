@@ -137,6 +137,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   // The execute call the model is writing right now, read as it streams (see live-script.ts).
   let writing: { block: number; index: number; json: string; titled: boolean; target: string; readAt: number } | undefined;
   let blocksInMessage = 0;
+  /** Steps whose card appeared while being written (their thinking time is already shown). */
+  const announced = new Set<number>();
   const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
     if (ev.type === "message_start") blocksInMessage = 0;
     else if (ev.type === "content_block_start") {
@@ -150,6 +152,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       if (title?.done) {
         writing.titled = true;
         thought();
+        announced.add(writing.index);
         emit({ type: "step-writing", index: writing.index, title: title.value });
       }
       const now = performance.now();
@@ -174,7 +177,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     },
     async ({ title, script }) => {
       const index = steps.length + 1;
-      thought();
+      // "Thought for Ns" was already shown when the agent began writing this step.
+      if (!announced.has(index)) thought();
       emit({ type: "step-start", index, title });
       const r = await execute(o.doc, o.engine, o.sandbox, script, new AgentChange(o.name ?? "agent", index), personEdits.peek());
       // From here the agent has reported back; edits after this are ones its next script can't know about.
