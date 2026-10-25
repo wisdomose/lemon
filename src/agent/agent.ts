@@ -15,6 +15,8 @@ import { INSTRUCTIONS } from "./instructions.js";
 import { pickStartingPoints } from "./directions.js";
 import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
+import { FailedScripts } from "./patches.js";
+import type { Globals } from "../sandbox/sandbox.js";
 import { DEFAULT_MODEL } from "./models.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
@@ -83,11 +85,28 @@ export interface AgentOptions {
   onEvent?: (e: AgentEvent) => void;
 }
 
-function summarise(r: ExecuteResult): string {
+/** A step that never ran (its edits didn't fit the failed script). */
+function notRun(message: string, globals: Globals): ExecuteResult {
+  return {
+    ok: false,
+    error: { name: "EditError", message },
+    globals,
+    refs: {},
+    logs: [],
+    leftAlone: [],
+    issues: [],
+    frames: [],
+    pictures: [],
+    timings: { totalMs: 0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+  };
+}
+
+function summarise(r: ExecuteResult, editId?: string): string {
   const lines: string[] = [];
   if (!r.ok) {
     lines.push(`FAILED — nothing from this script was kept.`);
     lines.push(`${r.error?.name ?? "Error"}${r.error?.line ? ` at line ${r.error.line}` : ""}: ${r.error?.message}`);
+    if (editId) lines.push(`Fix it with \`edits\` and editId "${editId}" — don't send the script again.`);
   } else {
     lines.push("Done — the change is on the canvas.");
     if (r.value !== undefined && r.value !== null) {
@@ -95,6 +114,8 @@ function summarise(r: ExecuteResult): string {
       lines.push(`Returned: ${v.length > 6000 ? v.slice(0, 6000) + " …(cut)" : v}`);
     }
     if (Object.keys(r.refs).length) lines.push(`Refs: ${JSON.stringify(r.refs)}`);
+    const kept = Object.keys(r.globals);
+    if (kept.length) lines.push(`Globals kept for your next scripts: ${kept.join(", ")}.`);
     if (r.leftAlone.length) {
       lines.push(`Left alone — the person changed these while you were working, so their values stay:\n${r.leftAlone.map((l) => `- ${l}`).join("\n")}`);
     }
@@ -139,6 +160,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   let blocksInMessage = 0;
   /** Steps whose card appeared while being written (their thinking time is already shown). */
   const announced = new Set<number>();
+  /** Values the agent's scripts left on the global object, carried into its next script. */
+  let globals: Globals = {};
+  const failed = new FailedScripts();
   const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
     if (ev.type === "message_start") blocksInMessage = 0;
     else if (ev.type === "content_block_start") {
@@ -159,7 +183,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       if (!writing.titled || now - writing.readAt < READ_EVERY_MS) return;
       writing.readAt = now;
       const script = partialField(writing.json, "script")?.value;
-      const target = script ? scriptTarget(script, (id) => exists(o.doc, id)) : undefined;
+      const target = script ? scriptTarget(script, (id) => exists(o.doc, id), globals) : undefined;
       const key = JSON.stringify(target ?? null);
       if (target && key !== writing.target) {
         writing.target = key;
@@ -170,17 +194,38 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
 
   const executeTool = tool(
     "execute",
-    "Run a JavaScript script against the design document (global `doc`). All-or-nothing: if it throws, nothing is kept. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
+    "Run a JavaScript script against the design document (global `doc`). All-or-nothing: if it throws, nothing is kept and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
     {
       title: z.string().describe("A short plain-language name for this step, shown to the person."),
-      script: z.string().describe("The script: a function body; `return` a value to get it back."),
+      script: z.string().optional().describe("The script: a function body; `return` a value to get it back. Leave out when sending edits."),
+      editId: z.string().optional().describe("The editId of the failed script that `edits` fix."),
+      edits: z
+        .array(z.object({ find: z.string(), replace: z.string() }))
+        .optional()
+        .describe("Find-and-replace edits applied in order to the failed script; each `find` must match exactly once."),
     },
-    async ({ title, script }) => {
+    async ({ title, script: written, editId, edits }) => {
       const index = steps.length + 1;
       // "Thought for Ns" was already shown when the agent began writing this step.
       if (!announced.has(index)) thought();
       emit({ type: "step-start", index, title });
-      const r = await execute(o.doc, o.engine, o.sandbox, script, new AgentChange(o.name ?? "agent", index), personEdits.peek());
+      let script = written ?? "";
+      let problem: string | undefined;
+      try {
+        if (editId) script = failed.patch(editId, edits ?? []);
+        else if (!written) problem = "Send a `script`, or `edits` with the `editId` of a failed one.";
+      } catch (e) {
+        problem = (e as Error).message;
+      }
+      const r = problem
+        ? notRun(problem, globals)
+        : await execute(o.doc, o.engine, o.sandbox, script, new AgentChange(o.name ?? "agent", index), personEdits.peek(), globals);
+      let failedId: string | undefined;
+      if (r.ok) {
+        globals = r.globals;
+        if (editId) failed.done(editId);
+      } else if (r.timings.attempts) failedId = failed.keep(script, editId);
+      else failedId = editId;
       // From here the agent has reported back; edits after this are ones its next script can't know about.
       personEdits.take();
       const issueKinds: Record<string, number> = {};
@@ -198,7 +243,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         at: (performance.now() - started) / 1000,
       };
       steps.push(step);
-      const output = summarise(r);
+      const output = summarise(r, failedId);
       emit({
         type: "step-end",
         step,

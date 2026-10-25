@@ -4,7 +4,7 @@ import { stage } from "../doc/store.js";
 import { agentClientId, type Touched } from "../doc/live.js";
 import type { Issue } from "../layout/check.js";
 import { screenshot } from "../render/screenshot.js";
-import { Abort, type Sandbox, type RunResult } from "../sandbox/sandbox.js";
+import { Abort, type Globals, type Sandbox, type RunResult } from "../sandbox/sandbox.js";
 import { FontsNeeded } from "../text/fonts.js";
 import type { Engine } from "../engine.js";
 import { PRELUDE, ScriptSession } from "./script-api.js";
@@ -16,6 +16,8 @@ export interface ExecuteResult {
   error?: { name: string; message: string; line?: number };
   refs: Record<string, string>;
   logs: string[];
+  /** Values the script left on the global object, for the agent's next script (the input's on failure). */
+  globals: Globals;
   /** Changes skipped because a person had just made their own (see doc/live.ts, rule b). */
   leftAlone: string[];
   /** The automatic check of every top-level frame the script changed. */
@@ -44,6 +46,8 @@ export async function execute(
   origin: unknown,
   /** Properties people changed since this agent last reported back; the step leaves them alone. */
   protect?: Touched,
+  /** Values earlier scripts left on the global object. */
+  globals: Globals = {},
 ): Promise<ExecuteResult> {
   const t0 = performance.now();
   let fontsMs = 0;
@@ -57,7 +61,7 @@ export async function execute(
       const staged = stage(doc, (copy) => {
         session = new ScriptSession(copy, engine, protect);
         const s0 = performance.now();
-        const result = sandbox.run(PRELUDE, script, session.host);
+        const result = sandbox.run(PRELUDE, script, session.host, undefined, globals);
         scriptMs = performance.now() - s0;
         scriptLayoutMs = session.layoutMs; // layout the script itself asked for (doc.get, check, …)
         if (!result.ok) throw new ScriptFailed(result, session);
@@ -72,13 +76,14 @@ export async function execute(
         }));
         const lastId = [...session.touched].reverse().find((id) => boxes.has(id));
         const focus = lastId ? { id: lastId, ...boxes.get(lastId)! } : undefined;
-        return { value: result.value, frames, issues, pictures, focus, picturesMs: performance.now() - p0 };
+        return { value: result.value, globals: result.globals, frames, issues, pictures, focus, picturesMs: performance.now() - p0 };
       }, agentClientId());
       staged.commit(origin);
       const v = staged.value;
       return {
         ok: true,
         value: v.value,
+        globals: v.globals,
         refs: session!.refs,
         logs: session!.logs,
         leftAlone: session!.leftAlone,
@@ -108,6 +113,7 @@ export async function execute(
         return {
           ok: false,
           error,
+          globals,
           refs: {},
           logs: e.session.logs,
           leftAlone: [],

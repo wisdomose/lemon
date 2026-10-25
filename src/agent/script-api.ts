@@ -139,6 +139,11 @@ export class ScriptSession {
       case "insert": {
         const parent = args[0] === null || args[0] === undefined ? ROOT_ID : str(args[0], "parent");
         const spec = args[1] as NodeSpec;
+        // One node per insert (as in Pen): a script builds a section piece by piece, in the order the
+        // person should see it, rather than as one nested tree.
+        if (spec && typeof spec === "object" && "children" in spec) {
+          throw new Error("insert: adds one node; add its children with further doc.insert calls, using the returned id as the parent.");
+        }
         if (parent === ROOT_ID && spec && typeof spec === "object" && spec.x === undefined && spec.y === undefined) {
           Object.assign(spec, this.findSpace());
         }

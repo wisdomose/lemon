@@ -43,6 +43,9 @@ describe("where an unfinished script will work", () => {
   it("resolves variables set to an id", () => {
     expect(scriptTarget('const screen = "page";\ndoc.insert(screen, { type: "text"', exists)).toEqual({ parent: "page" });
   });
+  it("resolves ids kept from earlier scripts", () => {
+    expect(scriptTarget('doc.insert(section, { type: "text"', exists, { section: "hero" })).toEqual({ parent: "hero" });
+  });
   it("ignores nodes that don't exist yet (made earlier in the same script) and reads", () => {
     const script = 'const card = doc.insert("page", { type: "frame" });\ndoc.update(card, { fill: "#000" });\ndoc.get("hero");';
     expect(scriptTarget(script, exists)).toEqual({ parent: "page" });
