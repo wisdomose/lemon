@@ -5,6 +5,7 @@ import selawik400 from "./ui-fonts/selawk.ttf?url";
 import selawik600 from "./ui-fonts/selawksb.ttf?url";
 import { createEngine, type Engine } from "../engine.js";
 import { getVars, toTree } from "../doc/store.js";
+import { PERSON_EDIT, personClientId, personUndo, reconcileSelection } from "../doc/live.js";
 import { layout, type Boxes } from "../layout/layout.js";
 import { DEFAULT_FONT, FontsNeeded } from "../text/fonts.js";
 import type { TreeNode, Vars } from "../doc/schema.js";
@@ -13,16 +14,18 @@ import { store } from "./store.js";
 
 export const bridge = window.lemon ?? browserBridge();
 export const doc = new Y.Doc();
+// A person's copy: wins same-moment ties with an agent (see doc/live.ts).
+doc.clientID = personClientId();
 export let engine: Engine;
+/** The person's own undo history (Ctrl+Z); agents' changes are never in it. */
+export const history = personUndo(doc);
 
 /** The UI font family on the canvas (frame names, size pills, cursor labels): Segoe UI's open twin. */
 export const CANVAS_UI_FONT = "Selawik";
 
-const LOCAL = "this-window";
-
 /** Changes the document from this window (one undo step, sent to the host). */
 export function edit(fn: () => void): void {
-  doc.transact(fn, LOCAL);
+  doc.transact(fn, PERSON_EDIT);
 }
 
 export async function boot(): Promise<void> {
@@ -36,9 +39,14 @@ export async function boot(): Promise<void> {
   Y.applyUpdate(doc, await bridge.docState());
   bridge.onDocUpdate((u) => Y.applyUpdate(doc, u));
   doc.on("update", (update: Uint8Array, origin: unknown) => {
-    if (origin === LOCAL) bridge.pushDocUpdate(update);
+    if (origin === PERSON_EDIT || origin === history) bridge.pushDocUpdate(update);
     stale = true;
-    store.set((s) => ({ docVersion: s.docVersion + 1 }));
+    // Someone (an agent, or this person's undo) may have deleted what is selected or hovered.
+    store.set((s) => ({
+      docVersion: s.docVersion + 1,
+      selection: reconcileSelection(doc, s.selection),
+      hover: reconcileSelection(doc, s.hover),
+    }));
   });
 }
 

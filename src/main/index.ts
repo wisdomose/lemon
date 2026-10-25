@@ -7,6 +7,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
 import { newFile } from "../doc/store.js";
+import { PersonChange, REPAIR, repairTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
 import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
@@ -76,9 +77,13 @@ async function main() {
     win.webContents.on("render-process-gone", (_e, d) => log(`[window] gone: ${d.reason}`));
   }
 
-  const FROM_WINDOW = "window";
+  // The window's changes carry its own origin, so they are not echoed back and agents can tell
+  // them apart (see doc/live.ts).
+  const FROM_WINDOW = new PersonChange(win.id);
   doc.on("update", (update: Uint8Array, origin: unknown) => {
     if (origin !== FROM_WINDOW && !win.isDestroyed()) win.webContents.send("doc:update", update);
+    // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
+    if (origin !== REPAIR) repairTree(doc);
   });
   ipcMain.on("doc:push", (_e, update: Uint8Array) => Y.applyUpdate(doc, update, FROM_WINDOW));
 

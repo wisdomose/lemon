@@ -10,7 +10,7 @@ import { PropertiesPanel } from "./chrome/PropertiesPanel.js";
 import { ToolRail } from "./chrome/ToolRail.js";
 import { TopBar } from "./chrome/TopBar.js";
 import { ZoomControl } from "./chrome/ZoomControl.js";
-import { doc, edit, currentScene } from "./scene.js";
+import { doc, edit, currentScene, history } from "./scene.js";
 import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
 import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
@@ -27,7 +27,10 @@ export function App({ initial }: { initial: string }) {
       // Keys typed into a text field (including the prompt editor) are not shortcuts.
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
       if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
+      else if (mod && ((key === "z" && e.shiftKey) || key === "y")) (e.preventDefault(), history.redo());
       else if (e.key === "Escape") store.set({ selection: null });
       else if (e.shiftKey && e.code === "Digit1") zoomToFit();
       else if (e.shiftKey && e.code === "Digit2") {

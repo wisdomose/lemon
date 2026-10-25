@@ -3,6 +3,7 @@
 import type * as Y from "yjs";
 import { ROOT_ID, type NodeProps, type NodeSpec, type TreeNode, type Vars } from "../doc/schema.js";
 import * as store from "../doc/store.js";
+import type { Touched } from "../doc/live.js";
 import { check, type Issue } from "../layout/check.js";
 import { layout, type Box, type Boxes } from "../layout/layout.js";
 import { findNode } from "../render/screenshot.js";
@@ -57,9 +58,14 @@ export class ScriptSession {
   private logSize = 0;
   private cache?: { tree: TreeNode; boxes: Boxes; vars: Vars };
 
+  /** Changes left out because a person just made them (rule b in doc/live.ts), for the agent's report. */
+  readonly leftAlone: string[] = [];
+
   constructor(
     readonly doc: Y.Doc,
     readonly engine: Engine,
+    /** Properties people changed since this agent last reported back: not to be overwritten. */
+    private protect: Touched = new Map(),
   ) {}
 
   private write(): void {
@@ -155,13 +161,24 @@ export class ScriptSession {
       }
       case "update": {
         const id = str(args[0], "id");
-        store.update(doc, id, (args[1] ?? {}) as Partial<NodeProps>);
+        const props = { ...((args[1] ?? {}) as Partial<NodeProps>) };
+        const mine = this.protect.get(id);
+        if (mine) {
+          const skipped = Object.keys(props).filter((k) => mine.has(k));
+          skipped.forEach((k) => delete props[k as keyof NodeProps]);
+          if (skipped.length) this.leftAlone.push(`${id}: ${skipped.join(", ")}`);
+        }
+        store.update(doc, id, props);
         this.touched.add(id);
         this.write();
         return null;
       }
       case "remove": {
         const id = str(args[0], "id");
+        if (this.protect.has(id)) {
+          this.leftAlone.push(`${id}: not deleted`);
+          return null;
+        }
         const parent = store.parentOf(doc, id);
         store.remove(doc, id);
         if (parent && parent !== ROOT_ID) this.touched.add(parent);
