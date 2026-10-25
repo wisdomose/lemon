@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "description": "A desktop design tool where AI agents and people design together on one canvas.",
   "main": "out/main/index.js",
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "dev": "electron-vite dev -w",
     "build": "electron-vite build",
