@@ -13,13 +13,17 @@ import { followSelection, promptSchema, promptText, type ChipRef } from "./promp
 
 const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image };
 
-/** How a chip looks (measured from the reference: 21px tall, 1px border, 10px muted text). */
+/**
+ * How a chip looks (measured from the reference: 21px tall, 1px border, 10px muted text). It is anchored
+ * to the top of its line and overhangs 2px below without taking space, so lines with chips stay as tall
+ * as lines without (19.5px) and the chip's middle meets the middle of the capitals around it.
+ */
 class ChipView implements NodeView {
   dom: HTMLElement;
   constructor(node: PMNode) {
     const el = document.createElement("span");
     el.className =
-      "mx-px inline-flex h-[21px] max-w-[200px] items-center gap-[3px] rounded-[4px] border border-input px-[5px] align-[-5px] text-[10px] leading-none text-muted-foreground select-none";
+      "mx-px inline-flex h-[21px] max-w-[200px] items-center gap-[3px] rounded-[4px] border border-input px-[5px] mb-[-2px] align-top text-[10px] leading-none text-muted-foreground select-none";
     el.contentEditable = "false";
     const icon = createElement(ICONS[node.attrs.kind as string] ?? Frame, { width: 11, height: 11, "stroke-width": 1.5 });
     icon.classList.add("shrink-0");
