@@ -17,7 +17,8 @@ const bridge: Bridge = {
   },
   canRunAgent: true,
   claudeStatus: () => ipcRenderer.invoke("claude:status"),
-  codexModels: () => ipcRenderer.invoke("codex:models"),
+  codexModels: (fresh) => ipcRenderer.invoke("codex:models", fresh),
+  codexSignIn: () => ipcRenderer.invoke("codex:sign-in"),
   codexStatus: () => ipcRenderer.invoke("codex:status"),
   fileInfo: () => ipcRenderer.invoke("file:info"),
   onFileInfo: (fn) => {

@@ -43,17 +43,18 @@ use `pnpm dev --noSandbox`.
 
 ### Codex provider
 
-Install Codex CLI (0.160.0 or newer) and run `codex login`. In Lemon, select **Codex (default)**
-from the OpenAI model group, or choose an individual model discovered from your local Codex catalog.
-The picker refreshes whenever opened, keeps cached choices during loading, and offers retry after a
-failure. Selecting a discovered model also offers its supported reasoning efforts. Model and effort
-choices follow prompts from the Dashboard into editor windows and team runs. The default fallback
-uses your configured Codex model. Lemon uses your existing login without reading credentials. Settings → Agents shows connection status.
+Codex comes with Lemon (the `@openai/codex` package, pinned to the version Lemon is tested with),
+so nothing needs installing. Sign in under Settings → Agents → Codex: it opens the browser for your
+ChatGPT account, as `codex login` does, and Codex keeps the credentials (shared with a Codex CLI you
+may also have). Pick a model from the OpenAI group of the model picker; the list comes from Codex and
+is reused for ten minutes. The selected model's reasoning effort opens from its own row. Until the list
+has loaded, **Codex (default)** lets Codex choose. Model and effort choices follow prompts from the
+Dashboard into editor windows and team runs.
 
 Codex supports canvas scripts, screenshots, failed-script repairs, streamed chat replies, Stop, and
 both team modes. Canvas changes appear when each complete tool call arrives; Claude also previews
 scripts while their arguments stream. Codex subscription runs report tokens, without a dollar cost.
 
 The integration uses the local [Codex app server](https://learn.chatgpt.com/docs/app-server) and its
-experimental dynamic-tool API. Missing CLI, authentication, model-access, and rate-limit errors appear
+experimental dynamic-tool API. Start-up, authentication, model-access, and rate-limit errors appear
 in chat. Team planning follows the selected provider.

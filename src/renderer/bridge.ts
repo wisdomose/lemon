@@ -4,6 +4,7 @@
 import type { AgentStats } from "../agent/agent.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team, CodexModel } from "../agent/models.js";
+import type { ProviderStatus } from "../agent/codex.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
@@ -25,9 +26,12 @@ export interface Bridge {
   /** Whether Claude Code is signed in on this computer, and as whom. */
   claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
   /** Whether the local Codex login can run agents; credentials stay with Codex. */
-  codexStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
+  codexStatus(): Promise<ProviderStatus>;
+  /** Signs in to Codex in the browser; the account once done (or why not). */
+  codexSignIn(): Promise<ProviderStatus>;
   /** Picker-visible Codex models and their supported reasoning efforts. */
-  codexModels(): Promise<CodexModel[]>;
+  /** The models Codex offers (a recent answer is reused unless `fresh`). */
+  codexModels(fresh?: boolean): Promise<CodexModel[]>;
   /** The file this window shows: its name and whether it is saved. */
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
@@ -94,6 +98,9 @@ export function browserBridge(): Bridge {
     },
     async codexStatus() {
       return { loggedIn: false };
+    },
+    async codexSignIn() {
+      return { loggedIn: false, error: "Open the desktop app to sign in." };
     },
     async codexModels() {
       // Like document and Dashboard fixtures, a public catalog can drive browser-only UI checks.

@@ -6,8 +6,9 @@ import { Check, ChevronRight } from "lucide-react";
 import { cx } from "./kit.js";
 
 // Measured from the reference: 28px rows, 12px text, blue highlight inset 4px, 9px between groups.
-const PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-foreground shadow-island";
-const ROW =
+// The panel and row styles are shared with menus built from Radix parts directly (the model picker).
+export const MENU_PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-foreground shadow-island";
+export const MENU_ROW =
   "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 outline-none data-[highlighted]:bg-[#3b82f6] data-[highlighted]:text-white data-[state=open]:bg-[#3b82f6] data-[state=open]:text-white data-[disabled]:opacity-40";
 
 /** A shortcut as the reference shows it: compact, muted, Shift as ⇧ ("Ctrl⇧R", "CtrlAltK"). */
@@ -19,7 +20,7 @@ function Keys({ keys }: { keys: string }) {
 export function MenuContent({ children, className, ...rest }: M.DropdownMenuContentProps) {
   return (
     <M.Portal>
-      <M.Content sideOffset={6} className={cx(PANEL, className)} {...rest}>
+      <M.Content sideOffset={6} className={cx(MENU_PANEL, className)} {...rest}>
         {children}
       </M.Content>
     </M.Portal>
@@ -52,7 +53,7 @@ export function MenuItem({
   disabled?: boolean;
 }) {
   return (
-    <M.Item className={cx(ROW, "group", current && "bg-input", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
+    <M.Item className={cx(MENU_ROW, "group", current && "bg-input", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}
@@ -77,12 +78,12 @@ export const MenuSeparator = () => <M.Separator className="-mx-1 my-1 h-px bg-in
 export function SubMenu({ label, children }: { label: string; children: ReactNode }) {
   return (
     <M.Sub>
-      <M.SubTrigger className={ROW}>
+      <M.SubTrigger className={MENU_ROW}>
         <span className="flex-1">{label}</span>
         <ChevronRight size={14} strokeWidth={1.5} />
       </M.SubTrigger>
       <M.Portal>
-        <M.SubContent sideOffset={4} className={PANEL}>
+        <M.SubContent sideOffset={4} className={MENU_PANEL}>
           {children}
         </M.SubContent>
       </M.Portal>
@@ -97,14 +98,14 @@ export const ContextTrigger = C.Trigger;
 export function ContextContent({ children }: { children: ReactNode }) {
   return (
     <C.Portal>
-      <C.Content className={cx(PANEL, "w-[186px]")}>{children}</C.Content>
+      <C.Content className={cx(MENU_PANEL, "w-[186px]")}>{children}</C.Content>
     </C.Portal>
   );
 }
 
 export function ContextItem({ label, keys, danger, onSelect }: { label: string; keys?: string; danger?: boolean; onSelect?: () => void }) {
   return (
-    <C.Item className={cx(ROW, "group", danger && "text-destructive")} onSelect={onSelect}>
+    <C.Item className={cx(MENU_ROW, "group", danger && "text-destructive")} onSelect={onSelect}>
       <span className="flex-1">{label}</span>
       {keys && <Keys keys={keys} />}
     </C.Item>
@@ -116,12 +117,12 @@ export const ContextSeparator = () => <C.Separator className="-mx-1 my-1 h-px bg
 export function ContextSub({ label, children }: { label: string; children: ReactNode }) {
   return (
     <C.Sub>
-      <C.SubTrigger className={ROW}>
+      <C.SubTrigger className={MENU_ROW}>
         <span className="flex-1">{label}</span>
         <ChevronRight size={14} strokeWidth={1.5} />
       </C.SubTrigger>
       <C.Portal>
-        <C.SubContent sideOffset={8} className={PANEL}>
+        <C.SubContent sideOffset={8} className={MENU_PANEL}>
           {children}
         </C.SubContent>
       </C.Portal>

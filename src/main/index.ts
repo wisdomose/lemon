@@ -1,4 +1,3 @@
-import { codexModels, codexStatus } from "../agent/codex.js";
 // Electron's main process: owns the documents (one per editor window, editor.ts), the fonts and the
 // agents. Windows show their document and receive every change as a Yjs update.
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
@@ -18,6 +17,7 @@ import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, withoutEx
 import { describeReport, importPen } from "../import/pen.js";
 import { dashboardWindow, openDashboard, refreshDashboard } from "./dashboard.js";
 import { buildMenu } from "./menu.js";
+import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
@@ -205,7 +205,8 @@ async function main() {
   ipcMain.handle("claude:status", () => claudeStatus());
   // Ask the local Codex server for public account metadata only.
   ipcMain.handle("codex:status", () => codexStatus());
-  ipcMain.handle("codex:models", () => codexModels());
+  ipcMain.handle("codex:sign-in", () => codexSignIn((url) => void shell.openExternal(url)));
+  ipcMain.handle("codex:models", (_e, fresh?: boolean) => codexModels(!!fresh));
   ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
   ipcMain.handle("editor:notice", (e) => editorOf(e)?.takeNotice());
   ipcMain.handle("dashboard:show", () => showDashboard());

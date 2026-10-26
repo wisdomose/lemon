@@ -2,7 +2,8 @@
 import { EventEmitter } from "node:events";
 import { PassThrough, Writable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CodexConnection, codexModels, codexStatus, runCodex } from "../src/agent/codex.js";
+import { existsSync } from "node:fs";
+import { CodexConnection, codexBinary, codexModels, codexStatus, runCodex } from "../src/agent/codex.js";
 
 const mock = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn: mock.spawn }));
@@ -135,7 +136,7 @@ describe("Codex provider", () => {
       { data: [entry, { ...entry, model: "hidden", hidden: true }], nextCursor: "next" },
       { data: [entry, { ...entry, model: "second", displayName: "Second model" }], nextCursor: null },
     ]);
-    const models = await codexModels();
+    const models = await codexModels(true);
     expect(models.map((m) => m.id)).toEqual(["codex:custom", "codex:second"]);
     expect(models[0]).toMatchObject({ label: "Custom model", defaultEffort: "ultra", efforts: [{ id: "ultra", description: "Deep work" }] });
     expect(peer.received.filter((m) => m.method === "model/list").map((m) => m.params)).toEqual([
@@ -145,21 +146,47 @@ describe("Codex provider", () => {
     expect(peer.child.kill).toHaveBeenCalledOnce();
   });
 
+  it("reuses a recent catalog instead of starting Codex again, unless asked afresh", async () => {
+    const entry = { model: "kept", displayName: "Kept" };
+    server(undefined, [{ data: [entry] }]);
+    await codexModels(true);
+    mock.spawn.mockClear();
+    expect((await codexModels()).map((m) => m.id)).toEqual(["codex:kept"]);
+    expect(mock.spawn).not.toHaveBeenCalled();
+    server(undefined, [{ data: [{ model: "new", displayName: "New" }] }]);
+    expect((await codexModels(true)).map((m) => m.id)).toEqual(["codex:new"]);
+  });
+
+  it("starts the Codex that comes with the app, not one on the PATH", async () => {
+    server();
+    await codexStatus();
+    const [program] = mock.spawn.mock.calls.at(-1)!;
+    expect(program).toBe(codexBinary());
+    expect(existsSync(codexBinary())).toBe(true);
+  });
+
+  it("says why Codex couldn't be asked, rather than reporting signed out", async () => {
+    mock.spawn.mockImplementationOnce(() => {
+      throw new Error("spawn EINVAL");
+    });
+    expect(await codexStatus()).toEqual({ loggedIn: false, error: "spawn EINVAL" });
+  });
+
   it("returns an empty catalog without inventing model or effort choices", async () => {
     server();
-    expect(await codexModels()).toEqual([]);
+    expect(await codexModels(true)).toEqual([]);
     server(undefined, [{ data: [{ model: "new", displayName: "New", defaultReasoningEffort: "unsupported" }] }]);
-    const models = await codexModels();
+    const models = await codexModels(true);
     expect(models[0]).toMatchObject({ id: "codex:new", efforts: [] });
     expect(models[0]?.defaultEffort).toBeUndefined();
   });
 
   it("rejects malformed pages and repeated cursors, cleaning up both connections", async () => {
     const malformed = server(undefined, [{ data: [{ model: 12 }] }]);
-    await expect(codexModels()).rejects.toThrow();
+    await expect(codexModels(true)).rejects.toThrow();
     expect(malformed.child.kill).toHaveBeenCalledOnce();
     const repeated = server(undefined, [{ data: [], nextCursor: "again" }, { data: [], nextCursor: "again" }]);
-    await expect(codexModels()).rejects.toThrow("repeated");
+    await expect(codexModels(true)).rejects.toThrow("repeated");
     expect(repeated.child.kill).toHaveBeenCalledOnce();
   });
 
