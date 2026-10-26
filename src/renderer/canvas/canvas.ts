@@ -220,7 +220,7 @@ export function labelAt(x: number, y: number): string | null {
 export function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
   const [sx, sy] = toScreen(b.x, b.y);
   const [px, py] = toScreen(x, y);
-  const w = labelWidth(f);
+  const w = labelWidth(f, b);
   return px >= sx && px <= sx + w && py >= sy - LABEL_SIZE - 10 && py <= sy - 2;
 }
 
@@ -231,10 +231,17 @@ function uiText(text: string, size: number, color: string, weight = 400) {
 /** A frame's label: its name, or "Generating: <name>" (after a sparkle) while an agent builds it. */
 const labelText = (f: TreeNode) => (f.props.generating ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
 const SPARKLE_W = 17;
-function labelWidth(f: TreeNode) {
-  const p = uiText(labelText(f), LABEL_SIZE, label());
-  p.layout(10000);
-  return p.getMaxIntrinsicWidth() + (f.props.generating ? SPARKLE_W : 0);
+/** The narrowest a label gets on a small frame: room for a letter or two and "…" (as Pen's "La…"). */
+const LABEL_MIN_W = 24;
+
+/** A frame's label as drawn: one line, cut with "…" to the frame's width on screen (as in Pen). */
+function labelParagraph(f: TreeNode, b: Box, color: string) {
+  const room = b.w * view.zoom - (f.props.generating ? SPARKLE_W : 0);
+  return fitLabel(labelText(f), color, Math.max(LABEL_MIN_W, room));
+}
+
+function labelWidth(f: TreeNode, b: Box) {
+  return labelParagraph(f, b, label()).getMaxIntrinsicWidth() + (f.props.generating ? SPARKLE_W : 0);
 }
 
 /** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
@@ -352,13 +359,10 @@ function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: bo
   const [x, y] = toScreen(b.x, b.y);
   if (f.props.generating) {
     drawSparkle(canvas, x + 6, y - LABEL_SIZE / 2 - 9);
-    const p = fitLabel(labelText(f), LIVE, Math.max(40, b.w * view.zoom - SPARKLE_W));
-    canvas.drawParagraph(p, x + SPARKLE_W, y - LABEL_SIZE - 8);
+    canvas.drawParagraph(labelParagraph(f, b, LIVE), x + SPARKLE_W, y - LABEL_SIZE - 8);
     return;
   }
-  const p = uiText(f.props.name ?? "Frame", LABEL_SIZE, selected ? SELECT : label());
-  p.layout(Math.max(40, b.w * view.zoom));
-  canvas.drawParagraph(p, x, y - LABEL_SIZE - 8);
+  canvas.drawParagraph(labelParagraph(f, b, selected ? SELECT : label()), x, y - LABEL_SIZE - 8);
 }
 
 /** The sparkle before "Generating": a four-point star with a small one above it. */
