@@ -20,11 +20,11 @@ export function draftsFolder(): string {
 
 export const isDraft = (path: string) => path.startsWith(draftsFolder());
 
-/** A free name in the Drafts folder: "Untitled", then "Untitled 2", … */
-export function newDraftPath(): string {
+/** A free name in the Drafts folder: "Untitled" (or `name`), then "Untitled 2", … */
+export function newDraftPath(name = "Untitled"): string {
   const dir = draftsFolder();
   for (let n = 1; ; n++) {
-    const path = join(dir, `Untitled${n > 1 ? ` ${n}` : ""}${EXT}`);
+    const path = join(dir, `${name}${n > 1 ? ` ${n}` : ""}${EXT}`);
     if (!existsSync(path)) return path;
   }
 }

@@ -112,6 +112,11 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
     canvas.saveLayer(layer);
     layer.delete();
   }
+  const turn = Number(resolve(p.rotation ?? 0, vars)) || 0;
+  if (turn) {
+    canvas.save();
+    canvas.rotate(-turn, box.x, box.y);
+  }
   const r = radii(p, vars, box);
   const shape = rrect(ck, box, r);
   const paint = new ck.Paint();
@@ -180,20 +185,42 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
       canvas.restore();
     }
 
-    if (p.stroke && p.stroke.width > 0) {
-      const w = Number(resolve(p.stroke.width, vars));
-      paint.setStyle(ck.PaintStyle.Stroke);
-      paint.setStrokeWidth(w);
+    // Strokes sit inside the box, as in design tools, so they never change the layout.
+    const sides = p.stroke ? strokeSides(p.stroke.width, vars) : undefined;
+    if (p.stroke && sides && sides.some((v) => v > 0)) {
       paint.setColor(ck.Color4f(...colorOf(p.stroke.color, vars)));
-      // Strokes sit inside the box, as in design tools, so they never change the layout.
-      const inner = { x: box.x + w / 2, y: box.y + w / 2, w: Math.max(0, box.w - w), h: Math.max(0, box.h - w) };
-      if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(inner.x, inner.y, inner.w, inner.h), paint);
-      else canvas.drawRRect(rrect(ck, inner, r.map((v) => Math.max(0, v - w / 2)) as [number, number, number, number]), paint);
+      const w = sides[0];
+      if (sides.every((v) => v === w)) {
+        paint.setStyle(ck.PaintStyle.Stroke);
+        paint.setStrokeWidth(w);
+        const inner = { x: box.x + w / 2, y: box.y + w / 2, w: Math.max(0, box.w - w), h: Math.max(0, box.h - w) };
+        if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(inner.x, inner.y, inner.w, inner.h), paint);
+        else canvas.drawRRect(rrect(ck, inner, r.map((v) => Math.max(0, v - w / 2)) as [number, number, number, number]), paint);
+      } else {
+        // Lines on some sides only (a divider, an underline): bands along those edges, inside the shape.
+        const [t, rt, b, l] = sides;
+        paint.setStyle(ck.PaintStyle.Fill);
+        canvas.save();
+        canvas.clipRRect(shape, ck.ClipOp.Intersect, true);
+        if (t) canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, t), paint);
+        if (rt) canvas.drawRect(ck.XYWHRect(box.x + box.w - rt, box.y, rt, box.h), paint);
+        if (b) canvas.drawRect(ck.XYWHRect(box.x, box.y + box.h - b, box.w, b), paint);
+        if (l) canvas.drawRect(ck.XYWHRect(box.x, box.y, l, box.h), paint);
+        canvas.restore();
+      }
     }
   } finally {
     paint.delete();
     canvas.restoreToCount(saved);
   }
+}
+
+/** A stroke's width on each side: [top, right, bottom, left]. */
+export function strokeSides(width: unknown, vars: Vars): [number, number, number, number] {
+  const one = (v: unknown) => Math.max(0, Number(resolve(v, vars)) || 0);
+  if (Array.isArray(width)) return [one(width[0]), one(width[1]), one(width[2]), one(width[3])];
+  const w = one(width);
+  return [w, w, w, w];
 }
 
 /** An icon: Lucide's lines in the icon's colour, scaled to fit its box and centred; a dashed square when unknown. */
