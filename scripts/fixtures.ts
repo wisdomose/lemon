@@ -1,7 +1,13 @@
 // Writes the documents used by tests and visual checks into test/fixtures/.
 import { writeFileSync } from "node:fs";
 import * as Y from "yjs";
-import { insert, newFile, toTree } from "../src/doc/store.js";
+import { ROOT_ID } from "../src/doc/schema.js";
+import { insert, toTree } from "../src/doc/store.js";
+
+/** Pen's new file: one white 800 × 600 frame named "Frame" (for checks against its captures; Lemon's new files start empty). */
+function newFile(doc: Y.Doc): void {
+  doc.transact(() => insert(doc, ROOT_ID, { type: "frame", name: "Frame", x: 0, y: 0, width: 800, height: 600, fill: "#ffffff", layout: "none", clip: true }));
+}
 
 const doc = new Y.Doc();
 newFile(doc);

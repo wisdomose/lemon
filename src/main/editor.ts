@@ -7,7 +7,6 @@ import { BrowserWindow, app, dialog } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
-import { newFile } from "../doc/store.js";
 import { fileText, readFile } from "../doc/file.js";
 import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
@@ -84,7 +83,7 @@ export class Editor {
       Y.applyUpdate(this.doc, readFileSync(path));
       path = undefined;
     } else if (path) readFile(readFileSync(path, "utf8"), this.doc);
-    else newFile(this.doc);
+    // A new file starts empty (decided 26 Oct 2026; Pen starts with an 800 × 600 frame).
     this.path = path ?? null;
     this.pristine = !path;
     if (path) addRecent(path);
