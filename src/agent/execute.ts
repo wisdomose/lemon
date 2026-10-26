@@ -32,7 +32,8 @@ export interface ExecuteResult {
   timings: { totalMs: number; scriptMs: number; layoutMs: number; picturesMs: number; fontsMs: number; attempts: number };
 }
 
-export type Focus = { id: string; x: number; y: number; w: number; h: number };
+/** The element a script is working on: its box, and whether the script just made it. */
+export type Focus = { id: string; created: boolean; x: number; y: number; w: number; h: number };
 
 const MAX_ISSUES = 40;
 /** Times a script may start over because it needed fonts that weren't loaded. */
@@ -58,6 +59,8 @@ export class LiveRun {
   private scriptMs = 0;
   private fontsMs = 0;
   private attempts = 1;
+  /** The element the last progress report was about. */
+  private reported?: ScriptSession["working"];
 
   constructor(
     private readonly doc: Y.Doc,
@@ -162,6 +165,9 @@ export class LiveRun {
         if (this.stopped) return;
       }
     }
+    // Only when the script moves on to another element: the cursor rests while it works on one.
+    if (this.session.working === this.reported) return;
+    this.reported = this.session.working;
     const focus = await this.focus();
     if (focus) this.onProgress?.(focus);
   }
@@ -214,11 +220,11 @@ export class LiveRun {
   }
 
   private async focus(): Promise<Focus | undefined> {
-    const id = this.session.lastTouched;
-    if (!id) return undefined;
+    const w = this.session.working;
+    if (!w) return undefined;
     const { boxes } = await this.measured();
-    const box = boxes.get(id);
-    return box ? { id, ...box } : undefined;
+    const box = boxes.get(w.id);
+    return box ? { ...w, ...box } : undefined;
   }
 
   private async report(): Promise<ExecuteResult> {

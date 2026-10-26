@@ -6,6 +6,7 @@ import { bridge, currentScene, doc, laidOut } from "../scene.js";
 import { childIds } from "../../doc/store.js";
 import { ROOT_ID } from "../../doc/schema.js";
 import { targetPoint } from "./targets.js";
+import { aimPath } from "./aim.js";
 import { store, type ChatItem, type Session } from "../store.js";
 
 const pngUrl = (png: Uint8Array) => URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
@@ -21,6 +22,8 @@ function updateStep(index: number, patch: Partial<Extract<ChatItem, { kind: "ste
 
 /** Top-level frames before this run; cleared once the view has been fitted to a new one. */
 let framesBefore: Set<string> | undefined;
+/** Steps whose elements landed while they were written (the cursor already followed them). */
+const landed = new Set<number>();
 
 /** The first time the agent adds a top-level frame, fits the view to it once it can be laid out (its fonts may still be loading). */
 function fitNewFrame(): void {
@@ -33,6 +36,7 @@ export function handleAgentEvent(e: AgentEvent): void {
   switch (e.type) {
     case "started":
       framesBefore = new Set(childIds(doc, ROOT_ID));
+      landed.clear();
       cursor.name = e.name;
       store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
       push({ kind: "agent-head", name: e.name, model: modelLabel(e.model) });
@@ -51,12 +55,13 @@ export function handleAgentEvent(e: AgentEvent): void {
     case "step-target": {
       const s = currentScene();
       const at = s && targetPoint(e.target, s);
-      if (at) moveCursor(at.x, at.y);
+      if (at) moveCursor([at]);
       break;
     }
     // A statement of the step being written has landed.
     case "step-progress":
-      moveCursor(e.focus.x, e.focus.y);
+      landed.add(e.index);
+      moveCursor(aimPath(e.focus));
       fitNewFrame();
       break;
     case "step-end":
@@ -67,7 +72,8 @@ export function handleAgentEvent(e: AgentEvent): void {
         pictures: e.detail.pictures.map((p) => ({ url: pngUrl(p.png), width: p.width, height: p.height })),
       });
       store.set({ agentStatus: "thinking" });
-      if (e.focus) moveCursor(e.focus.x, e.focus.y);
+      // A step that landed all at once (a patched one); one that landed as it was written stays put.
+      if (e.focus && !landed.has(e.step.index)) moveCursor(aimPath(e.focus));
       fitNewFrame();
       schedule();
       break;

@@ -53,8 +53,8 @@ export class ScriptSession {
   readonly screenshots: string[] = [];
   /** Nodes this run created or changed, for the automatic check afterwards. */
   readonly touched = new Set<string>();
-  /** The node the script last created or changed, where the agent's cursor goes. */
-  lastTouched?: string;
+  /** The element the script is working on, where the agent's cursor goes (see `aimAt`). */
+  working?: { id: string; created: boolean };
   layoutMs = 0;
   private logSize = 0;
   private cache?: { tree: TreeNode; boxes: Boxes; vars: Vars };
@@ -76,7 +76,18 @@ export class ScriptSession {
 
   private touch(id: string): void {
     this.touched.add(id);
-    this.lastTouched = id;
+  }
+
+  /**
+   * The cursor follows what is being placed: new elements, and changes to an element — but not changes
+   * to the frames around the element being worked on, nor the "generating" mark.
+   */
+  private aimAt(id: string, created: boolean, keys: string[] = []): void {
+    if (!created) {
+      if (keys.length && keys.every((k) => k === "generating")) return;
+      for (let n = this.working?.id; n && n !== ROOT_ID; n = store.parentOf(this.doc, n)) if (n === id) return;
+    }
+    this.working = { id, created };
   }
 
   /** The page tree and its layout, recomputed after any change. */
@@ -157,6 +168,7 @@ export class ScriptSession {
         }
         const id = store.insert(doc, parent, spec, position(args[2]), this.refs);
         this.touch(id);
+        this.aimAt(id, true);
         this.write();
         return id;
       }
@@ -171,6 +183,7 @@ export class ScriptSession {
         }
         store.update(doc, id, props);
         this.touch(id);
+        this.aimAt(id, false, Object.keys(props));
         this.write();
         return null;
       }
@@ -191,6 +204,7 @@ export class ScriptSession {
         const id = str(args[0], "id");
         store.move(doc, id, args[1] == null ? ROOT_ID : str(args[1], "parent"), position(args[2]));
         this.touch(id);
+        this.aimAt(id, false);
         this.write();
         return null;
       }

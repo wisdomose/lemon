@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import * as store from "../src/doc/store.js";
 import { Sandbox } from "../src/sandbox/sandbox.js";
-import { execute } from "../src/agent/execute.js";
+import { LiveRun, execute, type Focus } from "../src/agent/execute.js";
 import { FailedScripts } from "../src/agent/patches.js";
 import { run, setup } from "./helpers.js";
 
@@ -140,6 +140,26 @@ describe("execute (the agent's tool)", () => {
     expect(failed.patch(id, [{ find: "2", replace: "3" }])).toBe("return 3;");
     failed.done(id);
     expect(() => failed.patch(id, [])).toThrow(/no failed script/);
+  });
+
+  it("the cursor follows what is placed, not the frames around it or the generating mark", async () => {
+    const { engine, sandbox } = await setup();
+    const doc = new Y.Doc();
+    const seen: Focus[] = [];
+    const r = await new LiveRun(doc, engine, sandbox, "test", undefined, {}, (f) => seen.push(f)).finish(`
+      const page = doc.insert(null, { type: "frame", width: 600, generating: true });
+      const title = doc.insert(page, { type: "text", text: "Hello there" });
+      doc.update(page, { padding: 40 });
+      doc.update(title, { size: 40 });
+      doc.update(page, { generating: null });
+    `);
+    expect(r.ok).toBe(true);
+    const [page, title] = store.toTree(doc).children[0] ? [store.toTree(doc).children[0]!.id, store.toTree(doc).children[0]!.children[0]!.id] : [];
+    expect(seen.map((f) => [f.id, f.created])).toEqual([
+      [page, true],
+      [title, true],
+    ]);
+    expect(r.focus).toMatchObject({ id: title, created: true });
   });
 
   it("handles a heavy chart (565 rectangles) and 1,000 small reads", async () => {
