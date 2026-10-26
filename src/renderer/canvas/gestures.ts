@@ -13,6 +13,7 @@ import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from ".
 import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
 import { editingPointer, startTextEdit, stopTextEdit } from "./text-edit.js";
+import { COMPONENT_DRAG, placeCopy } from "../components.js";
 
 /** How far (screen pixels) a press travels before it counts as a drag. */
 const DRAG_START = 3;
@@ -263,6 +264,8 @@ const movingIds = (g: { held: Held[] }) => new Set(g.held.map((h) => h.node.id))
 function dropTarget(s: Scene, g: { held: Held[] }, px: number, py: number, deep: boolean): TreeNode {
   if (g.held.every((h) => h.parent.id === ROOT_ID)) return s.tree;
   const parent = g.held[0]!.parent;
+  // Parts of a copy of a component stay where they are (only their own x and y can change).
+  if (g.held.some((h) => docStore.isPart(h.node.id))) return parent;
   const pb = s.boxes.get(parent.id);
   const inside = !!pb && px >= pb.x && px <= pb.x + pb.w && py >= pb.y && py <= pb.y + pb.h;
   if (!deep && inside && flows(parent) && g.held.every((h) => h.parent.id === parent.id)) return parent;
@@ -306,6 +309,7 @@ function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py:
 function drop(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number) {
   const target = dropTarget(s, g, px, py, g.deep);
   if (g.held.every((h) => h.parent.id === target.id && h.free)) return; // moved as it went
+  if (g.held.some((h) => docStore.isPart(h.node.id))) return;
   const dx = px - g.from.x;
   const dy = py - g.from.y;
   edit(() => {
@@ -472,7 +476,7 @@ function nudge(dir: "left" | "right" | "up" | "down", by: number) {
         continue;
       }
       const row = h.parent.props.layout === "row";
-      if ((row && dy) || (!row && dx)) continue;
+      if ((row && dy) || (!row && dx) || docStore.isPart(h.node.id)) continue;
       const siblings = docStore.childIds(doc, h.parent.id);
       const at = siblings.indexOf(h.node.id) + Math.sign(dx! + dy!);
       if (at >= 0 && at < siblings.length) docStore.move(doc, h.node.id, h.parent.id, at);
@@ -482,7 +486,7 @@ function nudge(dir: "left" | "right" | "up" | "down", by: number) {
 
 /** Ctrl/⌘ + ] and [: bring forward or send backward one place. */
 function step(dir: 1 | -1) {
-  const ids = store.get().selection;
+  const ids = store.get().selection.filter((id) => !docStore.isPart(id));
   edit(() => {
     for (const id of dir > 0 ? [...ids].reverse() : ids) {
       const parent = docStore.parentOf(doc, id);
@@ -497,6 +501,20 @@ function step(dir: 1 | -1) {
 export function attachGestures(canvas: HTMLCanvasElement): () => void {
   el = canvas;
   const onLeave = () => (store.get().hover && store.set({ hover: null }), schedule());
+  // A component dragged from the Components panel: a copy of it goes where it is dropped.
+  const onDragOver = (e: DragEvent) => {
+    if (e.dataTransfer?.types.includes(COMPONENT_DRAG)) (e.preventDefault(), (e.dataTransfer.dropEffect = "copy"));
+  };
+  const onDrop = (e: DragEvent) => {
+    const main = e.dataTransfer?.getData(COMPONENT_DRAG);
+    if (!main) return;
+    e.preventDefault();
+    const [px, py] = toPage(e.offsetX, e.offsetY);
+    placeCopy(main, px, py);
+    schedule();
+  };
+  el.addEventListener("dragover", onDragOver);
+  el.addEventListener("drop", onDrop);
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
   el.addEventListener("pointerup", onUp);
@@ -510,5 +528,7 @@ export function attachGestures(canvas: HTMLCanvasElement): () => void {
     el.removeEventListener("pointercancel", onUp);
     el.removeEventListener("dblclick", onDoubleClick);
     el.removeEventListener("pointerleave", onLeave);
+    el.removeEventListener("dragover", onDragOver);
+    el.removeEventListener("drop", onDrop);
   };
 }

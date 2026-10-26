@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Circle,
   Component,
+  Diamond,
   Hash,
   Image as ImageIcon,
   Layers,
@@ -28,6 +29,7 @@ import { ROOT_ID } from "../../doc/schema.js";
 import { store, useEditor, type Tab } from "../store.js";
 import { schedule } from "../canvas/canvas.js";
 import { ICON, Island, cx } from "../ui/kit.js";
+import { COMPONENT_DRAG, COPY_COLOUR, kindOf, mainComponents, makeComponents, reveal } from "../components.js";
 
 const TABS: { tab: Tab; icon: LucideIcon; label: string }[] = [
   { tab: "agent", icon: MessageCircle, label: "Agent" },
@@ -74,6 +76,8 @@ function allIds(n: TreeNode): string[] {
 }
 
 function typeIcon(n: TreeNode): LucideIcon {
+  if (n.instance) return Diamond;
+  if (n.props.component) return Component;
   if (n.type === "text") return Type;
   if (n.type === "rect") return Square;
   if (n.type === "ellipse") return Circle;
@@ -98,6 +102,8 @@ type Zone = "before" | "after" | "into";
 function dropLayers(dragged: string[], row: TreeNode, zone: Zone) {
   const parent = zone === "into" ? row.id : docStore.parentOf(doc, row.id);
   if (!parent) return;
+  // The parts of a copy of a component keep their places, and a copy takes no new ones.
+  if (dragged.some(docStore.isPart) || docStore.isPart(parent) || docStore.isInstance(doc, parent)) return;
   // Nothing goes inside itself.
   for (let p: string | undefined = parent; p && p !== ROOT_ID; p = docStore.parentOf(doc, p)) if (dragged.includes(p)) return;
   const reversed = parent === ROOT_ID;
@@ -145,12 +151,13 @@ function LayersPanel() {
     <div className="-mt-1 min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
       {rows.map(({ node, depth }) => {
         const Icon = typeIcon(node);
+        const kind = kindOf(node);
         const label = node.props.name ?? (node.type === "text" ? node.props.text?.slice(0, 40) : node.type[0]!.toUpperCase() + node.type.slice(1));
         return (
           <div
             key={node.id}
             data-layer={node.id}
-            draggable
+            draggable={!docStore.isPart(node.id)}
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
               setDragging(selection.includes(node.id) ? selection : [node.id]);
@@ -160,7 +167,7 @@ function LayersPanel() {
               e.preventDefault();
               const r = e.currentTarget.getBoundingClientRect();
               const k = (e.clientY - r.top) / r.height;
-              const zone: Zone = node.type === "frame" && k > 0.3 && k < 0.7 ? "into" : k < 0.5 ? "before" : "after";
+              const zone: Zone = node.type === "frame" && !node.instance && !docStore.isPart(node.id) && k > 0.3 && k < 0.7 ? "into" : k < 0.5 ? "before" : "after";
               if (target?.id !== node.id || target.zone !== zone) setTarget({ id: node.id, zone });
             }}
             onDrop={(e) => {
@@ -190,8 +197,8 @@ function LayersPanel() {
               {node.children.length > 0 &&
                 (open.has(node.id) ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />)}
             </span>
-            <Icon size={14} strokeWidth={1.5} className="mr-2 ml-1 shrink-0 text-muted-foreground" />
-            <span className="truncate">{label}</span>
+            <Icon size={14} strokeWidth={1.5} className="mr-2 ml-1 shrink-0 text-muted-foreground" style={kind === "main" || kind === "instance" ? { color: COPY_COLOUR } : undefined} />
+            <span className="truncate" style={kind === "main" || kind === "instance" ? { color: COPY_COLOUR } : undefined}>{label}</span>
             {target?.id === node.id && target.zone !== "into" && (
               <span className={cx("pointer-events-none absolute right-1 h-0.5 bg-[#3d99ff]", target.zone === "before" ? "-top-px" : "-bottom-px")} style={{ left: 6 + depth * 12 }} />
             )}
@@ -235,38 +242,74 @@ function SlidesPanel() {
   );
 }
 
-// ---- Components and Libraries (empty states) -----------------------------------------------------
+// ---- Components ----------------------------------------------------------------------------------
 function ComponentsPanel() {
   const selection = useEditor((s) => s.selection);
+  useEditor((s) => s.docVersion);
+  const [query, setQuery] = useState("");
+  const tree = currentScene()?.tree;
+  const mains = tree ? mainComponents(tree) : [];
+  const shown = mains.filter((m) => (m.props.name ?? "").toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 text-[13px] leading-5 text-foreground">
-      <div className="flex h-8 items-center gap-2 rounded-md border border-input px-2 text-muted-foreground">
-        <Search size={14} strokeWidth={1.5} /> Search components...
-      </div>
+      <label className="flex h-8 items-center gap-2 rounded-md border border-input px-2 text-muted-foreground">
+        <Search size={14} strokeWidth={1.5} className="shrink-0" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search components..." className="w-full min-w-0 bg-transparent text-foreground outline-none placeholder:text-muted-foreground" />
+      </label>
       <button
         type="button"
         disabled={!selection.length}
+        onClick={makeComponents}
         className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-muted-foreground font-semibold text-background disabled:opacity-80"
       >
         <Component size={14} strokeWidth={1.5} /> Create Component
       </button>
-      <p>Select an element to make it a component.</p>
-      <p className="font-semibold text-foreground">No components yet.</p>
-      <div>
-        <div className="font-semibold text-foreground">Why components</div>
-        <p className="mt-1">Change the main component once and every copy of it updates.</p>
-      </div>
-      <div>
-        <div className="font-semibold text-foreground">Making one</div>
-        <p className="mt-1">
-          Select a frame, shape or text and press <kbd className="rounded bg-input px-1 font-mono text-[11px]">Ctrl Alt K</kbd>, or click
-          “Create Component” above. The original shows a magenta outline; copies show violet.
-        </p>
-      </div>
+      {mains.length ? (
+        <div className="-mx-1.5">
+          {shown.map((m) => (
+            <div
+              key={m.id}
+              data-component={m.id}
+              draggable
+              title="Drag onto the canvas to place a copy"
+              onDragStart={(e) => {
+                e.dataTransfer.setData(COMPONENT_DRAG, m.id);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              onClick={() => (reveal(m.id), schedule())}
+              className={cx(
+                "flex h-7 cursor-default items-center gap-2 rounded-[5px] px-1.5 text-[12px] font-semibold",
+                selection.includes(m.id) ? "bg-layer-active text-layer-active-text" : "hover:bg-foreground/[0.04]",
+              )}
+            >
+              <Component size={14} strokeWidth={1.5} className="shrink-0" style={{ color: COPY_COLOUR }} />
+              <span className="truncate">{m.props.name ?? "Component"}</span>
+            </div>
+          ))}
+          {!shown.length && <p className="px-1.5 text-muted-foreground">No components match.</p>}
+        </div>
+      ) : (
+        <>
+          <p>Select an element to make it a component.</p>
+          <p className="font-semibold text-foreground">No components yet.</p>
+          <div>
+            <div className="font-semibold text-foreground">Why components</div>
+            <p className="mt-1">Change the main component once and every copy of it updates.</p>
+          </div>
+          <div>
+            <div className="font-semibold text-foreground">Making one</div>
+            <p className="mt-1">
+              Select a frame, shape or text and press <kbd className="rounded bg-input px-1 font-mono text-[11px]">Ctrl Alt K</kbd>, or click
+              “Create Component” above. The original shows a magenta outline; copies show violet.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
+// ---- Libraries (empty state) ---------------------------------------------------------------------
 function LibrariesPanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-3 pb-3 text-[13px] text-foreground">

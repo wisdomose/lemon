@@ -24,7 +24,11 @@ import {
   Check,
   ChevronDown,
   Circle,
+  Component,
+  Diamond,
+  DiamondMinus,
   DiamondPlus,
+  Focus,
   Frame,
   Eye,
   EyeOff,
@@ -49,7 +53,8 @@ import type { LinearGradient, NodeProps, Paint, Size, TreeNode } from "../../doc
 import { findNode } from "../../render/screenshot.js";
 import { currentScene, doc, edit } from "../scene.js";
 import { useEditor } from "../store.js";
-import { Island, cx } from "../ui/kit.js";
+import { Island, Tip, cx } from "../ui/kit.js";
+import { COPY_COLOUR, detachSelected, goToMain, kindOf, makeComponents, unmakeComponent } from "../components.js";
 
 // Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
 const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
@@ -162,6 +167,8 @@ function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
 }
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
+  if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
+  if (n.props.component) return { icon: Component, label: typeInfo({ ...n, props: { ...n.props, component: false } }).label };
   if (n.type === "text") return { icon: Type, label: "Text" };
   if (n.type === "rect") return { icon: Square, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
@@ -195,28 +202,66 @@ export function PropertiesPanel() {
   const isFrame = node.type === "frame";
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
+  const kind = kindOf(node);
   const colour: Paint | undefined = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-line pt-2 pr-[13px] pb-2 pl-[11px]">
-          <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-foreground">
+          <div className="flex h-6 items-center gap-2 text-[11px] text-foreground">
             {many ? (
-              <>
+              <span className="flex min-w-0 items-center gap-2 pl-1">
                 <Copy size={16} strokeWidth={1.5} /> <span className="truncate">{ids.length} selected</span>
-              </>
+              </span>
             ) : (
-              <>
+              <span
+                className={cx(
+                  "flex h-6 min-w-0 flex-1 items-center gap-2 rounded-md pl-1",
+                  // A main component's name sits on a violet tint; a copy's in a dashed violet outline (captures 38, 39).
+                  kind === "main" && "bg-[#3d3955] pl-[5px]",
+                  (kind === "instance" || kind === "part") && "border border-dashed pl-1",
+                )}
+                style={kind ? { color: COPY_COLOUR, borderColor: kind === "main" ? undefined : `${COPY_COLOUR}b3` } : undefined}
+              >
                 <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
-              </>
+              </span>
             )}
-            <PanelRight size={16} strokeWidth={1.5} className="ml-auto text-muted-foreground" />
+            <PanelRight size={16} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
           </div>
           {!many && (
-            <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
-              <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
-            </button>
+            <div className="mt-[11px] flex h-6 items-center gap-1">
+              {kind === "main" ? (
+                <button type="button" onClick={() => unmakeComponent(node.id)} className="flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
+                  <DiamondMinus size={14} strokeWidth={1.5} /> Detach Component
+                </button>
+              ) : (
+                <>
+                  {node.instance && (
+                    <Tip label="Go to main component">
+                      <button type="button" aria-label="Go to main component" onClick={() => goToMain(node.id)} className="flex h-6 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground">
+                        <Focus size={14} strokeWidth={1.5} />
+                      </button>
+                    </Tip>
+                  )}
+                  {kind === "instance" && !store.isPart(node.id) && (
+                    <Tip label="Detach instance" keys="Ctrl Alt X">
+                      <button type="button" aria-label="Detach instance" onClick={detachSelected} className="flex h-6 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground">
+                        <DiamondMinus size={14} strokeWidth={1.5} />
+                      </button>
+                    </Tip>
+                  )}
+                  <button
+                    type="button"
+                    disabled={store.isPart(node.id)}
+                    onClick={makeComponents}
+                    className="ml-auto flex h-6 flex-1 items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground disabled:opacity-50"
+                  >
+                    <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 

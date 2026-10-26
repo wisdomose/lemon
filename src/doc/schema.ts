@@ -4,8 +4,8 @@
 // can edit at the same time through Yjs. Read as a tree (TreeNode) for layout, drawing, the agent's
 // scripts and exports.
 
-export type NodeType = "frame" | "text" | "rect" | "ellipse" | "image";
-export const NODE_TYPES: readonly NodeType[] = ["frame", "text", "rect", "ellipse", "image"];
+export type NodeType = "frame" | "text" | "rect" | "ellipse" | "image" | "instance";
+export const NODE_TYPES: readonly NodeType[] = ["frame", "text", "rect", "ellipse", "image", "instance"];
 
 /** A size along one axis: a fixed number of pixels, fill the parent, or fit the content. */
 export type Size = number | "fill" | "fit";
@@ -55,6 +55,8 @@ export interface NodeProps {
   shadow?: Shadow;
   /** A top-level frame an agent is building: drawn with the "Generating" shimmer until cleared. */
   generating?: boolean;
+  /** A main component: other places can show copies of it (instances) that follow its changes. */
+  component?: boolean;
 
   // Frame layout: a single axis, no wrapping.
   layout?: "row" | "column" | "none";
@@ -93,6 +95,8 @@ export interface TreeNode {
   type: NodeType;
   props: NodeProps;
   children: TreeNode[];
+  /** On a copy of a component: the main component's id (the copy is read as the main's tree). */
+  instance?: string;
 }
 
 /** What an agent or a person sends to create nodes: a node with nested children. */
@@ -101,7 +105,14 @@ export interface NodeSpec extends NodeProps {
   /** A label the script can use to find this node's id afterwards (returned in `refs`). */
   ref?: string;
   children?: NodeSpec[];
+  /** An instance's main component. */
+  of?: string;
+  /** An instance's changes to parts of its main component, by their id path (see doc/components.ts). */
+  overrides?: Overrides;
 }
+
+/** An instance's changes to its main component's parts: properties by the part's id path in the main. */
+export type Overrides = Record<string, Partial<NodeProps>>;
 
 /** Variables (design tokens): colours, numbers and font names a node can reference as "$name". */
 export type Vars = Record<string, string | number>;
@@ -112,4 +123,6 @@ export const DEFAULTS: Record<NodeType, Partial<NodeProps>> = {
   rect: { width: 100, height: 100 },
   ellipse: { width: 100, height: 100 },
   image: { width: 400, height: 300 },
+  // An instance takes everything from its main component; its own properties override.
+  instance: {},
 };

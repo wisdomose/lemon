@@ -126,6 +126,7 @@ export class ScriptSession {
     const { name, text, ...rest } = node.props;
     const box = boxes.get(node.id);
     const out: Record<string, unknown> = { id: node.id, type: node.type };
+    if (node.instance) out.instanceOf = node.instance;
     if (name) out.name = name;
     if (text !== undefined) out.text = text.length > 120 ? text.slice(0, 117) + "…" : text;
     if (box) out.box = round(box);
@@ -175,7 +176,12 @@ export class ScriptSession {
       case "update": {
         const id = str(args[0], "id");
         const props = { ...((args[1] ?? {}) as Partial<NodeProps>) };
-        const mine = this.protect.get(id);
+        // A part of a copy is changed on the copy's record, under the part's key ("/<id path>").
+        const mine = store.isPart(id)
+          ? this.protect.get(store.recordIdOf(id))?.has("/" + id.slice(id.indexOf("/") + 1))
+            ? new Set(Object.keys(props))
+            : undefined
+          : this.protect.get(id);
         if (mine) {
           const skipped = Object.keys(props).filter((k) => mine.has(k));
           skipped.forEach((k) => delete props[k as keyof NodeProps]);

@@ -5,15 +5,18 @@
 //     "vars": { "ink": "#1b1a17" },
 //     "nodes": [ { "id": "k3…", "type": "frame", "parent": "root", "order": "a0", "name": "Landing", … }, … ] }
 //
+// An instance's changes to its main component's parts are saved together, as
+// "overrides": { "<id path>": { …properties } } (in the document each is its own key, "/<id path>").
+//
 // Only the document is saved; the undo history and the live-editing state start afresh when a file
 // is opened.
 import * as Y from "yjs";
 import { NODE_TYPES, ROOT_ID, type NodeType } from "./schema.js";
-import { nodesOf, toTree, varsOf } from "./store.js";
+import { childIds, nodesOf, varsOf } from "./store.js";
 import { PRODUCT } from "../product.js";
 
-/** The format's version; a file from a newer Lemon is refused rather than half-read. */
-export const FILE_VERSION = 1;
+/** The format's version; a file from a newer Lemon is refused rather than half-read. 2: components. */
+export const FILE_VERSION = 2;
 
 export interface FileNode {
   id: string;
@@ -36,12 +39,17 @@ export function toFile(doc: Y.Doc): LemonFile {
   const nodes: FileNode[] = [];
   const records = nodesOf(doc);
   const walk = (id: string) => {
-    for (const child of toTree(doc, id).children) {
-      const rec = records.get(child.id)!;
-      const record: FileNode = { id: child.id, type: rec.get("type") as NodeType, parent: id, order: rec.get("order") as string };
-      for (const [k, v] of rec) if (k !== "type" && k !== "parent" && k !== "order") record[k] = v;
+    for (const child of childIds(doc, id)) {
+      const rec = records.get(child)!;
+      const record: FileNode = { id: child, type: rec.get("type") as NodeType, parent: id, order: rec.get("order") as string };
+      const overrides: Record<string, unknown> = {};
+      for (const [k, v] of rec) {
+        if (k.startsWith("/")) overrides[k.slice(1)] = v;
+        else if (k !== "type" && k !== "parent" && k !== "order") record[k] = v;
+      }
+      if (Object.keys(overrides).length) record.overrides = overrides;
       nodes.push(record);
-      walk(child.id);
+      walk(child);
     }
   };
   walk(ROOT_ID);
@@ -79,7 +87,11 @@ export function readFile(text: string, into: Y.Doc): void {
     const nodes = nodesOf(into);
     for (const n of data.nodes!) {
       const rec = new Y.Map<unknown>();
-      for (const [k, v] of Object.entries(n)) if (k !== "id" && v !== undefined) rec.set(k, v);
+      for (const [k, v] of Object.entries(n)) {
+        if (k === "overrides" && n.type === "instance" && v && typeof v === "object") {
+          for (const [path, props] of Object.entries(v)) if (props && typeof props === "object") rec.set(`/${path}`, props);
+        } else if (k !== "id" && v !== undefined) rec.set(k, v);
+      }
       nodes.set(n.id, rec);
     }
     const vars = varsOf(into);

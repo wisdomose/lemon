@@ -13,12 +13,15 @@ export const placedFreely = (n: TreeNode, parent: TreeNode) => parent.id === ROO
 
 const contains = (b: Box | undefined, x: number, y: number) => !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
 
-/** The deepest frame under (x, y) that isn't one of `moving` or inside one; the page when none. */
+/**
+ * The deepest frame under (x, y) that isn't one of `moving` or inside one; the page when none. A copy
+ * of a component takes nothing new, so its frames don't count.
+ */
 export function frameAt(s: Laid, x: number, y: number, moving: Set<string> = new Set()): TreeNode {
   let found = s.tree;
   let level = s.tree.children;
   for (;;) {
-    const hit = [...level].reverse().find((n) => n.type === "frame" && !moving.has(n.id) && n.props.visible !== false && contains(s.boxes.get(n.id), x, y));
+    const hit = [...level].reverse().find((n) => n.type === "frame" && !n.instance && !moving.has(n.id) && n.props.visible !== false && contains(s.boxes.get(n.id), x, y));
     if (!hit) return found;
     found = hit;
     level = hit.children;

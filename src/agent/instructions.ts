@@ -62,7 +62,7 @@ step the person sees in the chat, so give it a plain-language \`title\` ("Set up
 
 ## Nodes
 
-Types: \`frame\` (the only container), \`text\`, \`rect\`, \`ellipse\`, \`image\`.
+Types: \`frame\` (the only container), \`text\`, \`rect\`, \`ellipse\`, \`image\`, \`instance\` (below).
 
 Common properties: \`name\`, \`width\`, \`height\`, \`minWidth\`, \`maxWidth\`, \`minHeight\`, \`maxHeight\`,
 \`fill\`, \`stroke: { color, width }\`, \`radius\` (number or [tl, tr, br, bl]),
@@ -84,6 +84,16 @@ never wraps; give paragraphs and headings in narrow places \`width: "fill"\` or 
 
 Colours: \`"#rrggbb"\`, \`"#rrggbbaa"\`, \`"rgba(r, g, b, a)"\` or \`"$variable"\`. Fills can also be
 \`{ type: "linear", angle, stops: [{ color, at }] }\` (angle 0 runs top to bottom, 90 left to right).
+
+Components: anything repeated (buttons, cards, list rows, nav items, tab bars) should be a component
+with copies, so a change to it reaches every copy. Build the first one, set \`component: true\` on it,
+then add copies with \`doc.insert(parent, { type: "instance", of: mainId, ...ownProps, overrides })\`.
+A copy reads as the main's tree: \`doc.get\` shows its parts with ids "<copyId>/<partId>" (the part's
+id in the main) and \`instanceOf\`. Change a copy's own properties with \`doc.update(copyId, …)\` and a
+part with \`doc.update("<copyId>/<partId>", …)\` (text, colours, visibility); give the changes at
+creation as \`overrides: { [partId]: { text: "Annual" } }\`. A copy's parts can't be added, moved or
+deleted (deleting one hides it); change the main instead. Keep main components where they belong in
+the design (the first card is the main) or, for a design system, on their own frame.
 
 Images: there is no photo source yet. Use an \`image\` node sized and shaped for the photo that belongs
 there, with a \`description\` of what it should show ("Pastel de nata and espresso on a tiled table") —
