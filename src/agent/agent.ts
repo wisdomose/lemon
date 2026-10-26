@@ -1,5 +1,5 @@
-// The designer agent: Claude, through the Claude Agent SDK and the person's own Claude login, with one
-// tool (`execute`) and nothing else — no shell, files or web.
+// Designer agents share canvas execution, rollback, and events across Claude and Codex.
+// Each provider uses its own local login and receives only the canvas execute tool.
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,7 +17,8 @@ import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { FailedScripts } from "./patches.js";
 import type { Globals } from "../sandbox/sandbox.js";
-import { DEFAULT_MODEL } from "./models.js";
+import { runCodex } from "./codex.js";
+import { DEFAULT_MODEL, modelProvider } from "./models.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 /** How often the script being written is re-read for where it will work next. */
@@ -56,7 +57,7 @@ export type AgentEvent =
   | { type: "step-progress"; index: number; focus: Focus }
   | { type: "step-start"; index: number; title: string }
   | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; streamId?: string }
   | { type: "done"; stats: AgentStats }
   | { type: "error"; message: string };
 
@@ -79,7 +80,8 @@ export interface AgentOptions {
   sandbox: Sandbox;
   prompt: string;
   model?: string;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  /** Codex effort identifiers come from model/list rather than a fixed enum. */
+  effort?: string;
   /** The agent's name, shown on its cursor and in the chat. */
   name?: string;
   recentDirections?: string[];
@@ -226,10 +228,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     } else if (ev.type === "content_block_stop" && ev.index === writing?.block) writing = undefined;
   };
 
-  const executeTool = tool(
-    "execute",
-    "Run a JavaScript script against the design document (global `doc`). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
-    {
+  const toolDescription = "Run a JavaScript script against the design document (global `doc`). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().";
+  const toolSchema = z.object({
       title: z.string().describe("A short plain-language name for this step, shown to the person."),
       script: z.string().optional().describe("The script: a function body; `return` a value to get it back. Leave out when sending edits."),
       editId: z.string().optional().describe("The editId of the failed script that `edits` fix."),
@@ -237,8 +237,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         .array(z.object({ find: z.string(), replace: z.string() }))
         .optional()
         .describe("Find-and-replace edits applied in order to the failed script; each `find` must match exactly once."),
-    },
-    async ({ title, script: written, editId, edits }) => {
+    });
+  const executeCall = async ({ title, script: written, editId, edits }: z.infer<typeof toolSchema>) => {
       const index = steps.length + 1;
       // "Thought for Ns" was already shown when the agent began writing this step.
       if (!announced.has(index)) thought();
@@ -304,10 +304,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         ],
         ...(r.ok ? {} : { isError: true }),
       };
-    },
-  );
-
-  const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool] });
+    };
   const abort = new AbortController();
   o.signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
@@ -335,45 +332,68 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   };
 
   try {
-    for await (const m of query({
-      prompt: message,
-      options: {
-        model,
-        ...(o.effort ? { effort: o.effort } : {}),
-        systemPrompt: INSTRUCTIONS,
-        tools: [], // no built-in tools at all
-        mcpServers: { [PRODUCT.slug]: server },
-        strictMcpConfig: true, // ignore MCP servers configured on this machine
-        allowedTools: [TOOL_NAME],
-        permissionMode: "dontAsk", // anything not allowed above is refused, never asked
-        settingSources: [], // ignore the person's Claude settings and memory files
-        persistSession: false,
-        maxTurns: 60,
-        includePartialMessages: true, // the script as it is written, for the live cursor
-        cwd,
-        abortController: abort,
-      },
-    })) {
-      if (m.type === "stream_event" && !m.parent_tool_use_id) onStream(m.event);
-      else if (m.type === "assistant" && !m.parent_tool_use_id) {
-        for (const block of m.message.content) {
-          if (block.type === "text" && block.text.trim()) {
-            thought();
-            emit({ type: "text", text: block.text });
-            lastActivity = performance.now();
+    if (modelProvider(model) === "codex") {
+      const result = await runCodex({
+        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal,
+        tool: {
+          description: toolDescription,
+          inputSchema: z.toJSONSchema(toolSchema),
+          // Validate external arguments before touching the document, just like the Claude SDK.
+          call: (input) => executeCall(toolSchema.parse(input)),
+        },
+        onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+      });
+      stats.ok = true;
+      stats.reply = result.reply;
+      stats.tokens = result.tokens;
+      stats.apiMs = result.durationMs;
+      stats.turns = steps.length + 1;
+      // Codex subscription turns expose token usage but no dollar charge.
+    } else {
+      // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options.
+      const effort = o.effort === "low" || o.effort === "medium" || o.effort === "high" || o.effort === "xhigh" || o.effort === "max" ? o.effort : undefined;
+      const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
+      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool] });
+      for await (const m of query({
+        prompt: message,
+        options: {
+          model,
+          ...(effort ? { effort } : {}),
+          systemPrompt: INSTRUCTIONS,
+          tools: [], // no built-in tools at all
+          mcpServers: { [PRODUCT.slug]: server },
+          strictMcpConfig: true, // ignore MCP servers configured on this machine
+          allowedTools: [TOOL_NAME],
+          permissionMode: "dontAsk", // anything not allowed above is refused, never asked
+          settingSources: [], // ignore the person's Claude settings and memory files
+          persistSession: false,
+          maxTurns: 60,
+          includePartialMessages: true, // the script as it is written, for the live cursor
+          cwd,
+          abortController: abort,
+        },
+      })) {
+        if (m.type === "stream_event" && !m.parent_tool_use_id) onStream(m.event);
+        else if (m.type === "assistant" && !m.parent_tool_use_id) {
+          for (const block of m.message.content) {
+            if (block.type === "text" && block.text.trim()) {
+              thought();
+              emit({ type: "text", text: block.text });
+              lastActivity = performance.now();
+            }
           }
-        }
-      } else if (m.type === "result") {
-        stats.ok = m.subtype === "success" && !m.is_error;
-        stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
-        stats.apiMs = m.duration_api_ms;
-        stats.turns = m.num_turns;
-        stats.costUsd = m.total_cost_usd;
-        for (const u of Object.values(m.modelUsage)) {
-          stats.tokens.input += u.inputTokens;
-          stats.tokens.output += u.outputTokens;
-          stats.tokens.cacheRead += u.cacheReadInputTokens;
-          stats.tokens.cacheWrite += u.cacheCreationInputTokens;
+        } else if (m.type === "result") {
+          stats.ok = m.subtype === "success" && !m.is_error;
+          stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
+          stats.apiMs = m.duration_api_ms;
+          stats.turns = m.num_turns;
+          stats.costUsd = m.total_cost_usd;
+          for (const u of Object.values(m.modelUsage)) {
+            stats.tokens.input += u.inputTokens;
+            stats.tokens.output += u.outputTokens;
+            stats.tokens.cacheRead += u.cacheReadInputTokens;
+            stats.tokens.cacheWrite += u.cacheCreationInputTokens;
+          }
         }
       }
     }

@@ -30,6 +30,8 @@ export interface StartPrompt {
   /** What the agent is sent. */
   forAgent: string;
   model?: string;
+  /** Codex reasoning effort carried from the Dashboard into the new editor. */
+  effort?: string;
   /** Several agents (from the Dashboard's ⚡ choice). */
   team?: Team;
 }
@@ -273,7 +275,7 @@ export class Editor {
 
   // ---- The agent -----------------------------------------------------------------------------------
   /** Runs one agent, or a team of them (`team.count` > 1), on this window's document. */
-  async runAgent(prompt: string, model?: string, team?: Team): Promise<AgentStats[]> {
+  async runAgent(prompt: string, model?: string, team?: Team, effort?: string): Promise<AgentStats[]> {
     this.running?.abort();
     const running = (this.running = new AbortController());
     const { engine, sandbox, log } = this.shared;
@@ -288,7 +290,7 @@ export class Editor {
         setTimeout(() => this.win.webContents.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, onEvent })];
     if (this.running === running) this.running = undefined;

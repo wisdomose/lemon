@@ -1,12 +1,28 @@
 // The models the agent can use. Shared by the agent (main process) and the window (labels).
+/** Public model metadata shared across IPC; Codex retains ownership of account credentials. */
+export interface CodexModel {
+  id: string;
+  label: string;
+  description: string;
+  provider: "codex";
+  efforts: { id: string; description: string }[];
+  defaultEffort?: string;
+  isDefault: boolean;
+}
+
 export const MODELS = [
-  { id: "claude-fable-5-1", label: "Claude Fable 5.1" },
-  { id: "claude-opus-5-5", label: "Claude Opus 5.5" },
-  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
-  { id: "claude-haiku-5-5", label: "Claude Haiku 5.5" },
+  { id: "claude-fable-5-1", provider: "claude", label: "Claude Fable 5.1" },
+  { id: "claude-opus-5-5", provider: "claude", label: "Claude Opus 5.5" },
+  { id: "claude-sonnet-5-5", provider: "claude", label: "Claude Sonnet 5.5" },
+  { id: "claude-haiku-5-5", provider: "claude", label: "Claude Haiku 5.5" },
+  // Codex resolves its configured model, including account-specific model availability.
+  { id: "codex", provider: "codex", label: "Codex (default)" },
 ] as const;
+export const modelProvider = (id: string): "claude" | "codex" => id === "codex" || id.startsWith("codex:") ? "codex" : "claude";
+
 export const DEFAULT_MODEL: string = "claude-opus-5-5";
-export const modelLabel = (id: string) => MODELS.find((m) => m.id === id)?.label ?? id;
+export const modelLabel = (id: string, discovered: readonly CodexModel[] = []) =>
+  discovered.find((m) => m.id === id)?.label ?? MODELS.find((m) => m.id === id)?.label ?? id.replace(/^codex:/, "");
 
 /**
  * The agents' names and cursor colours, in the order they join a run (one agent is the first). Our own

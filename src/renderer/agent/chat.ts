@@ -76,7 +76,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
         landed.clear();
         store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
       }
-      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model), ...tag });
+      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model, store.get().codexModels), ...tag });
       break;
     case "thought":
       push({ kind: "thought", seconds: e.seconds, ...tag });
@@ -115,7 +115,14 @@ export function handleAgentEvent(e: TaggedEvent): void {
       schedule();
       break;
     case "text":
-      push({ kind: "text", text: e.text, ...tag });
+      // Codex sends deltas: append to its message even when team events interleave.
+      if (e.streamId) {
+        store.set((s) => {
+          const index = s.chat.findIndex((c) => c.kind === "text" && c.streamId === e.streamId && c.agent === agent);
+          if (index < 0) return { chat: [...s.chat, { kind: "text", text: e.text, streamId: e.streamId, ...tag }] };
+          return { chat: s.chat.map((c, i) => i === index && c.kind === "text" ? { ...c, text: c.text + e.text } : c) };
+        });
+      } else push({ kind: "text", text: e.text, ...tag });
       break;
     case "done":
       if (!teamRunning) finished(Math.round(e.stats.durationMs / 1000));
@@ -136,8 +143,8 @@ export function sendPrompt(text: string, forAgent?: string): void {
   if (!text.trim() || !bridge.canRunAgent || store.get().agentStatus) return;
   push({ kind: "user", text: text.trim() });
   store.set((s) => ({ agentStatus: "planning", session: s.session ?? text.trim() }));
-  const { model, team } = store.get();
-  void bridge.runAgent((forAgent ?? text).trim(), model, team);
+  const { model, team, effort } = store.get();
+  void bridge.runAgent((forAgent ?? text).trim(), model, team, effort);
 }
 
 // Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's

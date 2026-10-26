@@ -1,7 +1,7 @@
 // The window's state: what panel is open, what is selected, and the agent chat. One small store read
 // by React through useSyncExternalStore; the canvas reads it directly.
 import { useSyncExternalStore } from "react";
-import { DEFAULT_MODEL, type Team } from "../agent/models.js";
+import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 
@@ -31,7 +31,7 @@ export type ChatItem = (
       output?: string;
       pictures?: { url: string; width: number; height: number }[];
     }
-  | { kind: "text"; text: string }
+  | { kind: "text"; text: string; streamId?: string }
   | { kind: "designed"; seconds: number }
   | { kind: "error"; text: string }
 ) & { agent?: number };
@@ -51,6 +51,12 @@ export interface EditorState {
   /** The chat session's title (its first prompt). */
   session: string | null;
   model: string;
+  /** Session cache stays visible while the picker refreshes its live Codex catalog. */
+  codexModels: CodexModel[];
+  codexModelsState: "idle" | "loading" | "ready" | "error";
+  codexModelsError?: string;
+  /** Selected Codex effort; undefined delegates to the model's server-side default. */
+  effort?: string;
   /** How many agents the next request goes to, and how they share it (the ⚡ choice). */
   team: Team;
   settingsOpen: boolean;
@@ -78,6 +84,8 @@ const initial: EditorState = {
   agentStatus: null,
   session: null,
   model: DEFAULT_MODEL,
+  codexModels: [],
+  codexModelsState: "idle",
   team: { count: 1, mode: "split" },
   settingsOpen: false,
   history: [],

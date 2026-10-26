@@ -1,3 +1,4 @@
+import { codexModels, codexStatus } from "../agent/codex.js";
 // Electron's main process: owns the documents (one per editor window, editor.ts), the fonts and the
 // agents. Windows show their document and receive every change as a Yjs update.
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
@@ -199,9 +200,12 @@ async function main() {
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team) => editorOf(e)?.runAgent(prompt, model, team));
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string) => editorOf(e)?.runAgent(prompt, model, team, effort));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
   ipcMain.handle("claude:status", () => claudeStatus());
+  // Ask the local Codex server for public account metadata only.
+  ipcMain.handle("codex:status", () => codexStatus());
+  ipcMain.handle("codex:models", () => codexModels());
   ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
   ipcMain.handle("editor:notice", (e) => editorOf(e)?.takeNotice());
   ipcMain.handle("dashboard:show", () => showDashboard());

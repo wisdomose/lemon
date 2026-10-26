@@ -3,7 +3,7 @@
 // and has no agent.
 import type { AgentStats } from "../agent/agent.js";
 import type { TaggedEvent } from "../agent/team.js";
-import type { Team } from "../agent/models.js";
+import type { Team, CodexModel } from "../agent/models.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
@@ -18,12 +18,16 @@ export interface Bridge {
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
-  runAgent(prompt: string, model: string, team?: Team): Promise<AgentStats[]>;
+  runAgent(prompt: string, model: string, team?: Team, effort?: string): Promise<AgentStats[]>;
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: TaggedEvent) => void): void;
   canRunAgent: boolean;
   /** Whether Claude Code is signed in on this computer, and as whom. */
   claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
+  /** Whether the local Codex login can run agents; credentials stay with Codex. */
+  codexStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
+  /** Picker-visible Codex models and their supported reasoning efforts. */
+  codexModels(): Promise<CodexModel[]>;
   /** The file this window shows: its name and whether it is saved. */
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
@@ -87,6 +91,17 @@ export function browserBridge(): Bridge {
     canRunAgent: false,
     async claudeStatus() {
       return { loggedIn: false };
+    },
+    async codexStatus() {
+      return { loggedIn: false };
+    },
+    async codexModels() {
+      // Like document and Dashboard fixtures, a public catalog can drive browser-only UI checks.
+      const url = new URLSearchParams(location.search).get("models");
+      if (!url) throw new Error("Open the desktop app to discover Codex models.");
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Model catalog: HTTP ${response.status}`);
+      return response.json();
     },
     async fileInfo() {
       return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };
