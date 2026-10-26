@@ -203,6 +203,8 @@ async function main() {
     noSave: developer,
     changed: fileListChanged,
   };
+  // The menu bar before any window opens (the app may start on the Dashboard alone).
+  refreshMenu();
 
   // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
   if (developer) return developerRun(env.LEMON_OPEN);
