@@ -209,8 +209,3 @@ export function stage<T>(doc: Y.Doc, fn: (copy: Y.Doc) => T, copyClientId?: numb
     },
   };
 }
-
-/** A new file: one white 800 × 600 frame named "Frame", as the reference app starts. */
-export function newFile(doc: Y.Doc): void {
-  doc.transact(() => insert(doc, ROOT_ID, { type: "frame", name: "Frame", x: 0, y: 0, width: 800, height: 600, fill: "#ffffff", layout: "none", clip: true }));
-}
