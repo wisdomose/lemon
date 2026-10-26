@@ -11,6 +11,7 @@ export type WindowCommand = "undo" | "redo" | "delete" | "select-all" | "setting
 
 export interface MenuActions {
   newFile(): void;
+  dashboard(): void;
   open(): void;
   openPath(path: string): void;
   clearRecents(): void;
@@ -36,6 +37,7 @@ export function buildMenu(a: MenuActions): void {
             { label: "Clear Recently Opened", enabled: recent.length > 0, click: a.clearRecents },
           ],
         },
+        { label: "Dashboard", accelerator: "CmdOrCtrl+N", click: a.dashboard },
         { type: "separator" },
         { label: "Save", accelerator: "CmdOrCtrl+S", click: a.save },
         { label: "Save As…", accelerator: "CmdOrCtrl+Shift+S", click: a.saveAs },

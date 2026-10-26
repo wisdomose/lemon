@@ -54,8 +54,8 @@ export interface PromptEditorHandle {
 
 export const PromptEditor = forwardRef<
   PromptEditorHandle,
-  { selection: ChipRef | null; placeholder: string; onSubmit: () => void; onChange: (hasContent: boolean) => void }
->(function PromptEditor({ selection, placeholder, onSubmit, onChange }, ref) {
+  { selection: ChipRef | null; placeholder: string; onSubmit: () => void; onChange: (hasContent: boolean) => void; large?: boolean }
+>(function PromptEditor({ selection, placeholder, onSubmit, onChange, large }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // Latest callbacks, read from inside ProseMirror's handlers.
@@ -126,5 +126,5 @@ export const PromptEditor = forwardRef<
     focus: () => view.current?.focus(),
   }));
 
-  return <div ref={host} className="prompt-editor min-w-0 flex-1" />;
+  return <div ref={host} className={`prompt-editor min-w-0 flex-1${large ? " large" : ""}`} />;
 });

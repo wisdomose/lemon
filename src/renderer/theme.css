@@ -59,6 +59,14 @@
   --thumb: #f4f4f5;
   --send-off: #52525b;
   --send-off-icon: #ffffff;
+  /* The Dashboard is always dark (capture 01), so these have one value. */
+  --sidebar: #1d1d1d;
+  --sidebar-accent: #2e2e2e;
+  --card-picture: #222225;
+  --tile: #161618;
+  --tile-line: #1a1a1a;
+  --chip-on: #262626;
+  --chip-on-line: #a5a5a5;
 }
 .dark {
   --background: #18181b;
@@ -138,6 +146,13 @@
   --color-nav-active: var(--nav-active);
   --color-row-line: var(--row-line);
   --color-switch-off: var(--switch-off);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-card-picture: var(--card-picture);
+  --color-tile: var(--tile);
+  --color-tile-line: var(--tile-line);
+  --color-chip-on: var(--chip-on);
+  --color-chip-on-line: var(--chip-on-line);
   --color-layer-active: var(--layer-active);
   --color-layer-active-text: var(--layer-active-text);
   --color-thumb: var(--thumb);
@@ -203,6 +218,7 @@
 @layer components {
   .prompt-editor .ProseMirror { position: relative; min-height: 40px; outline: none; font-size: 13px; line-height: 1.5; color: var(--foreground); }
   .prompt-editor .ProseMirror p { margin: 0; }
+  .prompt-editor.large .ProseMirror { font-size: 16px; min-height: 64px; }
   .prompt-editor .ProseMirror.is-empty::before {
     content: attr(data-placeholder);
     position: absolute;

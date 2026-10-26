@@ -181,6 +181,7 @@ function General() {
       <Row label="Chat text size"><Choice k="chatTextSize" /></Row>
       <Row label="Cursor size"><Choice k="cursorSize" /></Row>
       <Row label="Show name on cursor"><Toggle k="cursorLabel" /></Row>
+      <Row label="Show agent input on dashboard"><Toggle k="dashboardPrompt" /></Row>
     </>
   );
 }

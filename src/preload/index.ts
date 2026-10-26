@@ -24,6 +24,20 @@ const bridge: Bridge = {
   onMenuCommand: (fn) => {
     ipcRenderer.on("menu:command", (_e, command) => fn(command));
   },
+  startPrompt: () => ipcRenderer.invoke("agent:start-prompt"),
+  showDashboard: () => ipcRenderer.invoke("dashboard:show"),
+  dashboard: {
+    files: () => ipcRenderer.invoke("dashboard:files"),
+    onFiles: (fn) => {
+      ipcRenderer.on("dashboard:files", (_e, files) => fn(files));
+    },
+    open: (path) => ipcRenderer.invoke("dashboard:open", path),
+    newFile: (start) => ipcRenderer.invoke("dashboard:new", start),
+    openDialog: () => ipcRenderer.invoke("dashboard:open-dialog"),
+    reveal: (path) => ipcRenderer.invoke("dashboard:reveal", path),
+    forget: (path) => ipcRenderer.invoke("dashboard:forget", path),
+    deleteDraft: (path) => ipcRenderer.invoke("dashboard:delete", path),
+  },
 };
 
 contextBridge.exposeInMainWorld("lemon", bridge);

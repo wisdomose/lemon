@@ -5,6 +5,7 @@ import { PRODUCT } from "../../product.js";
 import logoUrl from "../../../assets/logo.svg?url";
 import { Divider, ICON, IconButton, Island, Tip } from "../ui/kit.js";
 import { useEditor } from "../store.js";
+import { bridge } from "../scene.js";
 
 /** What the top bar says after the file name. */
 const SAVE_STATE = { saved: "Auto-saved", saving: "Saving…", error: "Not saved" } as const;
@@ -19,7 +20,7 @@ export function TopBar({ initial }: { initial: string }) {
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">{PRODUCT.name}</span>
         </div>
         <Tip label="Dashboard" keys="Ctrl N">
-          <IconButton icon={LayoutGrid} aria-label="Dashboard" />
+          <IconButton icon={LayoutGrid} aria-label="Dashboard" onClick={() => void bridge.showDashboard()} />
         </Tip>
         <Divider className="mx-2" />
         <div className="flex items-center gap-2 pl-1">

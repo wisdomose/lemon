@@ -1,6 +1,6 @@
 // Electron's main process: owns the documents (one per editor window, editor.ts), the fonts and the
 // agents. Windows show their document and receive every change as a Yjs update.
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -12,8 +12,9 @@ import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import type { FontFace } from "../text/fonts.js";
-import { Editor, logTo, type Shared } from "./editor.js";
-import { EXT, clearRecents, forgetRecent } from "./files.js";
+import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
+import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
+import { dashboardWindow, openDashboard, refreshDashboard } from "./dashboard.js";
 import { buildMenu } from "./menu.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
@@ -49,7 +50,7 @@ const pending: string[] = [];
 const designFiles = (args: string[]) => args.filter((a) => a.endsWith(EXT) && existsSync(a));
 
 /** Opens a window on `path` (or a new file); an already open file just comes to the front. */
-function openEditor(path?: string): Editor | undefined {
+function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
   if (!shared) {
     if (path) pending.push(path);
     return undefined;
@@ -62,7 +63,7 @@ function openEditor(path?: string): Editor | undefined {
   }
   let editor: Editor;
   try {
-    editor = new Editor(shared, path);
+    editor = new Editor(shared, path, start);
   } catch (e) {
     dialog.showErrorBox(`Couldn't open ${path ? basename(path) : "the file"}`, e instanceof Error ? e.message : String(e));
     if (path) forgetRecent(path);
@@ -82,24 +83,35 @@ const focused = () => {
 };
 
 /** Open…: files chosen open in their own windows; a new file nobody has touched gives way to them. */
-async function openDialog() {
+async function openDialog(): Promise<number> {
   const before = focused();
   const r = await dialog.showOpenDialog({
     properties: ["openFile", "multiSelections"],
     filters: [{ name: `${PRODUCT.name} design`, extensions: [PRODUCT.fileExtension] }],
   });
-  if (r.canceled) return;
-  openPaths(r.filePaths, before);
+  if (r.canceled) return 0;
+  return openPaths(r.filePaths, before);
 }
 
-function openPaths(paths: string[], replacing?: Editor) {
+function openPaths(paths: string[], replacing?: Editor): number {
   const opened = paths.map((p) => openEditor(p)).filter((e) => !!e);
   if (opened.length && replacing?.pristine && !opened.includes(replacing)) replacing.win.close();
+  return opened.length;
+}
+
+/** The Dashboard gives way to the file it opens (it comes back with Ctrl+N). */
+function leaveDashboard(opened: unknown) {
+  if (opened) dashboardWindow()?.close();
+}
+
+function showDashboard() {
+  if (shared) openDashboard({ url: shared.pageUrl("dashboard"), preload: shared.preload });
 }
 
 function refreshMenu() {
   buildMenu({
     newFile: () => openEditor(),
+    dashboard: showDashboard,
     open: () => void openDialog(),
     openPath: (path) => openPaths([path], focused()),
     clearRecents: () => (clearRecents(), refreshMenu()),
@@ -118,7 +130,7 @@ if (!alone) app.quit();
 app.on("second-instance", (_e, argv) => {
   const files = designFiles(argv);
   if (files.length) files.forEach((f) => openEditor(f));
-  else openEditor();
+  else showDashboard();
 });
 app.on("open-file", (e, path) => {
   e.preventDefault();
@@ -151,17 +163,45 @@ async function main() {
   ipcMain.handle("agent:run", (e, prompt: string, model?: string) => editorOf(e)?.runAgent(prompt, model));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
   ipcMain.handle("claude:status", () => claudeStatus());
+  ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
+  ipcMain.handle("dashboard:show", () => showDashboard());
+  // The Dashboard's own requests.
+  ipcMain.handle("dashboard:files", () => dashboardFiles());
+  ipcMain.handle("dashboard:open", (_e, path: string) => leaveDashboard(openEditor(path)));
+  ipcMain.handle("dashboard:new", (_e, start?: StartPrompt) => leaveDashboard(openEditor(undefined, start)));
+  ipcMain.handle("dashboard:open-dialog", async () => leaveDashboard(await openDialog()));
+  ipcMain.handle("dashboard:reveal", (_e, path: string) => shell.showItemInFolder(path));
+  ipcMain.handle("dashboard:forget", (_e, path: string) => (forgetRecent(path), fileListChanged()));
+  ipcMain.handle("dashboard:delete", async (_e, path: string) => {
+    const win = dashboardWindow();
+    const ask = (o: Electron.MessageBoxOptions) => (win ? dialog.showMessageBox(win, o) : dialog.showMessageBox(o));
+    if ([...editors.values()].some((ed) => ed.path === path)) {
+      await ask({ type: "info", message: `${basename(path)} is open.`, detail: "Close its window first." });
+      return;
+    }
+    const r = await ask({
+      type: "warning",
+      message: `Delete ${basename(path)}?`,
+      detail: "The draft is deleted for good.",
+      buttons: ["Delete", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    if (r.response !== 0) return;
+    deleteDraft(path);
+    fileListChanged();
+  });
 
   // `pnpm dev` (electron-vite) serves the window live and passes its address.
   const devUrl = !app.isPackaged ? env.ELECTRON_RENDERER_URL : undefined;
   shared = {
     engine,
     sandbox,
-    uiUrl: devUrl ?? `${UI_SCHEME}://ui/index.html`,
+    pageUrl: (page) => (devUrl ? `${devUrl.replace(/\/$/, "")}/${page}.html` : `${UI_SCHEME}://ui/${page}.html`),
     preload: join(import.meta.dirname, "..", "preload", "index.cjs"),
     log,
     noSave: developer,
-    changed: refreshMenu,
+    changed: fileListChanged,
   };
 
   // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
@@ -169,8 +209,12 @@ async function main() {
   const files = [...pending, ...designFiles(process.argv.slice(1))];
   if (env.LEMON_OPEN) files.push(env.LEMON_OPEN);
   if (files.length) files.forEach((f) => openEditor(f));
-  else openEditor();
-  if (!editors.size) openEditor();
+  if (!editors.size) showDashboard();
+}
+
+function fileListChanged() {
+  refreshMenu();
+  refreshDashboard();
 }
 
 /** LEMON_PROMPT runs the agent on an empty document; LEMON_CAPTURE saves a picture of the window. */
