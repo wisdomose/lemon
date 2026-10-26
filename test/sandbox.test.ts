@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import * as store from "../src/doc/store.js";
 import { Sandbox } from "../src/sandbox/sandbox.js";
+import { LiveRun, execute, type Focus } from "../src/agent/execute.js";
+import { FailedScripts } from "../src/agent/patches.js";
 import { run, setup } from "./helpers.js";
 
 describe("sandbox", () => {
@@ -45,7 +47,7 @@ describe("sandbox", () => {
     const strings = sandbox.run("", "const a = []; while (true) a.push('x'.repeat(1e5) + Math.random());", () => null, { timeMs: 1000, memoryBytes: 32 << 20 });
     expect(strings.ok).toBe(false);
     const again = sandbox.run("", "return 1 + 1;", () => null);
-    expect(again).toEqual({ ok: true, value: 2 });
+    expect(again).toEqual({ ok: true, value: 2, globals: {} });
   }, 20_000);
 
   it("reports the script's own line number", async () => {
@@ -62,13 +64,11 @@ describe("execute (the agent's tool)", () => {
     const r = await run(doc, `
       doc.setVars({ paper: "#f6f1e7", ink: "#1b1a17", accent: "#c4572f" });
       const page = doc.insert(null, { type: "frame", name: "Landing", width: 1440, fill: "$paper", ref: "page" });
-      doc.insert(page, { type: "frame", name: "Hero", width: "fill", padding: [96, 120], gap: 24, children: [
-        { type: "text", ref: "title", text: "Slow mornings above the Tagus.", font: "Fraunces", size: 88, weight: 600, color: "$ink", width: "fill" },
-        { type: "text", text: "Coffee, pastries and a terrace with a view.", size: 22, color: "$ink" },
-        { type: "frame", layout: "row", padding: [16, 28], radius: 999, fill: "$accent", children: [
-          { type: "text", text: "Reserve a table", size: 18, weight: 600, color: "#ffffff" },
-        ] },
-      ] });
+      const hero = doc.insert(page, { type: "frame", name: "Hero", width: "fill", padding: [96, 120], gap: 24 });
+      doc.insert(hero, { type: "text", ref: "title", text: "Slow mornings above the Tagus.", font: "Fraunces", size: 88, weight: 600, color: "$ink", width: "fill" });
+      doc.insert(hero, { type: "text", text: "Coffee, pastries and a terrace with a view.", size: 22, color: "$ink" });
+      const button = doc.insert(hero, { type: "frame", layout: "row", padding: [16, 28], radius: 999, fill: "$accent" });
+      doc.insert(button, { type: "text", text: "Reserve a table", size: 18, weight: 600, color: "#ffffff" });
       doc.screenshot(page);
       return doc.get(page, 1);
     `);
@@ -98,7 +98,7 @@ describe("execute (the agent's tool)", () => {
   it("rolls back everything when the script fails part-way", async () => {
     const doc = new Y.Doc();
     await run(doc, `doc.insert(null, { type: "frame", name: "Existing" });`);
-    const before = Y.encodeStateAsUpdate(doc);
+    const before = JSON.stringify(store.toTree(doc));
     const r = await run(doc, `
       const f = doc.insert(null, { type: "frame", name: "Half-built" });
       doc.insert(f, { type: "text", text: "one" });
@@ -107,7 +107,59 @@ describe("execute (the agent's tool)", () => {
     expect(r.ok).toBe(false);
     expect(r.error?.message).toMatch(/No node with id "no-such-id"/);
     expect(r.error?.line).toBe(4);
-    expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
+    expect(JSON.stringify(store.toTree(doc))).toBe(before);
+  });
+
+  it("inserts one node at a time: children are refused", async () => {
+    const r = await run(new Y.Doc(), `doc.insert(null, { type: "frame", children: [{ type: "text", text: "x" }] });`);
+    expect(r.ok).toBe(false);
+    expect(r.error?.message).toMatch(/adds one node/);
+  });
+
+  it("keeps values assigned without const/let for the next script, and none from a failed one", async () => {
+    const { engine, sandbox } = await setup();
+    const doc = new Y.Doc();
+    const first = await execute(doc, engine, sandbox, `const local = 1; page = doc.insert(null, { type: "frame" }); helper = () => 1; return local;`, "test");
+    expect(Object.keys(first.globals)).toEqual(["page"]);
+    const failed = await execute(doc, engine, sandbox, `stray = 2; throw new Error("no");`, "test", undefined, first.globals);
+    expect(failed.globals).toEqual(first.globals);
+    const second = await execute(doc, engine, sandbox, `doc.insert(page, { type: "text", text: "Hi" }); return typeof helper;`, "test", undefined, first.globals);
+    expect(second.ok).toBe(true);
+    expect(second.value).toBe("undefined");
+    expect(store.toTree(doc).children[0]!.children).toHaveLength(1);
+  });
+
+  it("fixes a failed script with edits, which must each match once", () => {
+    const failed = new FailedScripts();
+    const id = failed.keep(`doc.insert(null, { type: "frame", fill: "#zzz" });\nreturn 1;`);
+    expect(failed.patch(id, [{ find: "#zzz", replace: "#fff" }, { find: "#fff", replace: "#000" }])).toBe(`doc.insert(null, { type: "frame", fill: "#000" });\nreturn 1;`);
+    expect(() => failed.patch(id, [{ find: "nope", replace: "" }])).toThrow(/doesn't match/);
+    expect(() => failed.patch(id, [{ find: "e", replace: "" }])).toThrow(/more than once/);
+    // A failed patch is kept under the same id; later edits match the patched script.
+    failed.keep(`return 2;`, id);
+    expect(failed.patch(id, [{ find: "2", replace: "3" }])).toBe("return 3;");
+    failed.done(id);
+    expect(() => failed.patch(id, [])).toThrow(/no failed script/);
+  });
+
+  it("the cursor follows what is placed, not the frames around it or the generating mark", async () => {
+    const { engine, sandbox } = await setup();
+    const doc = new Y.Doc();
+    const seen: Focus[] = [];
+    const r = await new LiveRun(doc, engine, sandbox, "test", undefined, {}, (f) => seen.push(f)).finish(`
+      const page = doc.insert(null, { type: "frame", width: 600, generating: true });
+      const title = doc.insert(page, { type: "text", text: "Hello there" });
+      doc.update(page, { padding: 40 });
+      doc.update(title, { size: 40 });
+      doc.update(page, { generating: null });
+    `);
+    expect(r.ok).toBe(true);
+    const [page, title] = store.toTree(doc).children[0] ? [store.toTree(doc).children[0]!.id, store.toTree(doc).children[0]!.children[0]!.id] : [];
+    expect(seen.map((f) => [f.id, f.created])).toEqual([
+      [page, true],
+      [title, true],
+    ]);
+    expect(r.focus).toMatchObject({ id: title, created: true });
   });
 
   it("handles a heavy chart (565 rectangles) and 1,000 small reads", async () => {

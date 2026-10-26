@@ -22,34 +22,73 @@ const LIVE = "#607dff";
 const LIVE_RGB = [96 / 255, 125 / 255, 255 / 255] as const;
 /** The tint's strength at the bottom of the frame; it fades to nothing at the top. */
 const LIVE_TINT = 0.36;
-/** How long the agent cursor takes to glide to a new spot. */
-const GLIDE_MS = 350;
+// The agent cursor moves like a hand: it glides to a spot, rests there a moment, and if the agent has
+// moved on meanwhile goes straight to the newest spot rather than visiting each one in turn.
+/** How long the cursor takes to glide to a new spot, and to draw across a box it just made. */
+const GLIDE_MS = 450;
+const DRAW_MS = 380;
+/** How long it rests on a spot before moving on (and between the steps of drawing a box). */
+const REST_MS = 280;
+const DRAW_PAUSE_MS = 60;
 
 /** Zoom steps for the zoom buttons and Ctrl +/−. */
 export const ZOOM_PRESETS = [0.02, 0.03, 0.05, 0.08, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
 /** Page coordinates at the canvas's top-left corner, and the zoom. */
 export const view = { x: 0, y: 0, zoom: 1 };
-/** The agent's cursor: glides (page coordinates) from `from` to `to`, starting at `movedAt`. */
-export const cursor = { name: "", shown: false, since: 0, from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, movedAt: 0 };
+type Point = { x: number; y: number };
+/**
+ * The agent's cursor (page coordinates): gliding from `from` to `to` over `ms` from `movedAt`, then the
+ * rest of its path (`path`); `next` is the newest spot it was sent to while busy.
+ */
+export const cursor = {
+  name: "",
+  shown: false,
+  since: 0,
+  from: { x: 0, y: 0 } as Point,
+  to: { x: 0, y: 0 } as Point,
+  movedAt: 0,
+  ms: 0,
+  path: [] as Point[],
+  next: undefined as Point[] | undefined,
+};
 
-function cursorAt(now: number): { x: number; y: number } {
-  const k = Math.min(1, (now - cursor.movedAt) / GLIDE_MS);
-  const e = 1 - (1 - k) ** 3;
+/** Starts the next leg once the cursor has arrived and rested: the rest of a box being drawn, or a new spot. */
+function advance(now: number): void {
+  const rest = cursor.path.length ? DRAW_PAUSE_MS : REST_MS;
+  if (now < cursor.movedAt + cursor.ms + rest) return;
+  let ms = DRAW_MS;
+  if (!cursor.path.length) {
+    if (!cursor.next) return;
+    cursor.path = cursor.next;
+    cursor.next = undefined;
+    ms = GLIDE_MS;
+  }
+  Object.assign(cursor, { from: cursor.to, to: cursor.path.shift()!, movedAt: now, ms });
+}
+
+function cursorAt(now: number): Point {
+  advance(now);
+  const k = cursor.ms ? Math.min(1, (now - cursor.movedAt) / cursor.ms) : 1;
+  const e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
   return { x: cursor.from.x + (cursor.to.x - cursor.from.x) * e, y: cursor.from.y + (cursor.to.y - cursor.from.y) * e };
 }
 
-/** Sends the agent's cursor to a page point: it fades in there the first time, then glides. */
-export function moveCursor(x: number, y: number): void {
+/**
+ * Sends the agent's cursor along a path of page points (one spot, or a box's corners to draw it): it
+ * fades in at the start the first time; while busy, the newest path waits and replaces older ones.
+ */
+export function moveCursor(path: Point[]): void {
+  if (!path.length) return;
   const now = performance.now();
-  if (!cursor.shown) Object.assign(cursor, { shown: true, since: now, from: { x, y } });
-  else cursor.from = cursorAt(now);
-  Object.assign(cursor, { to: { x, y }, movedAt: now });
+  if (!cursor.shown) {
+    Object.assign(cursor, { shown: true, since: now, from: path[0], to: path[0], movedAt: now, ms: 0, path: path.slice(1), next: undefined });
+  } else cursor.next = path;
   schedule();
 }
 
 export function hideCursor(): void {
-  cursor.shown = false;
+  Object.assign(cursor, { shown: false, path: [], next: undefined });
   schedule();
 }
 

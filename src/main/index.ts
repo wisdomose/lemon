@@ -7,7 +7,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
 import { newFile } from "../doc/store.js";
-import { PersonChange, REPAIR, repairTree } from "../doc/live.js";
+import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
 import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
@@ -40,6 +40,8 @@ if (process.platform === "win32") app.setAppUserModelId(PRODUCT.appId);
 
 const log = (msg: string) => env.LEMON_LOG && appendFileSync(env.LEMON_LOG, `${new Date().toISOString().slice(11, 23)} ${msg}\n`);
 const doc = new Y.Doc();
+// Agents write to this copy directly, statement by statement: it loses same-moment ties to people (doc/live.ts).
+doc.clientID = agentClientId();
 if (env.LEMON_OPEN) Y.applyUpdate(doc, readFileSync(env.LEMON_OPEN));
 else if (!env.LEMON_PROMPT) newFile(doc);
 
@@ -106,7 +108,7 @@ async function main() {
       onEvent: (e) => {
         if (win.isDestroyed()) return;
         win.webContents.send("agent:event", e);
-        if (e.type !== "step-target") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
+        if (e.type !== "step-target" && e.type !== "step-progress") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
         if (env.LEMON_FILM && e.type === "step-end") {
           const n = String(e.step.index).padStart(2, "0");
           setTimeout(() => win.webContents.capturePage().then((img) => writeFileSync(join(env.LEMON_FILM!, `step-${n}.png`), img.toPNG())), 600);

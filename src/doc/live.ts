@@ -8,6 +8,8 @@
 //          tells the agent), because its script was written before those edits existed.
 //   - Undo (Ctrl+Z) undoes only the person's own changes and never overwrites newer agent work; an
 //     agent step can be undone as one unit.
+//   - An agent step lands statement by statement as its script is written; if it fails, all of it is
+//     removed again (trackStep), leaving people's edits made meanwhile.
 //   - A person's delete wins over an agent adding inside the deleted frame: leftovers are removed.
 import * as Y from "yjs";
 import { generateKeyBetween } from "fractional-indexing";
@@ -41,9 +43,38 @@ export function personUndo(doc: Y.Doc): Y.UndoManager {
   return new Y.UndoManager([nodesOf(doc), doc.getMap("vars")], { trackedOrigins: new Set([PERSON_EDIT]), captureTimeout: 500 });
 }
 
-/** Agents' undo history: each agent step is one entry. */
+const scope = (doc: Y.Doc) => [nodesOf(doc), doc.getMap("vars")];
+/** Agents' undo histories, by document, so a failed step can be taken out of them. */
+const histories = new WeakMap<Y.Doc, Set<Y.UndoManager>>();
+
+/** Agents' undo history: each agent step is one entry, however many changes it lands in. */
 export function agentUndo(doc: Y.Doc): Y.UndoManager {
-  return new Y.UndoManager([nodesOf(doc), doc.getMap("vars")], { trackedOrigins: new Set([AgentChange]), captureTimeout: 0 });
+  const um = new Y.UndoManager(scope(doc), { trackedOrigins: new Set([AgentChange]), captureTimeout: Infinity });
+  let last: unknown;
+  doc.on("beforeTransaction", (tr: Y.Transaction) => {
+    if (!(tr.origin instanceof AgentChange) || tr.origin === last) return;
+    um.stopCapturing();
+    last = tr.origin;
+  });
+  um.on("stack-item-added", (e: { stackItem: { meta: Map<string, unknown> }; origin: unknown; type: string }) => {
+    if (e.type === "undo") e.stackItem.meta.set("origin", e.origin);
+  });
+  if (!histories.has(doc)) histories.set(doc, new Set());
+  histories.get(doc)!.add(um);
+  return um;
+}
+
+/** Follows one agent step's changes so they can all be removed if the step fails. */
+export function trackStep(doc: Y.Doc, origin: unknown): { revert(): void; dispose(): void } {
+  const um = new Y.UndoManager(scope(doc), { trackedOrigins: new Set([origin]), captureTimeout: Infinity });
+  return {
+    revert() {
+      while (um.undoStack.length) um.undo();
+      um.clear();
+      for (const h of histories.get(doc) ?? []) h.undoStack = h.undoStack.filter((i) => i.meta.get("origin") !== origin);
+    },
+    dispose: () => um.destroy(),
+  };
 }
 
 /** Node properties, by node id. */

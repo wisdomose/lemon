@@ -46,13 +46,15 @@ function round(b: Box) {
   return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) };
 }
 
-/** One script run's view of the document (a private copy until the run succeeds). */
+/** One script's view of the document, while its statements land on it. */
 export class ScriptSession {
   readonly refs: Record<string, string> = {};
   readonly logs: string[] = [];
   readonly screenshots: string[] = [];
   /** Nodes this run created or changed, for the automatic check afterwards. */
   readonly touched = new Set<string>();
+  /** The element the script is working on, where the agent's cursor goes (see `aimAt`). */
+  working?: { id: string; created: boolean };
   layoutMs = 0;
   private logSize = 0;
   private cache?: { tree: TreeNode; boxes: Boxes; vars: Vars };
@@ -67,8 +69,25 @@ export class ScriptSession {
     private protect: Touched = new Map(),
   ) {}
 
-  private write(): void {
+  /** Forgets the measured layout (the document changed, or fonts it needed have loaded). */
+  write(): void {
     this.cache = undefined;
+  }
+
+  private touch(id: string): void {
+    this.touched.add(id);
+  }
+
+  /**
+   * The cursor follows what is being placed: new elements, and changes to an element — but not changes
+   * to the frames around the element being worked on, nor the "generating" mark.
+   */
+  private aimAt(id: string, created: boolean, keys: string[] = []): void {
+    if (!created) {
+      if (keys.length && keys.every((k) => k === "generating")) return;
+      for (let n = this.working?.id; n && n !== ROOT_ID; n = store.parentOf(this.doc, n)) if (n === id) return;
+    }
+    this.working = { id, created };
   }
 
   /** The page tree and its layout, recomputed after any change. */
@@ -139,11 +158,17 @@ export class ScriptSession {
       case "insert": {
         const parent = args[0] === null || args[0] === undefined ? ROOT_ID : str(args[0], "parent");
         const spec = args[1] as NodeSpec;
+        // One node per insert (as in Pen): a script builds a section piece by piece, in the order the
+        // person should see it, rather than as one nested tree.
+        if (spec && typeof spec === "object" && "children" in spec) {
+          throw new Error("insert: adds one node; add its children with further doc.insert calls, using the returned id as the parent.");
+        }
         if (parent === ROOT_ID && spec && typeof spec === "object" && spec.x === undefined && spec.y === undefined) {
           Object.assign(spec, this.findSpace());
         }
         const id = store.insert(doc, parent, spec, position(args[2]), this.refs);
-        this.touched.add(id);
+        this.touch(id);
+        this.aimAt(id, true);
         this.write();
         return id;
       }
@@ -157,7 +182,8 @@ export class ScriptSession {
           if (skipped.length) this.leftAlone.push(`${id}: ${skipped.join(", ")}`);
         }
         store.update(doc, id, props);
-        this.touched.add(id);
+        this.touch(id);
+        this.aimAt(id, false, Object.keys(props));
         this.write();
         return null;
       }
@@ -169,7 +195,7 @@ export class ScriptSession {
         }
         const parent = store.parentOf(doc, id);
         store.remove(doc, id);
-        if (parent && parent !== ROOT_ID) this.touched.add(parent);
+        if (parent && parent !== ROOT_ID) this.touch(parent);
         this.touched.delete(id);
         this.write();
         return null;
@@ -177,7 +203,8 @@ export class ScriptSession {
       case "move": {
         const id = str(args[0], "id");
         store.move(doc, id, args[1] == null ? ROOT_ID : str(args[1], "parent"), position(args[2]));
-        this.touched.add(id);
+        this.touch(id);
+        this.aimAt(id, false);
         this.write();
         return null;
       }

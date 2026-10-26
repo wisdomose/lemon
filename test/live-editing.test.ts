@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { ROOT_ID } from "../src/doc/schema.js";
 import * as store from "../src/doc/store.js";
-import { AgentChange, PERSON_EDIT, PersonChange, PersonEdits, REPAIR, agentUndo, personClientId, personUndo, reconcileSelection, repairTree } from "../src/doc/live.js";
-import { execute } from "../src/agent/execute.js";
+import { AgentChange, PERSON_EDIT, PersonChange, PersonEdits, REPAIR, agentClientId, agentUndo, personClientId, personUndo, reconcileSelection, repairTree } from "../src/doc/live.js";
+import { LiveRun, execute } from "../src/agent/execute.js";
 import { setup } from "./helpers.js";
 
 /**
@@ -14,6 +14,7 @@ import { setup } from "./helpers.js";
  */
 function app() {
   const main = new Y.Doc();
+  main.clientID = agentClientId();
   const win = new Y.Doc();
   win.clientID = personClientId();
   const frame = store.insert(main, ROOT_ID, { type: "frame", name: "Card", width: 300, height: 200, fill: "#ffffff" });
@@ -35,6 +36,12 @@ function app() {
   });
   const person = (fn: () => void) => win.transact(fn, PERSON_EDIT);
   let step = 0;
+  /** A step whose script is fed in as the model writes it. */
+  const writing = async () => {
+    const { engine, sandbox } = await setup();
+    const origin = new AgentChange("Pip", ++step);
+    return new LiveRun(main, engine, sandbox, origin, personEdits.peek());
+  };
   const agent = async (script: string) => {
     const { engine, sandbox } = await setup();
     const r = await execute(main, engine, sandbox, script, new AgentChange("Pip", ++step), personEdits.peek());
@@ -50,6 +57,7 @@ function app() {
     agentHistory,
     person,
     agent,
+    writing,
     /** Holds the person's next changes back until `release()`: the agent's step lands first. */
     hold: () => void (held = []),
     release: () => {
@@ -170,5 +178,52 @@ describe("after the agent has reported back", () => {
     await t.agent(`doc.update(${JSON.stringify(t.frame)}, { radius: 4 });`); // reports back
     await t.agent(`doc.update(${JSON.stringify(t.frame)}, { fill: "#00ff00" });`);
     expect(t.get(t.main, t.frame).fill).toBe("#00ff00");
+  });
+});
+
+describe("a step that lands while it is written", () => {
+  /** Lets the run's queued statements land. */
+  const settle = () => new Promise((r) => setTimeout(r, 50));
+
+  it("shows each statement as soon as it is complete, and undoes as one unit", async () => {
+    const t = app();
+    const f = JSON.stringify(t.frame);
+    const script = `doc.update(${f}, { fill: "#112233" });\ndoc.insert(${f}, { type: "text", text: "One" });\ndoc.insert(${f}, { type: "text", text: "Two" });`;
+    const run = await t.writing();
+    const before = t.agentHistory.undoStack.length;
+    run.feed(script.slice(0, script.indexOf("doc.insert")));
+    await settle();
+    expect(t.get(t.win, t.frame).fill).toBe("#112233");
+    expect(store.childIds(t.win, t.frame)).toHaveLength(1);
+    run.feed(script.slice(0, script.lastIndexOf("doc.insert") + 10));
+    await settle();
+    expect(store.childIds(t.win, t.frame)).toHaveLength(2);
+    const r = await run.finish(script);
+    expect(r.ok).toBe(true);
+    expect(store.childIds(t.win, t.frame)).toHaveLength(3);
+    expect(t.agentHistory.undoStack.length).toBe(before + 1);
+    t.agentHistory.undo();
+    expect(store.childIds(t.main, t.frame)).toHaveLength(1);
+    expect(t.get(t.main, t.frame).fill).toBe("#ffffff");
+  });
+
+  it("if it fails, all of it is removed, leaving the person's edit made meanwhile and no undo entry", async () => {
+    const t = app();
+    const f = JSON.stringify(t.frame);
+    const run = await t.writing();
+    const before = t.agentHistory.undoStack.length;
+    run.feed(`doc.update(${f}, { radius: 12 });\ndoc.insert(${f}, { type: "text", text: "One" });\n`);
+    await settle();
+    expect(store.childIds(t.win, t.frame)).toHaveLength(2);
+    t.person(() => store.update(t.win, t.frame, { x: 99 }));
+    const r = await run.finish(`doc.update(${f}, { radius: 12 });\ndoc.insert(${f}, { type: "text", text: "One" });\ndoc.update("nope", {});`);
+    expect(r.ok).toBe(false);
+    expect(r.error?.line).toBe(3);
+    for (const d of [t.main, t.win]) {
+      expect(store.childIds(d, t.frame)).toHaveLength(1);
+      expect(t.get(d, t.frame)).toMatchObject({ x: 99 });
+      expect(t.get(d, t.frame).radius).toBeUndefined();
+    }
+    expect(t.agentHistory.undoStack.length).toBe(before);
   });
 });

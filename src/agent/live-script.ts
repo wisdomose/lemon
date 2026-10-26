@@ -79,10 +79,12 @@ function callEnd(src: string, at: number): { last: string; end: number } | undef
 
 /**
  * Where a (possibly unfinished) script will work next: the last change it writes to a node that
- * already exists (`exists`). Ids come from string literals, or from variables set to one.
+ * already exists (`exists`). Ids come from string literals, or from variables set to one — in the
+ * script, or kept from earlier scripts (`globals`).
  */
-export function scriptTarget(script: string, exists: (id: string) => boolean): Target | undefined {
+export function scriptTarget(script: string, exists: (id: string) => boolean, globals: Record<string, unknown> = {}): Target | undefined {
   const names = new Map<string, string>();
+  for (const [k, v] of Object.entries(globals)) if (typeof v === "string") names.set(k, v);
   for (const m of script.matchAll(ASSIGN)) names.set(m[1]!, m[3]!);
   let target: Target | undefined;
   for (const m of script.matchAll(CALL)) {
