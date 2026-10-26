@@ -3,7 +3,7 @@
 import type { TreeNode } from "../doc/schema.js";
 import type { Boxes } from "./layout.js";
 
-const GAP_BETWEEN_FRAMES = 120;
+export const GAP_BETWEEN_FRAMES = 120;
 
 export function emptySpot(page: TreeNode, boxes: Boxes): { x: number; y: number } {
   let right = -Infinity;

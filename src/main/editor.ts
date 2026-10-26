@@ -13,8 +13,9 @@ import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js"
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
-import { AGENT_NAME } from "../agent/models.js";
-import { runAgent } from "../agent/agent.js";
+import { AGENTS, type Team } from "../agent/models.js";
+import { runAgent, type AgentStats } from "../agent/agent.js";
+import { runTeam, type TaggedEvent } from "../agent/team.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, withoutExt, writeThumb, writeWhole } from "./files.js";
 
@@ -30,6 +31,8 @@ export interface StartPrompt {
   /** What the agent is sent. */
   forAgent: string;
   model?: string;
+  /** Several agents (from the Dashboard's ⚡ choice). */
+  team?: Team;
 }
 
 export type SaveState = "saved" | "saving" | "error";
@@ -239,29 +242,25 @@ export class Editor {
   }
 
   // ---- The agent -----------------------------------------------------------------------------------
-  async runAgent(prompt: string, model?: string) {
+  /** Runs one agent, or a team of them (`team.count` > 1), on this window's document. */
+  async runAgent(prompt: string, model?: string, team?: Team): Promise<AgentStats[]> {
     this.running?.abort();
     const running = (this.running = new AbortController());
     const { engine, sandbox, log } = this.shared;
     const film = process.env.LEMON_FILM;
-    const stats = await runAgent({
-      doc: this.doc,
-      engine,
-      sandbox,
-      prompt,
-      ...(model ? { model } : {}),
-      name: AGENT_NAME,
-      signal: running.signal,
-      onEvent: (e) => {
-        if (this.win.isDestroyed()) return;
-        this.win.webContents.send("agent:event", e);
-        if (e.type !== "step-target" && e.type !== "step-progress") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
-        if (film && e.type === "step-end") {
-          const n = String(e.step.index).padStart(2, "0");
-          setTimeout(() => this.win.webContents.capturePage().then((img) => writeFileSync(join(film, `step-${n}.png`), img.toPNG())), 600);
-        }
-      },
-    });
+    const onEvent = (e: TaggedEvent) => {
+      if (this.win.isDestroyed()) return;
+      this.win.webContents.send("agent:event", e);
+      const who = "agent" in e && e.agent !== undefined ? ` [${AGENTS[e.agent]?.name}]` : "";
+      if (e.type !== "step-target" && e.type !== "step-progress") log(`agent${who} ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
+      if (film && e.type === "step-end") {
+        const n = String(e.step.index).padStart(2, "0");
+        setTimeout(() => this.win.webContents.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
+      }
+    };
+    const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), signal: running.signal };
+    const stats =
+      team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, onEvent })];
     if (this.running === running) this.running = undefined;
     return stats;
   }

@@ -9,7 +9,7 @@ import * as Y from "yjs";
 import { createEngine } from "../src/engine.js";
 import { GoogleFonts } from "../src/text/google-fonts.js";
 import { Sandbox } from "../src/sandbox/sandbox.js";
-import { AGENT_NAME } from "../src/agent/models.js";
+import { AGENTS } from "../src/agent/models.js";
 import { runAgent, type AgentEvent } from "../src/agent/agent.js";
 import { getVars, toTree } from "../src/doc/store.js";
 import { layout } from "../src/layout/layout.js";
@@ -52,7 +52,7 @@ const stats = await runAgent({
   engine,
   sandbox,
   prompt: values.prompt,
-  name: AGENT_NAME,
+  name: AGENTS[0].name,
   ...(values.model ? { model: values.model } : {}),
   ...(values.effort ? { effort: values.effort as "high" } : {}),
   onEvent(e: AgentEvent) {

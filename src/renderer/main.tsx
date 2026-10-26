@@ -2,7 +2,7 @@
 import "./theme.css";
 import { createRoot } from "react-dom/client";
 import { PRODUCT } from "../product.js";
-import type { AgentEvent } from "../agent/agent.js";
+import type { TaggedEvent } from "../agent/team.js";
 import { App } from "./App.js";
 import { handleAgentEvent, loadHistory, sendPrompt } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
@@ -31,6 +31,7 @@ createRoot(document.getElementById("root")!).render(<App initial={initial} />);
 const start = await bridge.startPrompt();
 if (start) {
   if (start.model) store.set({ model: start.model });
+  if (start.team) store.set({ team: start.team });
   sendPrompt(start.text, start.forAgent);
 }
 if (q.get("view")) {
@@ -49,7 +50,7 @@ if (q.get("settings")) store.set({ settingsOpen: true });
 if (q.get("chat")) {
   const lines = (await (await fetch(q.get("chat")!)).text()).split("\n").filter(Boolean);
   for (const line of lines) {
-    const e = JSON.parse(line) as AgentEvent | { type: "user"; text: string };
+    const e = JSON.parse(line) as TaggedEvent | { type: "user"; text: string };
     if (e.type === "user") {
       store.set((s) => ({ chat: [...s.chat, { kind: "user", text: e.text }] }));
       continue;

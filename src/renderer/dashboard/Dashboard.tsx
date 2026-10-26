@@ -156,7 +156,8 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
     if (!p || !p.hasText || !bridge.canRunAgent) return;
     const noun = KINDS[kind]!.noun;
     const forAgent = noun ? `${p.forAgent}\n\n(What to design: ${noun}.)` : p.forAgent;
-    void bridge.dashboard.newFile({ text: p.shown, forAgent, model: store.get().model });
+    const { model, team } = store.get();
+    void bridge.dashboard.newFile({ text: p.shown, forAgent, model, team });
   };
   return (
     <section className="relative">
