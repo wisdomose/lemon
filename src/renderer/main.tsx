@@ -1,5 +1,6 @@
 // Window entry: connect to the document and engine, then render the editor.
 import "./theme.css";
+import { toast } from "sonner";
 import { createRoot } from "react-dom/client";
 import { PRODUCT } from "../product.js";
 import type { TaggedEvent } from "../agent/team.js";
@@ -27,6 +28,9 @@ bridge.onAgentEvent(handleAgentEvent);
 const q = new URLSearchParams(location.search);
 const initial = q.get("initial") ?? "Y";
 createRoot(document.getElementById("root")!).render(<App initial={initial} />);
+// What an import brought over (and what it couldn't), shown for a while.
+const notice = await bridge.notice();
+if (notice) toast(notice.title, { description: notice.details.join("\n"), duration: notice.details.length ? 30000 : 8000, closeButton: true, className: "whitespace-pre-line" });
 // A file started from the Dashboard's prompt: the agent starts on it here, so the chat shows it.
 const start = await bridge.startPrompt();
 if (start) {

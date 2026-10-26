@@ -8,6 +8,7 @@ import { check, type Issue } from "../layout/check.js";
 import { layout, type Box, type Boxes } from "../layout/layout.js";
 import { emptySpot } from "../layout/space.js";
 import { findNode } from "../render/screenshot.js";
+import { hasIcon } from "../render/icons.js";
 import { FontsNeeded } from "../text/fonts.js";
 import { Abort } from "../sandbox/sandbox.js";
 import type { Engine } from "../engine.js";
@@ -35,6 +36,14 @@ const log = (...a) => { __call("log", [a.map(__fmt).join(" ")]); };
 const console = Object.freeze({ log, info: log, warn: log, error: log });
 globalThis.doc = doc; globalThis.log = log; globalThis.console = console;
 `;
+
+/** Refuses an icon name Lucide doesn't have, so the agent picks another rather than leaving a blank. */
+function requireIcon(props: { icon?: unknown } | undefined): void {
+  const name = props?.icon;
+  if (typeof name === "string" && !name.startsWith("$") && !hasIcon(name)) {
+    throw new Error(`There is no Lucide icon "${name}". Use a Lucide name in kebab case, such as "arrow-right", "circle-check" or "house".`);
+  }
+}
 
 /** An optional position from the sandbox: JSON turns a left-out argument into null, which means "at the end". */
 function position(v: unknown): number | undefined {
@@ -164,6 +173,7 @@ export class ScriptSession {
         if (spec && typeof spec === "object" && "children" in spec) {
           throw new Error("insert: adds one node; add its children with further doc.insert calls, using the returned id as the parent.");
         }
+        requireIcon(spec);
         if (parent === ROOT_ID && spec && typeof spec === "object" && spec.x === undefined && spec.y === undefined) {
           Object.assign(spec, this.findSpace());
         }
@@ -176,6 +186,7 @@ export class ScriptSession {
       case "update": {
         const id = str(args[0], "id");
         const props = { ...((args[1] ?? {}) as Partial<NodeProps>) };
+        requireIcon(props);
         // A part of a copy is changed on the copy's record, under the part's key ("/<id path>").
         const mine = store.isPart(id)
           ? this.protect.get(store.recordIdOf(id))?.has("/" + id.slice(id.indexOf("/") + 1))

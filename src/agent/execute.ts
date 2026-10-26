@@ -2,6 +2,7 @@
 // model writes them (`LiveRun.feed`), so the person sees each element appear; if the script fails,
 // everything it did is removed again, as one unit.
 import type * as Y from "yjs";
+import { assetLookup } from "../doc/assets.js";
 import { trackStep, type AgentChange, type Touched } from "../doc/live.js";
 import type { Issue } from "../layout/check.js";
 import { screenshot } from "../render/screenshot.js";
@@ -259,7 +260,7 @@ export class LiveRun {
     const frames = s.touchedFrames();
     const issues = s.issuesFor(frames).slice(0, MAX_ISSUES);
     const p0 = performance.now();
-    const pictures = s.screenshots.map((id) => ({ id, ...screenshot(this.engine.ck, tree, boxes, vars, this.engine.text, id) }));
+    const pictures = s.screenshots.map((id) => ({ id, ...screenshot(this.engine.ck, tree, boxes, vars, this.engine.text, assetLookup(this.doc), id) }));
     picturesMs = performance.now() - p0;
     const focus = await this.focus();
     return {

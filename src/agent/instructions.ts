@@ -62,10 +62,11 @@ step the person sees in the chat, so give it a plain-language \`title\` ("Set up
 
 ## Nodes
 
-Types: \`frame\` (the only container), \`text\`, \`rect\`, \`ellipse\`, \`image\`, \`instance\` (below).
+Types: \`frame\` (the only container), \`text\`, \`rect\`, \`ellipse\`, \`image\`, \`icon\`, \`instance\` (below).
 
 Common properties: \`name\`, \`width\`, \`height\`, \`minWidth\`, \`maxWidth\`, \`minHeight\`, \`maxHeight\`,
-\`fill\`, \`stroke: { color, width }\`, \`radius\` (number or [tl, tr, br, bl]),
+\`fill\`, \`stroke: { color, width }\` (width: n, or [top, right, bottom, left] for lines on some sides),
+\`radius\` (number or [tl, tr, br, bl]), \`rotation\` (degrees counter-clockwise; drawn only, layout ignores it),
 \`shadow: { x, y, blur, color }\`, \`opacity\`, \`visible\`, \`x\`, \`y\`, \`absolute\`.
 
 Sizes: a number of pixels, \`"fill"\` (take the space the parent offers) or \`"fit"\` (hug the content,
@@ -84,6 +85,10 @@ never wraps; give paragraphs and headings in narrow places \`width: "fill"\` or 
 
 Colours: \`"#rrggbb"\`, \`"#rrggbbaa"\`, \`"rgba(r, g, b, a)"\` or \`"$variable"\`. Fills can also be
 \`{ type: "linear", angle, stops: [{ color, at }] }\` (angle 0 runs top to bottom, 90 left to right).
+
+Icons: \`{ type: "icon", icon: "arrow-right", width: 20, height: 20, color }\` — any Lucide icon by its
+kebab-case name, drawn in \`color\` with Lucide's lines and scaled to fit the box. Use real icons for
+navigation, actions, features and status instead of drawing them from shapes or using emoji.
 
 Components: anything repeated (buttons, cards, list rows, nav items, tab bars) should be a component
 with copies, so a change to it reaches every copy. Build the first one, set \`component: true\` on it,

@@ -5,7 +5,7 @@ import type { AgentStats } from "../agent/agent.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team } from "../agent/models.js";
 import type { FontFace } from "../text/fonts.js";
-import type { FileInfo, StartPrompt } from "../main/editor.js";
+import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
 import type { WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
@@ -31,6 +31,8 @@ export interface Bridge {
   onMenuCommand(fn: (command: WindowCommand) => void): void;
   /** A prompt this new window was opened with (from the Dashboard), once. */
   startPrompt(): Promise<StartPrompt | undefined>;
+  /** Something to tell the person as the window opens (what an import brought over), once. */
+  notice(): Promise<Notice | undefined>;
   showDashboard(): Promise<void>;
   /** The Dashboard's lists and actions. */
   dashboard: {
@@ -92,6 +94,9 @@ export function browserBridge(): Bridge {
     onFileInfo() {},
     onMenuCommand() {},
     async startPrompt() {
+      return undefined;
+    },
+    async notice() {
       return undefined;
     },
     async showDashboard() {},

@@ -25,6 +25,7 @@ const bridge: Bridge = {
     ipcRenderer.on("menu:command", (_e, command) => fn(command));
   },
   startPrompt: () => ipcRenderer.invoke("agent:start-prompt"),
+  notice: () => ipcRenderer.invoke("editor:notice"),
   showDashboard: () => ipcRenderer.invoke("dashboard:show"),
   dashboard: {
     files: () => ipcRenderer.invoke("dashboard:files"),

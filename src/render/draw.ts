@@ -1,7 +1,9 @@
 // Drawing the document with CanvasKit. Used for the editor's canvas and for the agent's screenshots,
 // in Node and in the browser alike.
-import type { Canvas, CanvasKit, Paint as CKPaint } from "canvaskit-wasm";
-import type { NodeProps, Paint, TreeNode, Vars } from "../doc/schema.js";
+import type { Canvas, CanvasKit, Image, Paint as CKPaint } from "canvaskit-wasm";
+import type { ImageFill, NodeProps, Paint, TreeNode, Vars } from "../doc/schema.js";
+import type { Assets } from "../doc/assets.js";
+import { ICON_GRID, ICON_LINE, iconPath } from "./icons.js";
 import { colorOf, resolve } from "../doc/values.js";
 import type { Box, Boxes } from "../layout/layout.js";
 import type { TextEngine } from "../text/paragraph.js";
@@ -25,12 +27,44 @@ function rrect(ck: CanvasKit, box: Box, r: [number, number, number, number]) {
   return Float32Array.of(rect[0]!, rect[1]!, rect[2]!, rect[3]!, r[0], r[0], r[1], r[1], r[2], r[2], r[3], r[3]);
 }
 
-function setPaint(ck: CanvasKit, paint: CKPaint, fill: Paint, vars: Vars, box: Box): void {
+/** Decoded pictures by asset id (assets never change, so each is decoded once). Null: not a picture. */
+const pictures = new WeakMap<CanvasKit, Map<string, Image | null>>();
+function picture(ck: CanvasKit, assets: Assets, id: string): Image | null {
+  let byId = pictures.get(ck);
+  if (!byId) pictures.set(ck, (byId = new Map()));
+  if (byId.has(id)) return byId.get(id)!;
+  const bytes = assets(id);
+  // Not in this document (yet): try again next time.
+  if (!bytes) return null;
+  const image = ck.MakeImageFromEncoded(bytes);
+  byId.set(id, image);
+  return image;
+}
+
+/** A picture's shader, placed in `box` by the fill's fit. False when there is no picture to show. */
+function setPicture(ck: CanvasKit, paint: CKPaint, fill: ImageFill, assets: Assets, box: Box): boolean {
+  const image = picture(ck, assets, fill.asset);
+  if (!image) return false;
+  const [iw, ih] = [image.width(), image.height()];
+  let [sx, sy] = [box.w / iw, box.h / ih];
+  if (fill.fit !== "stretch") sx = sy = fill.fit === "contain" ? Math.min(sx, sy) : Math.max(sx, sy);
+  const tx = box.x + (box.w - iw * sx) / 2;
+  const ty = box.y + (box.h - ih * sy) / 2;
+  const shader = image.makeShaderOptions(ck.TileMode.Decal, ck.TileMode.Decal, ck.FilterMode.Linear, ck.MipmapMode.Linear, [sx, 0, tx, 0, sy, ty, 0, 0, 1]);
+  paint.setColor(ck.WHITE);
+  paint.setShader(shader);
+  shader.delete();
+  return true;
+}
+
+/** Sets `paint` to a fill. False for a picture that can't be shown (the caller draws a placeholder). */
+function setPaint(ck: CanvasKit, paint: CKPaint, fill: Paint, vars: Vars, box: Box, assets: Assets): boolean {
   if (typeof fill === "string") {
     paint.setColor(ck.Color4f(...colorOf(fill, vars)));
     paint.setShader(null);
-    return;
+    return true;
   }
+  if (fill.type === "image") return setPicture(ck, paint, fill, assets, box);
   const a = ((fill.angle ?? 0) * Math.PI) / 180;
   const dx = Math.sin(a);
   const dy = Math.cos(a);
@@ -48,6 +82,7 @@ function setPaint(ck: CanvasKit, paint: CKPaint, fill: Paint, vars: Vars, box: B
   paint.setColor(ck.WHITE);
   paint.setShader(shader);
   shader.delete();
+  return true;
 }
 
 export interface DrawContext {
@@ -55,6 +90,8 @@ export interface DrawContext {
   text: TextEngine;
   vars: Vars;
   boxes: Boxes;
+  /** The document's pictures. */
+  assets: Assets;
 }
 
 /** Draws `node` and its children at their page coordinates on `canvas`. */
@@ -75,12 +112,17 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
     canvas.saveLayer(layer);
     layer.delete();
   }
+  const turn = Number(resolve(p.rotation ?? 0, vars)) || 0;
+  if (turn) {
+    canvas.save();
+    canvas.rotate(-turn, box.x, box.y);
+  }
   const r = radii(p, vars, box);
   const shape = rrect(ck, box, r);
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
   try {
-    if (p.shadow && node.type !== "text") {
+    if (p.shadow && node.type !== "text" && node.type !== "icon") {
       const s = p.shadow;
       paint.setColor(ck.Color4f(...colorOf(s.color, vars)));
       const blur = ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal, Math.max(0.1, s.blur / 2), true);
@@ -92,7 +134,15 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
       blur.delete();
     }
 
-    if (node.type === "image") {
+    const isPicture = typeof p.fill === "object" && p.fill.type === "image";
+    const shown = p.fill !== undefined && node.type !== "text" && setPaint(ck, paint, p.fill, vars, box, c.assets);
+    if (shown) {
+      if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+      else if (node.type !== "icon") canvas.drawRRect(shape, paint);
+      paint.setShader(null);
+    } else if (node.type === "image" || isPicture) {
+      // A photo still to come (or a picture this document doesn't have): a hatched placeholder.
+      paint.setShader(null);
       paint.setColor(ck.Color4f(...colorOf(PLACEHOLDER, vars)));
       canvas.drawRRect(shape, paint);
       canvas.save();
@@ -105,7 +155,7 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
       paint.setStyle(ck.PaintStyle.Fill);
       paint.setAlphaf(1);
       canvas.restore();
-      if (p.description && box.w > 60 && box.h > 30) {
+      if (node.type === "image" && p.description && box.w > 60 && box.h > 30) {
         const para = c.text.paragraph(
           { text: `Photo: ${p.description}`, size: Math.max(11, Math.min(16, box.w / 28)), color: PLACEHOLDER_INK, textAlign: "center", lineHeight: 1.3 },
           {},
@@ -115,12 +165,9 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
         const h = para.getHeight();
         if (h < box.h - 16) canvas.drawParagraph(para, box.x + 16, box.y + (box.h - h) / 2);
       }
-    } else if (p.fill !== undefined) {
-      setPaint(ck, paint, p.fill, vars, box);
-      if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
-      else if (node.type !== "text") canvas.drawRRect(shape, paint);
-      paint.setShader(null);
     }
+
+    if (node.type === "icon") drawIcon(c, canvas, p, box);
 
     if (node.type === "text") {
       const para = c.text.paragraph(p, vars);
@@ -138,18 +185,68 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
       canvas.restore();
     }
 
-    if (p.stroke && p.stroke.width > 0) {
-      const w = Number(resolve(p.stroke.width, vars));
-      paint.setStyle(ck.PaintStyle.Stroke);
-      paint.setStrokeWidth(w);
+    // Strokes sit inside the box, as in design tools, so they never change the layout.
+    const sides = p.stroke ? strokeSides(p.stroke.width, vars) : undefined;
+    if (p.stroke && sides && sides.some((v) => v > 0)) {
       paint.setColor(ck.Color4f(...colorOf(p.stroke.color, vars)));
-      // Strokes sit inside the box, as in design tools, so they never change the layout.
-      const inner = { x: box.x + w / 2, y: box.y + w / 2, w: Math.max(0, box.w - w), h: Math.max(0, box.h - w) };
-      if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(inner.x, inner.y, inner.w, inner.h), paint);
-      else canvas.drawRRect(rrect(ck, inner, r.map((v) => Math.max(0, v - w / 2)) as [number, number, number, number]), paint);
+      const w = sides[0];
+      if (sides.every((v) => v === w)) {
+        paint.setStyle(ck.PaintStyle.Stroke);
+        paint.setStrokeWidth(w);
+        const inner = { x: box.x + w / 2, y: box.y + w / 2, w: Math.max(0, box.w - w), h: Math.max(0, box.h - w) };
+        if (node.type === "ellipse") canvas.drawOval(ck.XYWHRect(inner.x, inner.y, inner.w, inner.h), paint);
+        else canvas.drawRRect(rrect(ck, inner, r.map((v) => Math.max(0, v - w / 2)) as [number, number, number, number]), paint);
+      } else {
+        // Lines on some sides only (a divider, an underline): bands along those edges, inside the shape.
+        const [t, rt, b, l] = sides;
+        paint.setStyle(ck.PaintStyle.Fill);
+        canvas.save();
+        canvas.clipRRect(shape, ck.ClipOp.Intersect, true);
+        if (t) canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, t), paint);
+        if (rt) canvas.drawRect(ck.XYWHRect(box.x + box.w - rt, box.y, rt, box.h), paint);
+        if (b) canvas.drawRect(ck.XYWHRect(box.x, box.y + box.h - b, box.w, b), paint);
+        if (l) canvas.drawRect(ck.XYWHRect(box.x, box.y, l, box.h), paint);
+        canvas.restore();
+      }
     }
   } finally {
     paint.delete();
     canvas.restoreToCount(saved);
   }
+}
+
+/** A stroke's width on each side: [top, right, bottom, left]. */
+export function strokeSides(width: unknown, vars: Vars): [number, number, number, number] {
+  const one = (v: unknown) => Math.max(0, Number(resolve(v, vars)) || 0);
+  if (Array.isArray(width)) return [one(width[0]), one(width[1]), one(width[2]), one(width[3])];
+  const w = one(width);
+  return [w, w, w, w];
+}
+
+/** An icon: Lucide's lines in the icon's colour, scaled to fit its box and centred; a dashed square when unknown. */
+function drawIcon(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box): void {
+  const { ck } = c;
+  const scale = Math.min(box.w, box.h) / ICON_GRID;
+  if (scale <= 0) return;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeCap(ck.StrokeCap.Round);
+  paint.setStrokeJoin(ck.StrokeJoin.Round);
+  paint.setColor(ck.Color4f(...colorOf(p.color ?? "#000000", c.vars)));
+  canvas.save();
+  canvas.translate(box.x + (box.w - ICON_GRID * scale) / 2, box.y + (box.h - ICON_GRID * scale) / 2);
+  canvas.scale(scale, scale);
+  paint.setStrokeWidth(ICON_LINE);
+  const path = p.icon ? iconPath(ck, p.icon) : null;
+  if (path) canvas.drawPath(path, paint);
+  else {
+    const dash = ck.PathEffect.MakeDash([3, 3], 0);
+    paint.setPathEffect(dash);
+    paint.setStrokeWidth(1.5);
+    canvas.drawRRect(ck.RRectXY(ck.XYWHRect(3, 3, 18, 18), 3, 3), paint);
+    dash.delete();
+  }
+  canvas.restore();
+  paint.delete();
 }
