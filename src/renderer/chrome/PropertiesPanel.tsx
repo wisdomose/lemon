@@ -2,7 +2,8 @@
 // follow the reference captures; fields edit the document.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "radix-ui";
-import { ColourPicker } from "../ui/ColourPicker.js";
+import { ColourPicker, type PictureSource } from "../ui/ColourPicker.js";
+import { pictures } from "../pictures.js";
 import {
   Copy,
   AlignCenterHorizontal,
@@ -43,6 +44,7 @@ import {
   RotateCw,
   Scan,
   Settings,
+  Smile,
   Square,
   SquareDashed,
   Type,
@@ -173,6 +175,7 @@ function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.type === "rect") return { icon: Square, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
   if (n.type === "image") return { icon: ImageIcon, label: "Image" };
+  if (n.type === "icon") return { icon: Smile, label: "Icon" };
   return { icon: n.props.layout === "none" ? Frame : AlignHorizontalJustifyStart, label: "Frame" };
 }
 
@@ -203,7 +206,9 @@ export function PropertiesPanel() {
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
   const kind = kindOf(node);
-  const colour: Paint | undefined = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
+  // Text and icons are coloured by `color`; everything else by its fill.
+  const inked = node.type === "text" || node.type === "icon";
+  const colour: Paint | undefined = inked ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
@@ -366,9 +371,10 @@ export function PropertiesPanel() {
           {colour && (
             <ColourRow
               value={colour}
-              allowGradient={node.type !== "text"}
-              onChange={(c) => set(ids, node.type === "text" ? { color: c as string } : { fill: c })}
-              onRemove={node.type === "text" ? undefined : () => set(ids, { fill: null as never })}
+              allowGradient={!inked}
+              pictures={inked ? undefined : pictures}
+              onChange={(c) => set(ids, inked ? { color: c as string } : { fill: c })}
+              onRemove={inked ? undefined : () => set(ids, { fill: null as never })}
             />
           )}
         </Section>
@@ -446,11 +452,13 @@ function ColourRow({
   onChange,
   onRemove,
   allowGradient = false,
+  pictures: source,
 }: {
   value: Paint;
   onChange: (c: Paint) => void;
   onRemove?: () => void;
   allowGradient?: boolean;
+  pictures?: PictureSource;
 }) {
   const solid = typeof value === "string" ? value : undefined;
   const [text, setText] = useState(solid ? hex(solid) : "");
@@ -458,9 +466,13 @@ function ColourRow({
   const [open, setOpen] = useState(false);
   const row = useRef<HTMLDivElement>(null);
   const isVar = !!solid?.startsWith("$");
+  const picture = typeof value === "object" && value.type === "image" ? value : undefined;
+  const pictureUrl = picture && source?.url(picture.asset);
   const swatch = solid
     ? isVar ? "transparent" : solid
-    : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
+    : picture
+      ? pictureUrl ? `center / cover url(${pictureUrl})` : "#777"
+      : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
   // Anchor: the panel's left edge, at the row's height.
   const anchor = {
     current: {
@@ -480,7 +492,7 @@ function ColourRow({
           <button type="button" aria-label="Edit colour" className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: swatch }} />
         </Popover.Trigger>
         <input
-          value={isVar ? solid : solid ? text : "Linear"}
+          value={isVar ? solid : solid ? text : picture ? "Image" : "Linear"}
           readOnly={isVar || !solid}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(`#${text}`)}
@@ -504,7 +516,7 @@ function ColourRow({
           onOpenAutoFocus={(e) => e.preventDefault()}
           className="z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none"
         >
-          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} />
+          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} pictures={source} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

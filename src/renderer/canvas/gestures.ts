@@ -14,6 +14,7 @@ import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
 import { editingPointer, startTextEdit, stopTextEdit } from "./text-edit.js";
 import { COMPONENT_DRAG, placeCopy } from "../components.js";
+import { carriesPictures, placePictures } from "../pictures.js";
 
 /** How far (screen pixels) a press travels before it counts as a drag. */
 const DRAG_START = 3;
@@ -501,16 +502,19 @@ function step(dir: 1 | -1) {
 export function attachGestures(canvas: HTMLCanvasElement): () => void {
   el = canvas;
   const onLeave = () => (store.get().hover && store.set({ hover: null }), schedule());
-  // A component dragged from the Components panel: a copy of it goes where it is dropped.
+  // A component dragged from the Components panel (a copy of it goes where it is dropped), or picture
+  // files (each becomes an image there).
   const onDragOver = (e: DragEvent) => {
-    if (e.dataTransfer?.types.includes(COMPONENT_DRAG)) (e.preventDefault(), (e.dataTransfer.dropEffect = "copy"));
+    if (e.dataTransfer?.types.includes(COMPONENT_DRAG) || carriesPictures(e)) (e.preventDefault(), (e.dataTransfer!.dropEffect = "copy"));
   };
   const onDrop = (e: DragEvent) => {
-    const main = e.dataTransfer?.getData(COMPONENT_DRAG);
-    if (!main) return;
-    e.preventDefault();
     const [px, py] = toPage(e.offsetX, e.offsetY);
-    placeCopy(main, px, py);
+    const main = e.dataTransfer?.getData(COMPONENT_DRAG);
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (!main && !files.length) return;
+    e.preventDefault();
+    if (main) placeCopy(main, px, py);
+    else void placePictures(files, px, py).then(schedule);
     schedule();
   };
   el.addEventListener("dragover", onDragOver);

@@ -16,6 +16,7 @@ import {
   Play,
   Presentation,
   Search,
+  Smile,
   Square,
   Type,
   type LucideIcon,
@@ -23,7 +24,7 @@ import {
 import type { TreeNode } from "../../doc/schema.js";
 import { screenshot } from "../../render/screenshot.js";
 import { AgentPanel } from "../agent/AgentPanel.js";
-import { currentScene, doc, edit, engine } from "../scene.js";
+import { assets, currentScene, doc, edit, engine } from "../scene.js";
 import * as docStore from "../../doc/store.js";
 import { ROOT_ID } from "../../doc/schema.js";
 import { store, useEditor, type Tab } from "../store.js";
@@ -82,6 +83,7 @@ function typeIcon(n: TreeNode): LucideIcon {
   if (n.type === "rect") return Square;
   if (n.type === "ellipse") return Circle;
   if (n.type === "image") return ImageIcon;
+  if (n.type === "icon") return Smile;
   if (n.props.layout === "row") return AlignStartHorizontal;
   if (n.props.layout === "none") return Hash;
   return AlignStartVertical;
@@ -217,7 +219,7 @@ function SlidesPanel() {
     if (!s) return [];
     return s.tree.children.map((f) => {
       try {
-        const pic = screenshot(engine.ck, s.tree, s.boxes, s.vars, engine.text, f.id, 400);
+        const pic = screenshot(engine.ck, s.tree, s.boxes, s.vars, engine.text, assets, f.id, 400);
         return { id: f.id, url: URL.createObjectURL(new Blob([pic.png as BlobPart], { type: "image/png" })) };
       } catch {
         return { id: f.id, url: "" };

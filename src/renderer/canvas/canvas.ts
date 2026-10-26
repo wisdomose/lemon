@@ -4,7 +4,7 @@ import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode } from "../../render/draw.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, currentScene, engine, type Scene } from "../scene.js";
+import { CANVAS_UI_FONT, assets, currentScene, engine, type Scene } from "../scene.js";
 import { store } from "../store.js";
 import { overlay } from "./overlay.js";
 import { index, unionBox } from "./pick.js";
@@ -327,7 +327,7 @@ function documentPicture(s: Scene): SkPicture {
   const { ck } = engine;
   const recorder = new ck.PictureRecorder();
   const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes }, c, frame);
+  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
