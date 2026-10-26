@@ -24,7 +24,9 @@ const n = (v: unknown) => Number(v ?? 0);
 function shapePath([tag, a]: IconNode[number]): string {
   switch (tag) {
     case "path":
-      return String(a.d ?? "");
+      // Each shape starts afresh: a leading relative move ("m6 6") is from the origin, not from where
+      // the shape before it ended.
+      return `M0 0${String(a.d ?? "")}`;
     case "circle":
     case "ellipse": {
       const [cx, cy] = [n(a.cx), n(a.cy)];

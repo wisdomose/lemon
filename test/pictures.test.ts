@@ -53,6 +53,19 @@ describe("pictures and icons", () => {
     expect(await pixel(pic.png, 150, 20)).toEqual([255, 255, 255]);
   });
 
+  it("draws every shape of an icon from its own start", async () => {
+    // Lucide's "x" is two paths, the second starting with a relative move.
+    const { engine } = await setup();
+    const doc = new Y.Doc();
+    const page = store.insert(doc, ROOT_ID, { type: "frame", x: 0, y: 0, width: 96, height: 96, fill: "#ffffff" });
+    store.insert(doc, page, { type: "icon", icon: "x", width: 96, height: 96, color: "#000000" });
+    const tree = store.toTree(doc);
+    const boxes = layout(tree, {}, engine.text);
+    const pic = screenshot(engine.ck, tree, boxes, {}, engine.text, assetLookup(doc), page, 96);
+    // Both diagonals cross the four quarter points.
+    for (const [x, y] of [[36, 36], [60, 60], [60, 36], [36, 60]]) expect(await pixel(pic.png, x!, y!)).toEqual([0, 0, 0]);
+  });
+
   it("knows Lucide's names", () => {
     expect(hasIcon("arrow-right")).toBe(true);
     expect(hasIcon("circle-check")).toBe(true);
