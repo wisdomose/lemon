@@ -4,7 +4,7 @@ import { Dialog as D, Switch as S } from "radix-ui";
 import { Bot, MessageSquare, Moon, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
 import { PRODUCT } from "../../product.js";
 import { MODELS } from "../../agent/models.js";
-import { bridge } from "../scene.js";
+import { bridge } from "../bridge.js";
 import { setSetting, useSettings, type Settings } from "../settings.js";
 import { cx } from "../ui/kit.js";
 

@@ -108,3 +108,6 @@ export function browserBridge(): Bridge {
     },
   };
 }
+
+/** This window's host: the desktop app, or the browser stand-in. */
+export const bridge: Bridge = window.lemon ?? browserBridge();

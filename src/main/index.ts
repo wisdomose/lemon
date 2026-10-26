@@ -117,7 +117,8 @@ function refreshMenu() {
     clearRecents: () => (clearRecents(), refreshMenu()),
     save: () => void focused()?.save(),
     saveAs: () => void focused()?.saveAs(),
-    toWindow: (command) => focused()?.win.webContents.send("menu:command", command),
+    // Any window: editors take every command, the Dashboard takes Settings.
+    toWindow: (command) => BrowserWindow.getFocusedWindow()?.webContents.send("menu:command", command),
   });
 }
 
