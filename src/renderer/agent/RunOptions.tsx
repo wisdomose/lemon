@@ -4,7 +4,7 @@
 import { useState, type ReactNode, type RefObject } from "react";
 import { Popover as P } from "radix-ui";
 import { LayoutGrid, Zap } from "lucide-react";
-import { cx } from "../ui/kit.js";
+import { Tip, cx } from "../ui/kit.js";
 import { MAX_AGENTS } from "../../agent/models.js";
 import { store, useEditor } from "../store.js";
 
@@ -52,10 +52,13 @@ function OptionPopover({
   anchor,
   trigger,
   children,
+  className = "w-[300px] px-2 pt-[11px] pb-3",
 }: {
   anchor: RefObject<HTMLDivElement | null>;
   trigger: (open: boolean) => ReactNode;
   children: ReactNode;
+  /** Width and padding. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -69,7 +72,7 @@ function OptionPopover({
           sideOffset={1}
           alignOffset={-20}
           avoidCollisions={false}
-          className="z-50 w-[300px] rounded-[10px] border border-border bg-popover px-2 pt-[11px] pb-3 shadow-island outline-none"
+          className={cx("z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none", className)}
         >
           {children}
         </P.Content>
@@ -112,28 +115,60 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
   );
 }
 
+/** A choice in "Let it cook": filled grey when picked, outlined otherwise (Pen, 26 Oct 2026 screenshot). */
+function CookOption({ children, selected, disabled }: { children: ReactNode; selected?: boolean; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={disabled ? "Coming with Let it cook" : undefined}
+      className={cx(
+        "flex h-8 items-center justify-center rounded-[8px] text-[12px]",
+        selected ? "bg-input font-semibold text-foreground" : "border border-input text-muted-foreground",
+        disabled && "cursor-not-allowed",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+const COOK_LABEL = "text-[10px] leading-[14px] font-semibold tracking-wide text-muted-foreground uppercase";
+
+/**
+ * "Let it cook": the iteration mode and how many variants, measured from Pen (260px wide). Variants
+ * aren't built yet, so only the defaults are picked and the rest can't be chosen.
+ */
 export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> }) {
   return (
     <OptionPopover
       anchor={anchor}
+      className="w-[260px] px-[13px] pt-[9px] pb-[10px]"
       trigger={(open) => (
         <button type="button" aria-label="Let it cook" className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", open && "bg-foreground/5")}>
           <LayoutGrid size={12} strokeWidth={1.5} /> 1x
         </button>
       )}
     >
-      <div className={LABEL}>Iteration mode</div>
-      <div className="flex gap-1">
-        <Card title="Layout" text="Different arrangements" selected />
-        <Card title="Style" text="Different looks" />
+      <div className="text-[12px] leading-4 font-semibold text-foreground">Let it cook</div>
+      <div className="mt-[3px] text-[12px] leading-4 text-muted-foreground">
+        Iterate on designs{" "}
+        <Tip label={"Keeps the agent going after a design is done.\nIt makes new variations on its own."} side="top">
+          <span className="cursor-default underline decoration-dotted underline-offset-2">automatically</span>
+        </Tip>
       </div>
-      <div className={cx(LABEL, "mt-[11px]")}>Variants</div>
-      <div className="flex gap-1">
-        <Chip selected>Don’t iterate</Chip>
+      <div className={cx(COOK_LABEL, "mt-[12px]")}>Iteration mode</div>
+      <div className="mt-[7px] grid grid-cols-2 gap-1">
+        <CookOption selected>Layout</CookOption>
+        <CookOption disabled>Style</CookOption>
+      </div>
+      <div className={cx(COOK_LABEL, "mt-[13px]")}>Variants</div>
+      <div className="mt-[7px] grid grid-cols-2 gap-x-1 gap-y-1">
+        <CookOption selected>Don’t iterate</CookOption>
         {[2, 3, 4, 5, 6].map((n) => (
-          <Chip key={n} disabled>
+          <CookOption key={n} disabled>
             {n}
-          </Chip>
+          </CookOption>
         ))}
       </div>
     </OptionPopover>
