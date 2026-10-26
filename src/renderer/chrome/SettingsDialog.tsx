@@ -20,8 +20,16 @@ const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [page, setPage] = useState<Page>("general");
   const [claude, setClaude] = useState<{ loggedIn: boolean; email?: string; plan?: string }>();
+  const [codex, setCodex] = useState<{ loggedIn: boolean; email?: string; plan?: string }>();
   useEffect(() => {
-    if (open) void bridge.claudeStatus().then(setClaude);
+    if (!open) return;
+    // Refresh both providers independently so one missing CLI cannot hide the other account.
+    let active = true;
+    setClaude(undefined);
+    setCodex(undefined);
+    void bridge.claudeStatus().catch(() => ({ loggedIn: false })).then((s) => { if (active) setClaude(s); });
+    void bridge.codexStatus().catch(() => ({ loggedIn: false })).then((s) => { if (active) setCodex(s); });
+    return () => { active = false; };
   }, [open]);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
@@ -63,7 +71,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <X size={16} strokeWidth={1.5} />
             </D.Close>
             {page === "general" && <General />}
-            {page === "agents" && <Agents claude={claude} />}
+            {page === "agents" && <Agents claude={claude} codex={codex} />}
             {page === "names" && <Placeholder title="Agent Names" text="Choose the names agents show on their cursors. Coming with parallel agents." />}
             {page === "chat" && <ChatPage />}
             {page === "mcp" && <Placeholder title="MCP" text="Give agents extra tools from MCP servers, and let other AI tools design in this app. Not built yet." />}
@@ -186,14 +194,14 @@ function General() {
   );
 }
 
-function Agents({ claude }: { claude?: { loggedIn: boolean; email?: string } }) {
+function Agents({ claude, codex }: { claude?: { loggedIn: boolean; email?: string }; codex?: { loggedIn: boolean; email?: string; plan?: string } }) {
   return (
     <>
       <H1>Agents</H1>
       <p className="mb-4 text-[13px] text-foreground">
         {PRODUCT.name} runs agents on this computer with your own AI subscription. It never sees your password or keys.
       </p>
-      <Row label="Claude" note={MODELS.map((m) => m.label.replace("Claude ", "")).join(", ")}>
+      <Row label="Claude" note={MODELS.filter((m) => m.provider === "claude").map((m) => m.label.replace("Claude ", "")).join(", ")}>
         <span
           className={cx(
             "flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px]",
@@ -204,8 +212,11 @@ function Agents({ claude }: { claude?: { loggedIn: boolean; email?: string } }) 
           {claude === undefined ? "Checking status…" : claude.loggedIn ? "Signed in" : "Not connected"}
         </span>
       </Row>
-      <Row label="Codex" note="Planned">
-        <span className="flex h-6 items-center rounded-full border border-input px-2.5 text-[12px] text-muted-foreground">Not available yet</span>
+      <Row label="Codex" note={codex?.loggedIn ? [codex.email, codex.plan].filter(Boolean).join(" · ") || "Uses your configured Codex model" : "Install Codex CLI, then run codex login"}>
+        <span className={cx("flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px]", codex?.loggedIn ? "border-input text-foreground" : "border-amber-500/60 text-amber-400")}>
+          {codex?.loggedIn && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+          {codex === undefined ? "Checking status…" : codex.loggedIn ? "Signed in" : "Not connected"}
+        </span>
       </Row>
     </>
   );

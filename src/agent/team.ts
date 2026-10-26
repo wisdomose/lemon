@@ -10,6 +10,7 @@
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runCodex } from "./codex.js";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { PRODUCT } from "../product.js";
@@ -21,7 +22,7 @@ import { GAP_BETWEEN_FRAMES, emptySpot } from "../layout/space.js";
 import { runAgent, type AgentEvent, type AgentOptions, type AgentStats } from "./agent.js";
 import { pickStartingPoints, type Direction } from "./directions.js";
 import { PLANNING_CONTEXT } from "./instructions.js";
-import { AGENTS, DEFAULT_MODEL, type Team } from "./models.js";
+import { AGENTS, DEFAULT_MODEL, modelProvider, type Team } from "./models.js";
 import type { Engine } from "../engine.js";
 
 /** The plan a team agrees before building (Split Work). */
@@ -63,7 +64,12 @@ interface Said {
 }
 
 /** A question to the model with no tools: one answer, no canvas. */
-async function ask(system: string, prompt: string, model: string, signal?: AbortSignal): Promise<Said> {
+async function ask(system: string, prompt: string, model: string, signal?: AbortSignal, effort?: string): Promise<Said> {
+  // Planning follows the selected provider, including split-work proposals and agreement.
+  if (modelProvider(model) === "codex") {
+    const result = await runCodex({ system, prompt, model, signal, effort });
+    return { text: result.reply, costUsd: 0 };
+  }
   const abort = new AbortController();
   signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
@@ -198,6 +204,7 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
           `${request}\n\nYou are ${AGENTS[i]!.name}, one of ${count} designer agents who will build this together, each building one part at the same time. First the team agrees one plan. Propose yours, starting from: ${describe(directions)}.\n\n${shape}`,
           model,
           o.signal,
+          o.effort,
         );
         planningCost += said.costUsd;
         const p = readPlan(said.text, count);
@@ -210,6 +217,7 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
       `${request}\n\nThe ${count} agents who will build it proposed these plans:\n\n${proposals.map((p) => `${p.agent}: ${JSON.stringify(p.plan)}`).join("\n\n")}\n\nAs the team, agree one plan: take the strongest look (or combine the best of them, if it stays coherent) and split the work into exactly ${count} parts, one per agent in this order: ${AGENTS.slice(0, count).map((a) => a.name).join(", ")}.\n\n${shape}`,
       model,
       o.signal,
+      o.effort,
     );
     planningCost += agreed.costUsd;
     plan = readPlan(agreed.text, count);

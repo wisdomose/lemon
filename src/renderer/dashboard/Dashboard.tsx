@@ -156,8 +156,8 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
     if (!p || !p.hasText || !bridge.canRunAgent) return;
     const noun = KINDS[kind]!.noun;
     const forAgent = noun ? `${p.forAgent}\n\n(What to design: ${noun}.)` : p.forAgent;
-    const { model, team } = store.get();
-    void bridge.dashboard.newFile({ text: p.shown, forAgent, model, team });
+    const { model, team, effort } = store.get();
+    void bridge.dashboard.newFile({ text: p.shown, forAgent, model, team, effort });
   };
   return (
     <section className="relative">
@@ -170,6 +170,7 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
         <X size={14} strokeWidth={1.5} />
       </button>
       <div className="mx-auto w-[768px] pt-12">
+        {/* Neutral hover and keyboard-focus rings override Chromium's yellow accent outline. */}
         <div className="flex justify-center gap-2">
           {KINDS.map((k, i) => {
             const Icon = k.icon;
@@ -179,7 +180,7 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
                 type="button"
                 onClick={() => (setKind(i), editor.current?.focus())}
                 className={cx(
-                  "flex h-8 items-center gap-1.5 rounded-[9px] border px-[10px] text-[13px] font-semibold",
+                  "flex h-8 items-center gap-1.5 rounded-[9px] border px-[10px] text-[13px] font-semibold outline-none hover:border-foreground/80 hover:ring-1 hover:ring-foreground/60 focus-visible:border-foreground/80 focus-visible:ring-1 focus-visible:ring-foreground/60",
                   i === kind ? "border-chip-on-line bg-chip-on text-foreground" : "border-border bg-background text-muted-foreground hover:text-foreground",
                 )}
               >

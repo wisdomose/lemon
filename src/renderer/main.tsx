@@ -34,7 +34,7 @@ if (notice) toast(notice.title, { description: notice.details.join("\n"), durati
 // A file started from the Dashboard's prompt: the agent starts on it here, so the chat shows it.
 const start = await bridge.startPrompt();
 if (start) {
-  if (start.model) store.set({ model: start.model });
+  if (start.model) store.set({ model: start.model, effort: start.effort });
   if (start.team) store.set({ team: start.team });
   sendPrompt(start.text, start.forAgent);
 }

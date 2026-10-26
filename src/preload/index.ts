@@ -10,13 +10,15 @@ const bridge: Bridge = {
   pushDocUpdate: (update) => ipcRenderer.send("doc:push", update),
   fontCatalogue: () => ipcRenderer.invoke("fonts:catalogue"),
   loadFont: (face) => ipcRenderer.invoke("fonts:load", face),
-  runAgent: (prompt, model, team) => ipcRenderer.invoke("agent:run", prompt, model, team),
+  runAgent: (prompt, model, team, effort) => ipcRenderer.invoke("agent:run", prompt, model, team, effort),
   stopAgent: () => ipcRenderer.invoke("agent:stop"),
   onAgentEvent: (fn) => {
     ipcRenderer.on("agent:event", (_e, event) => fn(event));
   },
   canRunAgent: true,
   claudeStatus: () => ipcRenderer.invoke("claude:status"),
+  codexModels: () => ipcRenderer.invoke("codex:models"),
+  codexStatus: () => ipcRenderer.invoke("codex:status"),
   fileInfo: () => ipcRenderer.invoke("file:info"),
   onFileInfo: (fn) => {
     ipcRenderer.on("file:info", (_e, info) => fn(info));
