@@ -3,7 +3,12 @@ import "../theme.css";
 import { createRoot } from "react-dom/client";
 import { applyTheme } from "../settings.js";
 import { Dashboard } from "./Dashboard.js";
+import { TipProvider } from "../ui/kit.js";
 
 applyTheme();
-createRoot(document.getElementById("root")!).render(<Dashboard />);
+createRoot(document.getElementById("root")!).render(
+  <TipProvider>
+    <Dashboard />
+  </TipProvider>,
+);
 requestAnimationFrame(() => requestAnimationFrame(() => document.body.setAttribute("data-ready", "1")));

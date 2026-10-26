@@ -19,7 +19,7 @@ export function Island({ className, children, ...rest }: React.HTMLAttributes<HT
 /** Icon size and stroke used across the chrome (Lucide, as Pen uses). */
 export const ICON = { size: 16, strokeWidth: 1.5 } as const;
 
-/** White pill tooltip with an optional key badge, as in Pen. */
+/** White pill tooltip with an optional key badge, as in Pen. A label with line breaks shows as several lines. */
 export function Tip({
   label,
   keys,
@@ -38,7 +38,7 @@ export function Tip({
         <T.Content
           side={side}
           sideOffset={0}
-          className="z-50 flex h-[27px] items-center gap-[11px] rounded-[10px] bg-white px-3 text-[12px] leading-4 text-zinc-900 shadow-md"
+          className="z-50 flex min-h-[27px] items-center gap-[11px] rounded-[10px] bg-white px-3 py-[5px] text-[12px] leading-4 whitespace-pre-line text-zinc-900 shadow-md"
         >
           {label}
           {keys && <span className="text-zinc-400">{keys}</span>}

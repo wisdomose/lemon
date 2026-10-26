@@ -4,7 +4,7 @@
 import { useState, type ReactNode, type RefObject } from "react";
 import { Popover as P } from "radix-ui";
 import { LayoutGrid, Zap } from "lucide-react";
-import { cx } from "../ui/kit.js";
+import { Tip, cx } from "../ui/kit.js";
 import { MAX_AGENTS } from "../../agent/models.js";
 import { store, useEditor } from "../store.js";
 
@@ -153,9 +153,9 @@ export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> 
       <div className="text-[12px] leading-4 font-semibold text-foreground">Let it cook</div>
       <div className="mt-[3px] text-[12px] leading-4 text-muted-foreground">
         Iterate on designs{" "}
-        <span className="underline decoration-dotted underline-offset-2" title="Several versions of your design are made for you to compare.">
-          automatically
-        </span>
+        <Tip label={"Keeps the agent going after a design is done.\nIt makes new variations on its own."} side="top">
+          <span className="cursor-default underline decoration-dotted underline-offset-2">automatically</span>
+        </Tip>
       </div>
       <div className={cx(COOK_LABEL, "mt-[12px]")}>Iteration mode</div>
       <div className="mt-[7px] grid grid-cols-2 gap-1">
