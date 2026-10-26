@@ -17,6 +17,13 @@ const bridge: Bridge = {
   },
   canRunAgent: true,
   claudeStatus: () => ipcRenderer.invoke("claude:status"),
+  fileInfo: () => ipcRenderer.invoke("file:info"),
+  onFileInfo: (fn) => {
+    ipcRenderer.on("file:info", (_e, info) => fn(info));
+  },
+  onMenuCommand: (fn) => {
+    ipcRenderer.on("menu:command", (_e, command) => fn(command));
+  },
 };
 
 contextBridge.exposeInMainWorld("lemon", bridge);

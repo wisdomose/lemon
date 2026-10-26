@@ -1,6 +1,5 @@
 // The editor window: full-window canvas with the floating islands over it.
 import { useEffect, useRef, useState } from "react";
-import { PRODUCT } from "../product.js";
 import { Toaster } from "sonner";
 import * as docStore from "../doc/store.js";
 import { attach, schedule, setZoom, zoomStep, zoomToFit } from "./canvas/canvas.js";
@@ -11,7 +10,7 @@ import { PropertiesPanel } from "./chrome/PropertiesPanel.js";
 import { ToolRail } from "./chrome/ToolRail.js";
 import { TopBar } from "./chrome/TopBar.js";
 import { ZoomControl } from "./chrome/ZoomControl.js";
-import { doc, edit, currentScene, history } from "./scene.js";
+import { bridge, doc, edit, currentScene, history } from "./scene.js";
 import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
 import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
@@ -51,10 +50,23 @@ export function App({ initial }: { initial: string }) {
       else if (mod && e.key === "-") (e.preventDefault(), zoomStep(-1));
       else if (mod && e.key === "0") (e.preventDefault(), setZoom(1));
       else if (e.key === "Delete" || e.key === "Backspace") deleteSelection();
-      else if (!mod && e.key === "\\") setPanelOpen((o) => !o);
+      else if (e.key === "\\") setPanelOpen((o) => !o);
       schedule();
     };
     const onKeyUp = (e: KeyboardEvent) => canvasKeyUp(e);
+    // The menu bar's editing commands: in a text field they act on its text, elsewhere on the design.
+    bridge.onMenuCommand((command) => {
+      const target = document.activeElement as HTMLElement | null;
+      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (command === "settings") store.set({ settingsOpen: true });
+      else if (command === "toggle-ui") setPanelOpen((o) => !o);
+      else if (typing) document.execCommand(command === "select-all" ? "selectAll" : command);
+      else if (command === "undo") history.undo();
+      else if (command === "redo") history.redo();
+      else if (command === "delete") deleteSelection();
+      else if (command === "select-all") reselect(selectAll);
+      schedule();
+    });
     addEventListener("keydown", onKey);
     addEventListener("keyup", onKeyUp);
     return () => (removeEventListener("keydown", onKey), removeEventListener("keyup", onKeyUp));
@@ -70,7 +82,7 @@ export function App({ initial }: { initial: string }) {
           <CanvasMenu />
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
-          <TopBar fileName={`untitled.${PRODUCT.fileExtension}`} saveState="Auto-saved" initial={initial} />
+          <TopBar initial={initial} />
           <ToolRail panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
           {panelOpen && (
             // The panel and the chat box share the left column: the chat box grows with its text up to

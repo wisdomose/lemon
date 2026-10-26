@@ -2,6 +2,8 @@
 // by React through useSyncExternalStore; the canvas reads it directly.
 import { useSyncExternalStore } from "react";
 import { DEFAULT_MODEL } from "../agent/models.js";
+import { PRODUCT } from "../product.js";
+import type { FileInfo } from "../main/editor.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
 export type Tool = "move" | "rect" | "ellipse" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
@@ -41,6 +43,8 @@ export interface EditorState {
   settingsOpen: boolean;
   /** Past conversations, newest first. */
   history: Session[];
+  /** The file this window shows. */
+  file: FileInfo;
 }
 
 export interface Session {
@@ -63,6 +67,7 @@ const initial: EditorState = {
   model: DEFAULT_MODEL,
   settingsOpen: false,
   history: [],
+  file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
 };
 
 let state = initial;

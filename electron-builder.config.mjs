@@ -12,6 +12,8 @@ export default {
   files: ["out/**", "product.json", "package.json", "!**/*.map"],
   // Packages with native binaries or WebAssembly must stay outside the app archive to be loadable.
   asarUnpack: ["node_modules/@anthropic-ai/**", "node_modules/canvaskit-wasm/**", "node_modules/quickjs-emscripten*/**", "node_modules/@jitl/**"],
+  // Double-clicking a design file opens it in the app.
+  fileAssociations: [{ ext: product.fileExtension, name: `${product.name} design`, role: "Editor" }],
   artifactName: `${product.slug}-\${version}-\${os}-\${arch}.\${ext}`,
   win: { target: [{ target: "nsis", arch: ["x64"] }] },
   nsis: { oneClick: false, allowToChangeInstallationDirectory: true },

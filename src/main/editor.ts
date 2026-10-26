@@ -1,0 +1,228 @@
+// One editor window and the design file it shows (Pen opens one window per file). The window shows
+// the document and sends its changes back as Yjs updates; the agent works on the same document here.
+// The file is saved about a second after a change (at most once a second while changes keep coming),
+// and when the window closes. A new file goes to the Drafts folder on its first change.
+import { BrowserWindow, app, dialog } from "electron";
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import * as Y from "yjs";
+import { newFile } from "../doc/store.js";
+import { fileText, readFile } from "../doc/file.js";
+import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
+import { PRODUCT } from "../product.js";
+import type { Engine } from "../engine.js";
+import type { Sandbox } from "../sandbox/sandbox.js";
+import { AGENT_NAME } from "../agent/models.js";
+import { runAgent } from "../agent/agent.js";
+import { EXT, addRecent, displayName, isDraft, newDraftPath, withoutExt, writeWhole } from "./files.js";
+
+/** How long after a change the file is written. */
+const SAVE_AFTER_MS = 1000;
+
+export type SaveState = "saved" | "saving" | "error";
+export interface FileInfo {
+  name: string;
+  state: SaveState;
+  /** Why the last save failed. */
+  error?: string;
+  draft: boolean;
+}
+
+export interface Shared {
+  engine: Engine;
+  sandbox: Sandbox;
+  uiUrl: string;
+  preload: string;
+  log: (msg: string) => void;
+  /** Developer runs (captures, scripted prompts) don't write files. */
+  noSave: boolean;
+  /** Called when a window closes or its file changes (the menu's recent files follow). */
+  changed: () => void;
+}
+
+export class Editor {
+  readonly doc = new Y.Doc();
+  readonly win: BrowserWindow;
+  /** The origin of the window's changes in this document. */
+  readonly fromWindow: PersonChange;
+  path: string | null;
+  private state: SaveState = "saved";
+  private error: string | undefined;
+  private dirty = false;
+  private timer: NodeJS.Timeout | undefined;
+  private running: AbortController | undefined;
+  /** Nothing has been changed since the window opened on a new file. */
+  pristine: boolean;
+
+  /** Opens `path` (a design file, or a raw .yjs state for developer captures), or a new file. */
+  constructor(
+    private readonly shared: Shared,
+    path?: string,
+  ) {
+    // Agents write to this copy directly, statement by statement: it loses same-moment ties to people (doc/live.ts).
+    this.doc.clientID = agentClientId();
+    if (path?.endsWith(".yjs")) {
+      Y.applyUpdate(this.doc, readFileSync(path));
+      path = undefined;
+    } else if (path) readFile(readFileSync(path, "utf8"), this.doc);
+    else newFile(this.doc);
+    this.path = path ?? null;
+    this.pristine = !path;
+    if (path) addRecent(path);
+
+    this.win = new BrowserWindow({
+      width: 1600,
+      height: 1000,
+      title: displayName(this.path),
+      backgroundColor: "#1e1e1e",
+      webPreferences: { preload: shared.preload, contextIsolation: true, sandbox: true, nodeIntegration: false },
+    });
+    const { log } = shared;
+    if (process.env.LEMON_LOG) {
+      const wc = this.win.webContents;
+      wc.on("dom-ready", () => log("window dom ready"));
+      wc.on("console-message", (e) => log(`[window] ${e.level}: ${e.message}`));
+      wc.on("did-fail-load", (_e, code, desc) => log(`[window] failed to load: ${code} ${desc}`));
+      wc.on("render-process-gone", (_e, d) => log(`[window] gone: ${d.reason}`));
+    }
+
+    // The window's changes carry its own origin, so they are not echoed back and agents can tell
+    // them apart (see doc/live.ts).
+    const fromWindow = new PersonChange(this.win.id);
+    this.doc.on("update", (update: Uint8Array, origin: unknown) => {
+      if (origin !== fromWindow && !this.win.isDestroyed()) this.win.webContents.send("doc:update", update);
+      // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
+      if (origin !== REPAIR) repairTree(this.doc);
+      this.changed();
+    });
+    this.fromWindow = fromWindow;
+    this.win.on("close", () => {
+      this.running?.abort();
+      this.flush();
+    });
+    this.win.on("closed", () => shared.changed());
+    void this.win.loadURL(shared.uiUrl);
+  }
+
+  /** Applies a change made in the window. */
+  push(update: Uint8Array): void {
+    Y.applyUpdate(this.doc, update, this.fromWindow);
+  }
+
+  info(): FileInfo {
+    return {
+      name: displayName(this.path),
+      state: this.state,
+      ...(this.error ? { error: this.error } : {}),
+      draft: !this.path || isDraft(this.path),
+    };
+  }
+
+  private tell(): void {
+    if (this.win.isDestroyed()) return;
+    this.win.setTitle(displayName(this.path));
+    this.win.webContents.send("file:info", this.info());
+  }
+
+  /** The document changed: save soon (a new file gets its place in Drafts now). */
+  private changed(): void {
+    this.pristine = false;
+    if (this.shared.noSave) return;
+    if (!this.path) {
+      this.path = newDraftPath();
+      addRecent(this.path);
+      this.shared.changed();
+    }
+    this.dirty = true;
+    if (this.state !== "saving") ((this.state = "saving"), this.tell());
+    this.timer ??= setTimeout(() => this.flush(), SAVE_AFTER_MS);
+  }
+
+  /** Writes the file now if anything changed since the last write. */
+  flush(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    if (!this.dirty || !this.path) return;
+    try {
+      writeWhole(this.path, fileText(this.doc));
+      this.dirty = false;
+      this.state = "saved";
+      this.error = undefined;
+    } catch (e) {
+      // Keep trying on the next change; the window shows the problem.
+      this.state = "error";
+      this.error = e instanceof Error ? e.message : String(e);
+      this.shared.log(`save failed: ${this.error}`);
+    }
+    this.tell();
+  }
+
+  /** Ctrl+S: a file somewhere of the person's choosing is written now; a draft asks where to keep it. */
+  async save(): Promise<void> {
+    if (!this.path || isDraft(this.path)) return this.saveAs();
+    this.dirty = true;
+    this.flush();
+  }
+
+  /** Save As: writes the file where the person chooses; a draft moves there (it leaves Drafts). */
+  async saveAs(): Promise<void> {
+    const name = this.path ? withoutExt(this.path) : "Untitled";
+    const r = await dialog.showSaveDialog(this.win, {
+      defaultPath: join(app.getPath("documents"), `${name}${EXT}`),
+      filters: [{ name: `${PRODUCT.name} design`, extensions: [PRODUCT.fileExtension] }],
+    });
+    if (r.canceled || !r.filePath) return;
+    const target = r.filePath.endsWith(EXT) ? r.filePath : `${r.filePath}${EXT}`;
+    try {
+      writeWhole(target, fileText(this.doc));
+    } catch (e) {
+      dialog.showErrorBox("Couldn't save", e instanceof Error ? e.message : String(e));
+      return;
+    }
+    const old = this.path;
+    this.path = target;
+    this.dirty = false;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.state = "saved";
+    this.error = undefined;
+    if (old && old !== target && isDraft(old) && existsSync(old)) unlinkSync(old);
+    addRecent(target);
+    this.shared.changed();
+    this.tell();
+  }
+
+  // ---- The agent -----------------------------------------------------------------------------------
+  async runAgent(prompt: string, model?: string) {
+    this.running?.abort();
+    const running = (this.running = new AbortController());
+    const { engine, sandbox, log } = this.shared;
+    const film = process.env.LEMON_FILM;
+    const stats = await runAgent({
+      doc: this.doc,
+      engine,
+      sandbox,
+      prompt,
+      ...(model ? { model } : {}),
+      name: AGENT_NAME,
+      signal: running.signal,
+      onEvent: (e) => {
+        if (this.win.isDestroyed()) return;
+        this.win.webContents.send("agent:event", e);
+        if (e.type !== "step-target" && e.type !== "step-progress") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
+        if (film && e.type === "step-end") {
+          const n = String(e.step.index).padStart(2, "0");
+          setTimeout(() => this.win.webContents.capturePage().then((img) => writeFileSync(join(film, `step-${n}.png`), img.toPNG())), 600);
+        }
+      },
+    });
+    if (this.running === running) this.running = undefined;
+    return stats;
+  }
+
+  stopAgent(): void {
+    this.running?.abort();
+  }
+}
+
+export const logTo = (file: string | undefined) => (msg: string) => file && appendFileSync(file, `${new Date().toISOString().slice(11, 23)} ${msg}\n`);

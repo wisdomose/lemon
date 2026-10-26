@@ -37,6 +37,8 @@ export async function boot(): Promise<void> {
   await engine.fonts.ensure([{ family: DEFAULT_FONT, weight: 400, italic: false }]);
 
   Y.applyUpdate(doc, await bridge.docState());
+  store.set({ file: await bridge.fileInfo() });
+  bridge.onFileInfo((file) => store.set({ file }));
   bridge.onDocUpdate((u) => Y.applyUpdate(doc, u));
   doc.on("update", (update: Uint8Array, origin: unknown) => {
     if (origin === PERSON_EDIT || origin === history) bridge.pushDocUpdate(update);
