@@ -291,7 +291,12 @@ export function PropertiesPanel() {
               value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)}
               onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (y) => set(ids, { y }) : undefined}
             />
-            <NumberField lead={<RotateCw size={12} strokeWidth={1.5} />} value="0°" />
+            <NumberField
+              lead={<RotateCw size={12} strokeWidth={1.5} />}
+              value={shared(ids, (id) => Number(findNode(scene.tree, id)?.props.rotation ?? 0))}
+              suffix="°"
+              onCommit={(rotation) => set(ids, { rotation: rotation || null } as never)}
+            />
             <ButtonGroup icons={[RotateCw, FlipVertical2, FlipHorizontal2]} />
           </div>
           {parentFrame && parentFrame.props.layout !== "none" && (
@@ -402,7 +407,7 @@ export function PropertiesPanel() {
                 <Label>Position</Label>
                 <Label>Weight</Label>
                 <div className={FIELD}>Inside <ChevronDown size={12} className="ml-auto" /></div>
-                <NumberField lead="W" value={p.stroke.width} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
+                <NumberField lead="W" value={typeof p.stroke.width === "number" ? p.stroke.width : "Mixed"} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
               </div>
             </>
           )}

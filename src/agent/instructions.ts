@@ -65,7 +65,8 @@ step the person sees in the chat, so give it a plain-language \`title\` ("Set up
 Types: \`frame\` (the only container), \`text\`, \`rect\`, \`ellipse\`, \`image\`, \`icon\`, \`instance\` (below).
 
 Common properties: \`name\`, \`width\`, \`height\`, \`minWidth\`, \`maxWidth\`, \`minHeight\`, \`maxHeight\`,
-\`fill\`, \`stroke: { color, width }\`, \`radius\` (number or [tl, tr, br, bl]),
+\`fill\`, \`stroke: { color, width }\` (width: n, or [top, right, bottom, left] for lines on some sides),
+\`radius\` (number or [tl, tr, br, bl]), \`rotation\` (degrees counter-clockwise; drawn only, layout ignores it),
 \`shadow: { x, y, blur, color }\`, \`opacity\`, \`visible\`, \`x\`, \`y\`, \`absolute\`.
 
 Sizes: a number of pixels, \`"fill"\` (take the space the parent offers) or \`"fit"\` (hug the content,

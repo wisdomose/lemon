@@ -30,7 +30,8 @@ export type Paint = Color | LinearGradient | ImageFill;
 
 export interface Stroke {
   color: Color;
-  width: number;
+  /** One width all round, or [top, right, bottom, left] (0 for no line on that side). */
+  width: number | [number, number, number, number];
 }
 
 export interface Shadow {
@@ -55,6 +56,8 @@ export interface NodeProps {
   maxHeight?: number;
   visible?: boolean;
   opacity?: number;
+  /** Degrees, counter-clockwise around the top-left corner (as Pen). Drawn only: layout uses the unturned box. */
+  rotation?: number;
   fill?: Paint;
   stroke?: Stroke;
   /** One radius, or [top-left, top-right, bottom-right, bottom-left]. */
