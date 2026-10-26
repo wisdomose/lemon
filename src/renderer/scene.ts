@@ -9,10 +9,10 @@ import { PERSON_EDIT, personClientId, personUndo, reconcileSelection } from "../
 import { layout, type Boxes } from "../layout/layout.js";
 import { DEFAULT_FONT, FontsNeeded } from "../text/fonts.js";
 import type { TreeNode, Vars } from "../doc/schema.js";
-import { browserBridge } from "./bridge.js";
+import { bridge } from "./bridge.js";
 import { store } from "./store.js";
 
-export const bridge = window.lemon ?? browserBridge();
+export { bridge };
 export const doc = new Y.Doc();
 // A person's copy: wins same-moment ties with an agent (see doc/live.ts).
 doc.clientID = personClientId();

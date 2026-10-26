@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import logoUrl from "../../../assets/logo.svg?url";
 import { PRODUCT } from "../../product.js";
-import { browserBridge, type DashboardFiles } from "../bridge.js";
+import { bridge, type DashboardFiles } from "../bridge.js";
+import { SettingsDialog } from "../chrome/SettingsDialog.js";
 import { setSetting, useSettings } from "../settings.js";
 import { store } from "../store.js";
 import { cx } from "../ui/kit.js";
@@ -33,7 +34,6 @@ import { ParallelAgents, Variants } from "../agent/RunOptions.js";
 import { ModelPicker } from "../agent/ModelPicker.js";
 import { FileBrowser } from "./FileBrowser.js";
 
-const bridge = window.lemon ?? browserBridge();
 
 type Page = "recents" | "drafts" | "systems";
 
@@ -41,9 +41,17 @@ export function Dashboard() {
   const [page, setPage] = useState<Page>("recents");
   const [files, setFiles] = useState<DashboardFiles>({ recents: [], drafts: [] });
   const settings = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     void bridge.dashboard.files().then(setFiles);
     bridge.dashboard.onFiles(setFiles);
+    // Settings opens here too: File › Settings… and Ctrl+, (as in the editor).
+    bridge.onMenuCommand((command) => command === "settings" && setSettingsOpen(true));
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") (e.preventDefault(), setSettingsOpen(true));
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
   }, []);
   return (
     <div className="flex h-full bg-card text-foreground">
@@ -89,6 +97,7 @@ export function Dashboard() {
           </div>
         </div>
       </main>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }
