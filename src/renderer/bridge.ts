@@ -3,6 +3,9 @@
 // and has no agent.
 import type { AgentEvent, AgentStats } from "../agent/agent.js";
 import type { FontFace } from "../text/fonts.js";
+import type { FileInfo } from "../main/editor.js";
+import type { WindowCommand } from "../main/menu.js";
+import { PRODUCT } from "../product.js";
 
 export interface Bridge {
   docState(): Promise<Uint8Array>;
@@ -17,6 +20,11 @@ export interface Bridge {
   canRunAgent: boolean;
   /** Whether Claude Code is signed in on this computer, and as whom. */
   claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
+  /** The file this window shows: its name and whether it is saved. */
+  fileInfo(): Promise<FileInfo>;
+  onFileInfo(fn: (info: FileInfo) => void): void;
+  /** Menu bar commands for this window. */
+  onMenuCommand(fn: (command: WindowCommand) => void): void;
 }
 
 declare global {
@@ -54,5 +62,10 @@ export function browserBridge(): Bridge {
     async claudeStatus() {
       return { loggedIn: false };
     },
+    async fileInfo() {
+      return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };
+    },
+    onFileInfo() {},
+    onMenuCommand() {},
   };
 }

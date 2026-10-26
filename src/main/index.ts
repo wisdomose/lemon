@@ -1,20 +1,20 @@
-// Electron's main process: owns the document, the fonts and the agent. Windows show the document and
-// receive every change as a Yjs update.
-import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
+// Electron's main process: owns the documents (one per editor window, editor.ts), the fonts and the
+// agents. Windows show their document and receive every change as a Yjs update.
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import * as Y from "yjs";
-import { newFile } from "../doc/store.js";
-import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
+import { nodesOf } from "../doc/store.js";
 import { PRODUCT } from "../product.js";
 import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
-import { AGENT_NAME } from "../agent/models.js";
-import { runAgent } from "../agent/agent.js";
 import type { FontFace } from "../text/fonts.js";
+import { Editor, logTo, type Shared } from "./editor.js";
+import { EXT, clearRecents, forgetRecent } from "./files.js";
+import { buildMenu } from "./menu.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -38,14 +38,95 @@ protocol.registerSchemesAsPrivileged([
 const UI_ROOT = join(import.meta.dirname, "..", "renderer");
 if (process.platform === "win32") app.setAppUserModelId(PRODUCT.appId);
 
-const log = (msg: string) => env.LEMON_LOG && appendFileSync(env.LEMON_LOG, `${new Date().toISOString().slice(11, 23)} ${msg}\n`);
-const doc = new Y.Doc();
-// Agents write to this copy directly, statement by statement: it loses same-moment ties to people (doc/live.ts).
-doc.clientID = agentClientId();
-if (env.LEMON_OPEN) Y.applyUpdate(doc, readFileSync(env.LEMON_OPEN));
-else if (!env.LEMON_PROMPT) newFile(doc);
+const log = logTo(env.LEMON_LOG);
+
+/** Windows, by the id of their web contents (each window's messages are routed to its editor). */
+const editors = new Map<number, Editor>();
+let shared: Shared | undefined;
+/** Files asked for before the app was ready (double-clicked, or passed on the command line). */
+const pending: string[] = [];
+
+const designFiles = (args: string[]) => args.filter((a) => a.endsWith(EXT) && existsSync(a));
+
+/** Opens a window on `path` (or a new file); an already open file just comes to the front. */
+function openEditor(path?: string): Editor | undefined {
+  if (!shared) {
+    if (path) pending.push(path);
+    return undefined;
+  }
+  const open = path && [...editors.values()].find((e) => e.path === path);
+  if (open) {
+    if (open.win.isMinimized()) open.win.restore();
+    open.win.focus();
+    return open;
+  }
+  let editor: Editor;
+  try {
+    editor = new Editor(shared, path);
+  } catch (e) {
+    dialog.showErrorBox(`Couldn't open ${path ? basename(path) : "the file"}`, e instanceof Error ? e.message : String(e));
+    if (path) forgetRecent(path);
+    refreshMenu();
+    return undefined;
+  }
+  const id = editor.win.webContents.id;
+  editors.set(id, editor);
+  editor.win.on("closed", () => editors.delete(id));
+  refreshMenu();
+  return editor;
+}
+
+const focused = () => {
+  const win = BrowserWindow.getFocusedWindow();
+  return win ? editors.get(win.webContents.id) : undefined;
+};
+
+/** Open…: files chosen open in their own windows; a new file nobody has touched gives way to them. */
+async function openDialog() {
+  const before = focused();
+  const r = await dialog.showOpenDialog({
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: `${PRODUCT.name} design`, extensions: [PRODUCT.fileExtension] }],
+  });
+  if (r.canceled) return;
+  openPaths(r.filePaths, before);
+}
+
+function openPaths(paths: string[], replacing?: Editor) {
+  const opened = paths.map((p) => openEditor(p)).filter((e) => !!e);
+  if (opened.length && replacing?.pristine && !opened.includes(replacing)) replacing.win.close();
+}
+
+function refreshMenu() {
+  buildMenu({
+    newFile: () => openEditor(),
+    open: () => void openDialog(),
+    openPath: (path) => openPaths([path], focused()),
+    clearRecents: () => (clearRecents(), refreshMenu()),
+    save: () => void focused()?.save(),
+    saveAs: () => void focused()?.saveAs(),
+    toWindow: (command) => focused()?.win.webContents.send("menu:command", command),
+  });
+}
+
+// One app, many windows: opening a file while the app runs (a double-click in Explorer, say) reaches
+// the running app instead of starting another.
+// Developer runs (captures, scripted prompts) stand alone, so they can run beside the app.
+const developer = !!(env.LEMON_CAPTURE || env.LEMON_PROMPT);
+const alone = developer || app.requestSingleInstanceLock();
+if (!alone) app.quit();
+app.on("second-instance", (_e, argv) => {
+  const files = designFiles(argv);
+  if (files.length) files.forEach((f) => openEditor(f));
+  else openEditor();
+});
+app.on("open-file", (e, path) => {
+  e.preventDefault();
+  openEditor(path);
+});
 
 async function main() {
+  if (!alone) return;
   await app.whenReady();
   log("ready");
   protocol.handle(UI_SCHEME, (req) => {
@@ -57,72 +138,53 @@ async function main() {
   const [engine, sandbox] = await Promise.all([createEngine(fonts), Sandbox.create()]);
   log("engine and sandbox ready");
 
-  const win = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    title: PRODUCT.name,
-    backgroundColor: "#1e1e1e",
-    webPreferences: {
-      preload: join(import.meta.dirname, "..", "preload", "index.cjs"),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
+  // Messages come from a window; each goes to that window's editor.
+  const editorOf = (e: IpcMainEvent | IpcMainInvokeEvent) => editors.get(e.sender.id);
+  ipcMain.on("doc:push", (e, update: Uint8Array) => editorOf(e)?.push(update));
+  ipcMain.handle("doc:state", (e) => {
+    const editor = editorOf(e);
+    return editor ? Y.encodeStateAsUpdate(editor.doc) : new Uint8Array();
   });
-
-  log("window created");
-  if (env.LEMON_LOG) {
-    win.webContents.on("did-start-loading", () => log("window loading"));
-    win.webContents.on("dom-ready", () => log("window dom ready"));
-    win.webContents.on("console-message", (e) => log(`[window] ${e.level}: ${e.message}`));
-    win.webContents.on("did-fail-load", (_e, code, desc) => log(`[window] failed to load: ${code} ${desc}`));
-    win.webContents.on("render-process-gone", (_e, d) => log(`[window] gone: ${d.reason}`));
-  }
-
-  // The window's changes carry its own origin, so they are not echoed back and agents can tell
-  // them apart (see doc/live.ts).
-  const FROM_WINDOW = new PersonChange(win.id);
-  doc.on("update", (update: Uint8Array, origin: unknown) => {
-    if (origin !== FROM_WINDOW && !win.isDestroyed()) win.webContents.send("doc:update", update);
-    // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
-    if (origin !== REPAIR) repairTree(doc);
-  });
-  ipcMain.on("doc:push", (_e, update: Uint8Array) => Y.applyUpdate(doc, update, FROM_WINDOW));
-
-  ipcMain.handle("doc:state", () => Y.encodeStateAsUpdate(doc));
+  ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-
-  let running: AbortController | undefined;
-  const run = async (prompt: string, model?: string) => {
-    running?.abort();
-    running = new AbortController();
-    const stats = await runAgent({
-      doc,
-      engine,
-      sandbox,
-      prompt,
-      ...(model ? { model } : {}),
-      name: AGENT_NAME,
-      signal: running.signal,
-      onEvent: (e) => {
-        if (win.isDestroyed()) return;
-        win.webContents.send("agent:event", e);
-        if (e.type !== "step-target" && e.type !== "step-progress") log(`agent ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
-        if (env.LEMON_FILM && e.type === "step-end") {
-          const n = String(e.step.index).padStart(2, "0");
-          setTimeout(() => win.webContents.capturePage().then((img) => writeFileSync(join(env.LEMON_FILM!, `step-${n}.png`), img.toPNG())), 600);
-        }
-      },
-    });
-    running = undefined;
-    return stats;
-  };
-  ipcMain.handle("agent:run", (_e, prompt: string, model?: string) => run(prompt, model));
-  ipcMain.handle("agent:stop", () => running?.abort());
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string) => editorOf(e)?.runAgent(prompt, model));
+  ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
   ipcMain.handle("claude:status", () => claudeStatus());
 
-  const capture = async () => {
+  // `pnpm dev` (electron-vite) serves the window live and passes its address.
+  const devUrl = !app.isPackaged ? env.ELECTRON_RENDERER_URL : undefined;
+  shared = {
+    engine,
+    sandbox,
+    uiUrl: devUrl ?? `${UI_SCHEME}://ui/index.html`,
+    preload: join(import.meta.dirname, "..", "preload", "index.cjs"),
+    log,
+    noSave: developer,
+    changed: refreshMenu,
+  };
+
+  // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
+  if (developer) return developerRun(env.LEMON_OPEN);
+  const files = [...pending, ...designFiles(process.argv.slice(1))];
+  if (env.LEMON_OPEN) files.push(env.LEMON_OPEN);
+  if (files.length) files.forEach((f) => openEditor(f));
+  else openEditor();
+  if (!editors.size) openEditor();
+}
+
+/** LEMON_PROMPT runs the agent on an empty document; LEMON_CAPTURE saves a picture of the window. */
+async function developerRun(open: string | undefined) {
+  const editor = openEditor(open)!;
+  const { win } = editor;
+  if (env.LEMON_PROMPT) editor.doc.transact(() => nodesOf(editor.doc).clear());
+  win.webContents.once("did-finish-load", async () => {
+    log("window loaded");
+    if (env.LEMON_PROMPT) {
+      const stats = await editor.runAgent(env.LEMON_PROMPT);
+      console.log(JSON.stringify({ ok: stats.ok, seconds: Math.round(stats.durationMs / 1000), steps: stats.steps.length, reply: stats.reply }));
+      if (env.LEMON_CAPTURE) writeFileSync(env.LEMON_CAPTURE.replace(/\.png$/, ".yjs"), Y.encodeStateAsUpdate(editor.doc));
+    }
     if (!env.LEMON_CAPTURE) return;
     // Wait until the window has drawn (it marks <body data-ready>), then a moment for the last change.
     for (let i = 0; i < 100 && !(await win.webContents.executeJavaScript("!!document.body.dataset.ready")); i++) {
@@ -131,24 +193,9 @@ async function main() {
     await new Promise((r) => setTimeout(r, 1000));
     const image = await win.webContents.capturePage();
     writeFileSync(env.LEMON_CAPTURE, image.toPNG());
-    if (env.LEMON_OPEN) writeFileSync(env.LEMON_CAPTURE.replace(/\.png$/, ".yjs"), Y.encodeStateAsUpdate(doc));
+    if (open) writeFileSync(env.LEMON_CAPTURE.replace(/\.png$/, ".yjs"), Y.encodeStateAsUpdate(editor.doc));
     app.quit();
-  };
-
-  win.webContents.once("did-finish-load", async () => {
-    log("window loaded");
-    if (env.LEMON_PROMPT) {
-      const stats = await run(env.LEMON_PROMPT);
-      console.log(JSON.stringify({ ok: stats.ok, seconds: Math.round(stats.durationMs / 1000), steps: stats.steps.length, reply: stats.reply }));
-      if (env.LEMON_CAPTURE) writeFileSync(env.LEMON_CAPTURE.replace(/\.png$/, ".yjs"), Y.encodeStateAsUpdate(doc));
-    }
-    await capture();
   });
-
-  // `pnpm dev` (electron-vite) serves the window live and passes its address.
-  const devUrl = !app.isPackaged ? env.ELECTRON_RENDERER_URL : undefined;
-  if (devUrl) await win.loadURL(devUrl);
-  else await win.loadURL(`${UI_SCHEME}://ui/index.html`);
 }
 
 /** `claude auth status`: whether Claude Code is signed in, and as whom. Lemon never sees credentials. */

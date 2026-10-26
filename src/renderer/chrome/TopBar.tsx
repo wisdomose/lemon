@@ -4,8 +4,13 @@ import { ChevronDown, Folder, Gift, Globe, LayoutGrid, Play, Share } from "lucid
 import { PRODUCT } from "../../product.js";
 import logoUrl from "../../../assets/logo.svg?url";
 import { Divider, ICON, IconButton, Island, Tip } from "../ui/kit.js";
+import { useEditor } from "../store.js";
 
-export function TopBar({ fileName, saveState, initial }: { fileName: string; saveState: string; initial: string }) {
+/** What the top bar says after the file name. */
+const SAVE_STATE = { saved: "Auto-saved", saving: "Saving…", error: "Not saved" } as const;
+
+export function TopBar({ initial }: { initial: string }) {
+  const file = useEditor((s) => s.file);
   return (
     <>
       <Island className="absolute left-2 top-2 flex h-[42px] items-center rounded-full pr-4 pl-3">
@@ -19,8 +24,8 @@ export function TopBar({ fileName, saveState, initial }: { fileName: string; sav
         <Divider className="mx-2" />
         <div className="flex items-center gap-2 pl-1">
           <Folder {...ICON} className="text-foreground" />
-          <span className="text-[14px] font-semibold text-foreground">{fileName}</span>
-          <span className="-ml-2 text-[14px] text-muted-foreground">— {saveState}</span>
+          <span className="text-[14px] font-semibold text-foreground">{file.name}</span>
+          <span className="-ml-2 text-[14px] text-muted-foreground" title={file.error}>— {SAVE_STATE[file.state]}</span>
         </div>
       </Island>
 
