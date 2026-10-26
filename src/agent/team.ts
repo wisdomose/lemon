@@ -5,7 +5,7 @@
 //   (the look, and the split into one part per agent); then the team agrees one plan. The shared
 //   look becomes the document's variables, the parts get their frames, and every agent builds its
 //   own part at the same time.
-// - Side by Side: each agent makes its own complete version in its own frame, from different starting
+// - Side by Side: each agent makes its own complete version in its own frames, from different starting
 //   points; the frames end up in a row in agent order.
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -178,7 +178,7 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
       points.map((directions, i) =>
         agent(i, {
           directions,
-          brief: `You are ${AGENTS[i]!.name}, one of ${count} agents each making their own complete version of this request at the same time; the person will compare the versions side by side. Make exactly one top-level frame for your version, named "<what it is> — ${AGENTS[i]!.name}", and build only inside it; don't touch the others' frames. Your starting points differ from theirs: commit to yours so the versions are clearly different. Don't set variables other agents could be using: name yours with the prefix "${AGENTS[i]!.name.toLowerCase()}-" (e.g. "$${AGENTS[i]!.name.toLowerCase()}-ink").`,
+          brief: `You are ${AGENTS[i]!.name}, one of ${count} agents each making their own complete version of this request at the same time; the person will compare the versions side by side. Your version is top-level frames: one for a single page, or one per screen when it has several (an app's screens are each their own top-level frame, never screens wrapped inside one bigger frame). Name every one "<what it is> — ${AGENTS[i]!.name}" (e.g. "Home — ${AGENTS[i]!.name}"), and don't touch the others' frames. Your starting points differ from theirs: commit to yours so the versions are clearly different. Don't set variables other agents could be using: name yours with the prefix "${AGENTS[i]!.name.toLowerCase()}-" (e.g. "$${AGENTS[i]!.name.toLowerCase()}-ink").`,
         }),
       ),
     );
@@ -282,23 +282,27 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
   return finish(stats, stats.some((s) => s.ok));
 }
 
-/** Side by Side: the versions' frames in a row, in agent order (each agent placed its own as it began). */
+/**
+ * Side by Side: every version's frames in one row, in agent order, each agent's screens in the order it
+ * placed them, with a double gap between versions (each agent placed its own frames as it began).
+ */
 async function lineUp(doc: Y.Doc, engine: Engine, before: Set<string>, origin: AgentChange): Promise<void> {
   const { tree, boxes } = await measure(engine, doc);
   const made = tree.children.filter((c) => !before.has(c.id) && boxes.has(c.id));
   if (made.length < 2) return;
-  // An agent's frame carries its name ("… — Zest"); agent order, then the order they were made.
+  // An agent's frames carry its name ("Home — Zest"); agent order, then left to right as it placed them.
   const rank = (name: string | undefined) => {
     const i = AGENTS.findIndex((a) => name?.endsWith(a.name));
     return i < 0 ? AGENTS.length : i;
   };
-  const ordered = [...made].sort((a, b) => rank(a.props.name) - rank(b.props.name));
+  const ordered = [...made].sort((a, b) => rank(a.props.name) - rank(b.props.name) || boxes.get(a.id)!.x - boxes.get(b.id)!.x || boxes.get(a.id)!.y - boxes.get(b.id)!.y);
   let x = Math.min(...made.map((c) => boxes.get(c.id)!.x));
   const y = Math.min(...made.map((c) => boxes.get(c.id)!.y));
   doc.transact(() => {
-    for (const f of ordered) {
+    ordered.forEach((f, n) => {
+      if (n > 0 && rank(f.props.name) !== rank(ordered[n - 1]!.props.name)) x += GAP_BETWEEN_FRAMES;
       update(doc, f.id, { x, y });
       x += boxes.get(f.id)!.w + GAP_BETWEEN_FRAMES;
-    }
+    });
   }, origin);
 }
