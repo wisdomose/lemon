@@ -4,6 +4,7 @@ import { PRODUCT } from "../product.js";
 import { Toaster } from "sonner";
 import * as docStore from "../doc/store.js";
 import { attach, schedule, setZoom, zoomStep, zoomToFit } from "./canvas/canvas.js";
+import { attachGestures, canvasKey, canvasKeyUp } from "./canvas/gestures.js";
 import { ChatInput } from "./agent/ChatInput.js";
 import { LeftPanel } from "./chrome/LeftPanel.js";
 import { PropertiesPanel } from "./chrome/PropertiesPanel.js";
@@ -15,12 +16,16 @@ import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
 import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
 import { useEditor } from "./store.js";
+import { selectAll, selectChildren, selectParents, unionBox, type Laid } from "./canvas/pick.js";
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [panelOpen, setPanelOpen] = useState(true);
-  useEffect(() => attach(canvasRef.current!), []);
+  useEffect(() => {
+    const detach = [attach(canvasRef.current!), attachGestures(canvasRef.current!)];
+    return () => detach.forEach((d) => d());
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -28,24 +33,31 @@ export function App({ initial }: { initial: string }) {
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
-      if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      if (canvasKey(e)) schedule();
+      else if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
       else if (mod && ((key === "z" && e.shiftKey) || key === "y")) (e.preventDefault(), history.redo());
-      else if (e.key === "Escape") store.set({ selection: null });
+      else if (e.key === "Escape") store.set({ selection: [] });
+      else if (mod && key === "a") (e.preventDefault(), reselect(selectAll));
+      else if (e.key === "Enter") (e.preventDefault(), reselect(e.shiftKey ? selectParents : selectChildren));
       else if (e.shiftKey && e.code === "Digit1") zoomToFit();
       else if (e.shiftKey && e.code === "Digit2") {
-        const id = store.get().selection;
-        const box = id ? currentScene()?.boxes.get(id) : undefined;
+        const s = currentScene();
+        const box = s && unionBox(s.boxes, store.get().selection);
         if (box) zoomToFit(true, box, 32);
-      } else if (mod && (e.key === "=" || e.key === "+")) (e.preventDefault(), zoomStep(1));
+      } else if (!mod && e.key === "]") reorder(true);
+      else if (!mod && e.key === "[") reorder(false);
+      else if (mod && (e.key === "=" || e.key === "+")) (e.preventDefault(), zoomStep(1));
       else if (mod && e.key === "-") (e.preventDefault(), zoomStep(-1));
       else if (mod && e.key === "0") (e.preventDefault(), setZoom(1));
       else if (e.key === "Delete" || e.key === "Backspace") deleteSelection();
       else if (!mod && e.key === "\\") setPanelOpen((o) => !o);
       schedule();
     };
+    const onKeyUp = (e: KeyboardEvent) => canvasKeyUp(e);
     addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
+    addEventListener("keyup", onKeyUp);
+    return () => (removeEventListener("keydown", onKey), removeEventListener("keyup", onKeyUp));
   }, []);
 
   return (
@@ -78,32 +90,41 @@ export function App({ initial }: { initial: string }) {
   );
 }
 
-function deleteSelection() {
-  const id = store.get().selection;
-  if (!id || !docStore.exists(doc, id)) return;
-  edit(() => docStore.remove(doc, id));
-  store.set({ selection: null });
+/** Replaces the selection by a rule of canvas/pick.ts. */
+function reselect(rule: (s: Laid, selection: string[]) => string[]) {
+  const s = currentScene();
+  if (s) store.set({ selection: rule(s, store.get().selection) });
 }
 
+function deleteSelection() {
+  const ids = store.get().selection.filter((id) => docStore.exists(doc, id));
+  if (!ids.length) return;
+  edit(() => ids.forEach((id) => docStore.exists(doc, id) && docStore.remove(doc, id)));
+  store.set({ selection: [] });
+}
+
+/** Bring to front (`]`) or send to back (`[`), keeping the selected nodes' order among themselves. */
 function reorder(front: boolean) {
-  const id = store.get().selection;
-  const parent = id ? docStore.parentOf(doc, id) : undefined;
-  if (!id || !parent) return;
-  edit(() => docStore.move(doc, id, parent, front ? undefined : 0));
+  const ids = store.get().selection;
+  edit(() => {
+    for (const id of front ? ids : [...ids].reverse()) {
+      const parent = docStore.parentOf(doc, id);
+      if (parent) docStore.move(doc, id, parent, front ? undefined : 0);
+    }
+  });
 }
 
 function setLayout(layout: "column" | "none") {
-  const id = store.get().selection;
-  if (!id || docStore.typeOf(doc, id) !== "frame") return;
-  edit(() => docStore.update(doc, id, { layout }));
+  const frames = store.get().selection.filter((id) => docStore.typeOf(doc, id) === "frame");
+  if (frames.length) edit(() => frames.forEach((id) => docStore.update(doc, id, { layout })));
 }
 
 /** The canvas's right-click menu. Groups and labels follow the reference; items depend on the selection. */
 function CanvasMenu() {
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
-  const type = selection ? docStore.typeOf(doc, selection) : undefined;
-  const flex = type === "frame" && docStore.propsOf(doc, selection!).layout !== "none";
+  const frames = selection.filter((id) => docStore.typeOf(doc, id) === "frame");
+  const flex = frames.length > 0 && frames.every((id) => docStore.propsOf(doc, id).layout !== "none");
   return (
     <ContextContent>
       <ContextItem label="Copy" keys="Ctrl C" />

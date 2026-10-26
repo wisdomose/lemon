@@ -10,6 +10,8 @@ import { store, useEditor } from "../store.js";
 import { Island } from "../ui/kit.js";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
 import { findNode } from "../../render/screenshot.js";
+import type { TreeNode } from "../../doc/schema.js";
+import type { ChipRef } from "./prompt-doc.js";
 import { sendPrompt } from "./chat.js";
 
 export function ChatInput() {
@@ -18,8 +20,12 @@ export function ChatInput() {
   const model = useEditor((s) => s.model);
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
-  const node = selection ? findNode(currentScene()?.tree ?? { id: "", type: "frame", props: {}, children: [] }, selection) : undefined;
-  const ref = node ? { id: node.id, name: node.props.name ?? node.type[0]!.toUpperCase() + node.type.slice(1), kind: node.type } : null;
+  const tree = currentScene()?.tree;
+  const nodes = tree ? selection.map((id) => findNode(tree, id)).filter((n) => !!n) : [];
+  const one = (n: TreeNode) => ({ id: n.id, name: n.props.name ?? n.type[0]!.toUpperCase() + n.type.slice(1), kind: n.type });
+  // Several selected nodes share one chip, "3 nodes", as in the reference.
+  const ref: ChipRef | null =
+    nodes.length > 1 ? { id: nodes.map((n) => n.id).join(","), name: `${nodes.length} nodes`, kind: "nodes", members: nodes.map(one) } : nodes[0] ? one(nodes[0]) : null;
   const editor = useRef<PromptEditorHandle>(null);
   const [canSend, setCanSend] = useState(false);
   const send = () => {

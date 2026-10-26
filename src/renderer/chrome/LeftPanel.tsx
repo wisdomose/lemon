@@ -22,7 +22,9 @@ import {
 import type { TreeNode } from "../../doc/schema.js";
 import { screenshot } from "../../render/screenshot.js";
 import { AgentPanel } from "../agent/AgentPanel.js";
-import { currentScene, engine } from "../scene.js";
+import { currentScene, doc, edit, engine } from "../scene.js";
+import * as docStore from "../../doc/store.js";
+import { ROOT_ID } from "../../doc/schema.js";
 import { store, useEditor, type Tab } from "../store.js";
 import { schedule } from "../canvas/canvas.js";
 import { ICON, Island, cx } from "../ui/kit.js";
@@ -81,7 +83,45 @@ function typeIcon(n: TreeNode): LucideIcon {
   return AlignStartVertical;
 }
 
+/** A click on a layer row selects it; with Shift or Ctrl/⌘ it adds it to the selection, or takes it out. */
+function pickRow(selection: string[], id: string, add: boolean): string[] {
+  if (!add) return [id];
+  return selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id];
+}
+
+type Zone = "before" | "after" | "into";
+
+/**
+ * Drops dragged layers next to a row (above or below it in the list) or into a frame row. The list
+ * shows the page's frames newest first, so above a top-level frame means after it in the document.
+ */
+function dropLayers(dragged: string[], row: TreeNode, zone: Zone) {
+  const parent = zone === "into" ? row.id : docStore.parentOf(doc, row.id);
+  if (!parent) return;
+  // Nothing goes inside itself.
+  for (let p: string | undefined = parent; p && p !== ROOT_ID; p = docStore.parentOf(doc, p)) if (dragged.includes(p)) return;
+  const reversed = parent === ROOT_ID;
+  edit(() => {
+    let anchor = zone === "into" ? null : row.id;
+    // Each dragged layer lands just after the previous one, in list order.
+    for (const id of dragged) {
+      if (id === anchor) continue;
+      const siblings = docStore.childIds(doc, parent).filter((c) => c !== id);
+      let at: number | undefined;
+      if (anchor) {
+        const i = siblings.indexOf(anchor);
+        const listAfter = zone === "after" || anchor !== row.id;
+        at = listAfter !== reversed ? i + 1 : i;
+      }
+      docStore.move(doc, id, parent, at);
+      anchor = id;
+    }
+  });
+}
+
 function LayersPanel() {
+  const [dragging, setDragging] = useState<string[] | null>(null);
+  const [target, setTarget] = useState<{ id: string; zone: Zone } | null>(null);
   useEditor((s) => s.docVersion);
   const selection = useEditor((s) => s.selection);
   const tree = currentScene()?.tree;
@@ -109,12 +149,34 @@ function LayersPanel() {
         return (
           <div
             key={node.id}
-            onClick={() => (store.set({ selection: node.id }), schedule())}
+            data-layer={node.id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              setDragging(selection.includes(node.id) ? selection : [node.id]);
+            }}
+            onDragOver={(e) => {
+              if (!dragging) return;
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              const k = (e.clientY - r.top) / r.height;
+              const zone: Zone = node.type === "frame" && k > 0.3 && k < 0.7 ? "into" : k < 0.5 ? "before" : "after";
+              if (target?.id !== node.id || target.zone !== zone) setTarget({ id: node.id, zone });
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragging && target) dropLayers(dragging, node, target.zone);
+              setDragging(null);
+              setTarget(null);
+            }}
+            onDragEnd={() => (setDragging(null), setTarget(null))}
+            onClick={(e) => (store.set((s) => ({ selection: pickRow(s.selection, node.id, e.shiftKey || e.ctrlKey || e.metaKey) })), schedule())}
             onMouseEnter={() => (store.set({ hover: node.id }), schedule())}
             onMouseLeave={() => (store.set({ hover: null }), schedule())}
             className={cx(
-              "flex h-7 cursor-default items-center rounded-[5px] pr-2 text-[12px] font-semibold",
-              node.id === selection ? "bg-layer-active text-layer-active-text" : "text-foreground hover:bg-foreground/[0.04]",
+              "relative flex h-7 cursor-default items-center rounded-[5px] pr-2 text-[12px] font-semibold",
+              target?.id === node.id && target.zone === "into" && "ring-1 ring-inset ring-[#3d99ff]",
+              selection.includes(node.id) ? "bg-layer-active text-layer-active-text" : "text-foreground hover:bg-foreground/[0.04]",
             )}
             style={{ paddingLeft: 6 + depth * 12 }}
           >
@@ -130,6 +192,9 @@ function LayersPanel() {
             </span>
             <Icon size={14} strokeWidth={1.5} className="mr-2 ml-1 shrink-0 text-muted-foreground" />
             <span className="truncate">{label}</span>
+            {target?.id === node.id && target.zone !== "into" && (
+              <span className={cx("pointer-events-none absolute right-1 h-0.5 bg-[#3d99ff]", target.zone === "before" ? "-top-px" : "-bottom-px")} style={{ left: 6 + depth * 12 }} />
+            )}
           </div>
         );
       })}
@@ -180,7 +245,7 @@ function ComponentsPanel() {
       </div>
       <button
         type="button"
-        disabled={!selection}
+        disabled={!selection.length}
         className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-muted-foreground font-semibold text-background disabled:opacity-80"
       >
         <Component size={14} strokeWidth={1.5} /> Create Component

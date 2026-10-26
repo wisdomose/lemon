@@ -44,7 +44,7 @@ export async function boot(): Promise<void> {
     // Someone (an agent, or this person's undo) may have deleted what is selected or hovered.
     store.set((s) => ({
       docVersion: s.docVersion + 1,
-      selection: reconcileSelection(doc, s.selection),
+      selection: s.selection.filter((id) => reconcileSelection(doc, id)),
       hover: reconcileSelection(doc, s.hover),
     }));
   });
