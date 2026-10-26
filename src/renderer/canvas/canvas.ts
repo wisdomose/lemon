@@ -6,6 +6,10 @@ import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
 import { CANVAS_UI_FONT, currentScene, engine, type Scene } from "../scene.js";
 import { store } from "../store.js";
+import { overlay } from "./overlay.js";
+import { unionBox } from "./pick.js";
+import { findNode } from "../../render/screenshot.js";
+import { drawTextEditing } from "./text-edit.js";
 import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
@@ -17,6 +21,11 @@ const HANDLE = 8;
 const PILL_H = 20;
 const PILL_GAP = 6;
 const BADGE = 16;
+const RADIUS_HANDLE = 8;
+const RADIUS_INSET = 12;
+/** Snapping guides (capture 35) and the selection box's tint (capture 37). */
+const GUIDE = "#f24822";
+const MARQUEE_RGB = [61 / 255, 153 / 255, 255 / 255] as const;
 /** A frame an agent is building: outline, tint and "Generating" label (measured from captures 22a and 23). */
 const LIVE = "#607dff";
 const LIVE_RGB = [96 / 255, 125 / 255, 255 / 255] as const;
@@ -117,8 +126,8 @@ function makeSurface() {
   surface ??= engine.ck.MakeSWCanvasSurface(el);
 }
 
-const toScreen = (px: number, py: number) => [(px - view.x) * view.zoom, (py - view.y) * view.zoom] as const;
-const toPage = (sx: number, sy: number) => [view.x + sx / view.zoom, view.y + sy / view.zoom] as const;
+export const toScreen = (px: number, py: number) => [(px - view.x) * view.zoom, (py - view.y) * view.zoom] as const;
+export const toPage = (sx: number, sy: number) => [view.x + sx / view.zoom, view.y + sy / view.zoom] as const;
 
 export function setZoom(zoom: number, sx = el.clientWidth / 2, sy = el.clientHeight / 2): void {
   zoom = Math.min(32, Math.max(0.02, zoom));
@@ -191,31 +200,18 @@ function obstructionLeft(): number {
 }
 
 // ---- Hit testing ----------------------------------------------------------------------------------
-function contains(b: Box | undefined, x: number, y: number) {
-  return !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
-}
-
-/**
- * What a click at page (x, y) selects: a frame's name label selects the frame; inside a top-level
- * frame, the frame's topmost direct child under the point (as Pen does), otherwise the frame itself.
- */
-export function hitTest(x: number, y: number): string | null {
+/** The top-level frame whose name label is at page (x, y): clicking a label selects its frame. */
+export function labelAt(x: number, y: number): string | null {
   const s = currentScene();
   if (!s) return null;
-  const frames = [...s.tree.children].reverse();
-  for (const f of frames) {
+  for (const f of [...s.tree.children].reverse()) {
     const b = s.boxes.get(f.id);
     if (b && labelHit(f, b, x, y)) return f.id;
-  }
-  for (const f of frames) {
-    if (!contains(s.boxes.get(f.id), x, y)) continue;
-    const child = [...f.children].reverse().find((c) => c.props.visible !== false && contains(s.boxes.get(c.id), x, y));
-    return child ? child.id : f.id;
   }
   return null;
 }
 
-function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
+export function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
   const [sx, sy] = toScreen(b.x, b.y);
   const [px, py] = toScreen(x, y);
   const w = labelWidth(f);
@@ -279,16 +275,17 @@ function draw() {
     for (const frame of s.tree.children) {
       if (frame.props.generating) drawGenerating(canvas, s.boxes.get(frame.id));
     }
-    for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), frame.id === st.selection);
-    if (st.hover && st.hover !== st.selection) outline(canvas, s.boxes.get(st.hover));
-    if (st.selection) drawSelection(canvas, s.tree, s.boxes.get(st.selection), st.selection);
+    for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id));
+    if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover));
+    drawSelection(canvas, s, st.selection);
+    drawOverlay(canvas, s);
     if (cursor.shown) drawCursor(canvas);
     canvas.restore();
   }
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursor.shown || s?.tree.children.some((f) => f.props.generating)) schedule();
+  if (cursor.shown || overlay.editing || s?.tree.children.some((f) => f.props.generating)) schedule();
 }
 
 /** The document drawn once per change and replayed for every frame of animation. */
@@ -388,10 +385,21 @@ function outline(canvas: Canvas, b: Box | undefined) {
   paint.delete();
 }
 
-function drawSelection(canvas: Canvas, tree: TreeNode, b: Box | undefined, id: string) {
+/**
+ * The selection: each selected node outlined, and around them all (or the one node) corner handles,
+ * the size pill and, for a top-level frame, the badge. A rectangle also gets its corner-radius handles.
+ */
+function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
+  const b = unionBox(s.boxes, ids);
   if (!b) return;
   const { ck } = engine;
+  // While moving, Pen shows the moved nodes bare (capture 35).
+  if (overlay.moving) return;
+  if (ids.length > 1) for (const id of ids) outline(canvas, s.boxes.get(id));
   outline(canvas, b);
+  if (overlay.editing) return;
+  const tree = s.tree;
+  const id = ids.length === 1 ? ids[0]! : undefined;
   const [x, y] = toScreen(b.x, b.y);
   const w = b.w * view.zoom;
   const h = b.h * view.zoom;
@@ -401,25 +409,27 @@ function drawSelection(canvas: Canvas, tree: TreeNode, b: Box | undefined, id: s
   stroke.setStyle(ck.PaintStyle.Stroke);
   stroke.setStrokeWidth(1);
   stroke.setColor(ck.parseColorString(SELECT));
-  // Corner handles.
+  // Corner handles, and a rectangle's corner-radius handles inside them.
   fill.setColor(ck.WHITE);
-  for (const [hx, hy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]] as const) {
-    const r = ck.XYWHRect(Math.round(hx - HANDLE / 2) + 0.5, Math.round(hy - HANDLE / 2) + 0.5, HANDLE - 1, HANDLE - 1);
-    canvas.drawRect(r, fill);
-    canvas.drawRect(r, stroke);
+  if (!overlay.resizing) {
+    for (const [hx, hy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]] as const) {
+      const r = ck.XYWHRect(Math.round(hx - HANDLE / 2) + 0.5, Math.round(hy - HANDLE / 2) + 0.5, HANDLE - 1, HANDLE - 1);
+      canvas.drawRect(r, fill);
+      canvas.drawRect(r, stroke);
+    }
+    const node = id ? findNode(tree, id) : undefined;
+    if (node?.type === "rect") {
+      for (const [hx, hy] of radiusHandles({ x, y, w, h })) {
+        canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, fill);
+        canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, stroke);
+      }
+    }
   }
-  // Size pill, centred below.
-  const label = uiText(`${Math.round(b.w)} × ${Math.round(b.h)}`, 12, "#ffffff");
-  label.layout(10000);
-  const tw = Math.ceil(label.getMaxIntrinsicWidth());
-  const pw = tw + 12;
-  const px = Math.round(x + w / 2 - pw / 2);
-  const py = Math.round(y + h + PILL_GAP);
+
+  drawPill(canvas, b);
   fill.setColor(ck.parseColorString(SELECT));
-  canvas.drawRRect(ck.RRectXY(ck.XYWHRect(px, py, pw, PILL_H), 4, 4), fill);
-  canvas.drawParagraph(label, px + 6, py + (PILL_H - label.getHeight()) / 2);
   // A selected top-level frame shows a small badge outside its top-right corner.
-  if (tree.children.some((f) => f.id === id)) {
+  if (id && !overlay.resizing && tree.children.some((f) => f.id === id)) {
     const bx = Math.round(x + w + 7);
     const by = Math.round(y + 7);
     canvas.drawRRect(ck.RRectXY(ck.XYWHRect(bx, by, BADGE, BADGE), 4, 4), fill);
@@ -438,6 +448,76 @@ function drawSelection(canvas: Canvas, tree: TreeNode, b: Box | undefined, id: s
   }
   fill.delete();
   stroke.delete();
+}
+
+/** The size pill ("764 × 270"), centred below a box (page coordinates). */
+function drawPill(canvas: Canvas, b: Box) {
+  const { ck } = engine;
+  const [x, y] = toScreen(b.x, b.y);
+  const label = uiText(`${Math.round(b.w)} × ${Math.round(b.h)}`, 12, "#ffffff");
+  label.layout(10000);
+  const pw = Math.ceil(label.getMaxIntrinsicWidth()) + 12;
+  const px = Math.round(x + (b.w * view.zoom) / 2 - pw / 2);
+  const py = Math.round(y + b.h * view.zoom + PILL_GAP);
+  const fill = new ck.Paint();
+  fill.setAntiAlias(true);
+  fill.setColor(ck.parseColorString(SELECT));
+  canvas.drawRRect(ck.RRectXY(ck.XYWHRect(px, py, pw, PILL_H), 4, 4), fill);
+  canvas.drawParagraph(label, px + 6, py + (PILL_H - label.getHeight()) / 2);
+  fill.delete();
+}
+
+/** Where a rectangle's corner-radius handles sit (screen coordinates), when it is big enough to show them. */
+export function radiusHandles(r: Box): [number, number][] {
+  const inset = RADIUS_INSET;
+  if (r.w < inset * 4 || r.h < inset * 4) return [];
+  return [[r.x + inset, r.y + inset], [r.x + r.w - inset, r.y + inset], [r.x + inset, r.y + r.h - inset], [r.x + r.w - inset, r.y + r.h - inset]];
+}
+
+/** The selection box, snapping guides, drop line, dragged outlines and the shape being drawn. */
+function drawOverlay(canvas: Canvas, s: Scene) {
+  const { ck } = engine;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  const rect = (b: Box) => {
+    const [x, y] = toScreen(b.x, b.y);
+    return ck.XYWHRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(b.w * view.zoom), Math.round(b.h * view.zoom));
+  };
+  if (overlay.marquee) {
+    paint.setColor(ck.Color4f(...MARQUEE_RGB, 0.12));
+    canvas.drawRect(rect(overlay.marquee), paint);
+    paint.setStyle(ck.PaintStyle.Stroke);
+    paint.setColor(ck.parseColorString(SELECT));
+    canvas.drawRect(rect(overlay.marquee), paint);
+    paint.setStyle(ck.PaintStyle.Fill);
+  }
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  paint.setColor(ck.parseColorString(SELECT));
+  for (const g of overlay.ghosts) canvas.drawRect(rect(g), paint);
+  if (overlay.draft) canvas.drawRect(rect(overlay.draft), paint);
+  if (overlay.drop) {
+    paint.setStrokeWidth(2);
+    const [x1, y1] = toScreen(overlay.drop.x1, overlay.drop.y1);
+    const [x2, y2] = toScreen(overlay.drop.x2, overlay.drop.y2);
+    canvas.drawLine(x1, y1, x2, y2, paint);
+  }
+  // Snapping guides: red lines with a small cross at each end (capture 35).
+  paint.setStrokeWidth(1);
+  paint.setColor(ck.parseColorString(GUIDE));
+  for (const g of overlay.guides) {
+    const [x1, y1] = toScreen(g.x1, g.y1);
+    const [x2, y2] = toScreen(g.x2, g.y2);
+    const [ax, ay, bx, by] = [Math.round(x1) + 0.5, Math.round(y1) + 0.5, Math.round(x2) + 0.5, Math.round(y2) + 0.5];
+    canvas.drawLine(ax, ay, bx, by, paint);
+    for (const [cx, cy] of [[ax, ay], [bx, by]]) {
+      canvas.drawLine(cx! - 2, cy! - 2, cx! + 2, cy! + 2, paint);
+      canvas.drawLine(cx! - 2, cy! + 2, cx! + 2, cy! - 2, paint);
+    }
+  }
+  if (overlay.draft) drawPill(canvas, overlay.draft);
+  paint.delete();
+  if (overlay.editing) drawTextEditing(canvas, s);
 }
 
 function drawCursor(canvas: Canvas) {
@@ -482,38 +562,14 @@ export function attach(canvasEl: HTMLCanvasElement): () => void {
       schedule();
     }
   };
-  const onMove = (e: PointerEvent) => {
-    const [px, py] = toPage(e.offsetX, e.offsetY);
-    const hover = hitTest(px, py);
-    if (hover !== store.get().hover) {
-      store.set({ hover });
-      schedule();
-    }
-  };
-  const onDown = (e: PointerEvent) => {
-    if (e.button !== 0 && e.button !== 2) return;
-    const [px, py] = toPage(e.offsetX, e.offsetY);
-    store.set({ selection: hitTest(px, py) });
-    schedule();
-  };
-  const onLeave = () => {
-    store.set({ hover: null });
-    schedule();
-  };
   addEventListener("resize", onResize);
   el.addEventListener("wheel", onWheel, { passive: false });
-  el.addEventListener("pointermove", onMove);
-  el.addEventListener("pointerdown", onDown);
-  el.addEventListener("pointerleave", onLeave);
   const unsub = store.subscribe(schedule);
   schedule();
   return () => {
     unsub();
     removeEventListener("resize", onResize);
     el.removeEventListener("wheel", onWheel);
-    el.removeEventListener("pointermove", onMove);
-    el.removeEventListener("pointerdown", onDown);
-    el.removeEventListener("pointerleave", onLeave);
   };
 }
 

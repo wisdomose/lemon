@@ -1,0 +1,514 @@
+// What the pointer and keys do on the canvas: select (click, Shift/Ctrl/⌘, box), move with snapping
+// guides, resize from the handles, round a rectangle's corners, draw shapes, frames and text, pan with
+// the hand (H, Space or the middle button), nudge with the arrows. The rules for what gets picked are
+// in pick.ts, where moved or drawn nodes go in place.ts, snapping in snap.ts.
+import * as docStore from "../../doc/store.js";
+import { ROOT_ID, type NodeProps, type NodeSpec, type TreeNode } from "../../doc/schema.js";
+import type { Box } from "../../layout/layout.js";
+import { currentScene, doc, edit, history, type Scene } from "../scene.js";
+import { store, type Tool } from "../store.js";
+import { labelAt, radiusHandles, schedule, toPage, toScreen, view } from "./canvas.js";
+import { overlay } from "./overlay.js";
+import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from "./pick.js";
+import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
+import { snapBox } from "./snap.js";
+import { editingPointer, startTextEdit, stopTextEdit } from "./text-edit.js";
+
+/** How far (screen pixels) a press travels before it counts as a drag. */
+const DRAG_START = 3;
+/** How close (screen pixels) an edge comes before it snaps. */
+const SNAP = 5;
+/** How close (screen pixels) the pointer must be to grab a handle. */
+const HANDLE_HIT = 6;
+/** A shape drawn with a click instead of a drag (as in Figma). */
+const DEFAULT_SIZE = 100;
+/** New shapes, as Pen makes them (captures 04 and 03). */
+const SHAPE_FILL = "#CCCCCC";
+
+type Point = { x: number; y: number };
+type Corner = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
+
+/** One node being moved or resized: where it started. */
+interface Held {
+  node: TreeNode;
+  parent: TreeNode;
+  box: Box;
+  parentBox: Box;
+  free: boolean;
+}
+
+type Gesture =
+  | { kind: "press"; at: Point; screen: Point; pick: string | null; shift: boolean; deep: boolean; fresh: boolean }
+  | { kind: "marquee"; from: Point; base: string[]; deep: boolean }
+  | { kind: "move"; from: Point; held: Held[]; union: Box; live: boolean; deep: boolean }
+  | { kind: "resize"; from: Point; corner: Corner; held: Held[]; union: Box }
+  | { kind: "radius"; id: string; box: Box; corner: number }
+  | { kind: "draw"; tool: Tool; from: Point; container: TreeNode }
+  | { kind: "pan"; screen: Point };
+
+let gesture: Gesture | null = null;
+let space = false;
+let el: HTMLCanvasElement;
+
+const PAGE: Box = { x: 0, y: 0, w: 0, h: 0 };
+const boxOf = (s: Scene, id: string): Box => s.boxes.get(id) ?? PAGE;
+
+/** The selected nodes without those inside another selected node (they move with it). */
+function topMost(s: Scene, ids: string[]): TreeNode[] {
+  const byId = index(s.tree);
+  const up = parents(s.tree);
+  const chosen = new Set(ids);
+  return ids
+    .filter((id) => {
+      for (let p = up.get(id); p; p = up.get(p.id)) if (chosen.has(p.id)) return false;
+      return true;
+    })
+    .map((id) => byId.get(id))
+    .filter((n): n is TreeNode => !!n && n.id !== ROOT_ID);
+}
+
+function hold(s: Scene, ids: string[]): Held[] {
+  const up = parents(s.tree);
+  return topMost(s, ids).map((node) => {
+    const parent = up.get(node.id)!;
+    return { node, parent, box: boxOf(s, node.id), parentBox: parent.id === ROOT_ID ? PAGE : boxOf(s, parent.id), free: placedFreely(node, parent) };
+  });
+}
+
+// A drag is one undo step however long it pauses (the person's history otherwise merges changes
+// less than half a second apart).
+function beginChange() {
+  history.stopCapturing();
+  history.captureTimeout = 1e9;
+}
+function endChange() {
+  history.captureTimeout = 500;
+  history.stopCapturing();
+}
+
+// ---- Handles ---------------------------------------------------------------------------------------
+/** The selection handle under the pointer (screen coordinates): a corner, an edge or a corner radius. */
+function handleAt(s: Scene, sx: number, sy: number): { corner: Corner } | { radius: number; id: string } | null {
+  const ids = store.get().selection;
+  const b = unionBox(s.boxes, ids);
+  if (!b || overlay.editing) return null;
+  const [x, y] = toScreen(b.x, b.y);
+  const w = b.w * view.zoom;
+  const h = b.h * view.zoom;
+  const near = (hx: number, hy: number) => Math.abs(sx - hx) <= HANDLE_HIT && Math.abs(sy - hy) <= HANDLE_HIT;
+  if (ids.length === 1 && index(s.tree).get(ids[0]!)?.type === "rect") {
+    const i = radiusHandles({ x, y, w, h }).findIndex(([hx, hy]) => near(hx, hy));
+    if (i >= 0) return { radius: i, id: ids[0]! };
+  }
+  const corners: [Corner, number, number][] = [["nw", x, y], ["ne", x + w, y], ["sw", x, y + h], ["se", x + w, y + h]];
+  for (const [c, hx, hy] of corners) if (near(hx, hy)) return { corner: c };
+  const inX = sx > x && sx < x + w;
+  const inY = sy > y && sy < y + h;
+  if (inX && Math.abs(sy - y) <= 4) return { corner: "n" };
+  if (inX && Math.abs(sy - (y + h)) <= 4) return { corner: "s" };
+  if (inY && Math.abs(sx - x) <= 4) return { corner: "w" };
+  if (inY && Math.abs(sx - (x + w)) <= 4) return { corner: "e" };
+  return null;
+}
+
+const CURSORS: Record<Corner, string> = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
+
+function setCursor(c: string) {
+  if (el.style.cursor !== c) el.style.cursor = c;
+}
+
+/** The pointer's look when nothing is held: depends on the tool, and on a handle under it. */
+function idleCursor(s: Scene | undefined, sx: number, sy: number) {
+  const tool = store.get().tool;
+  if (space || tool === "hand") return setCursor("grab");
+  if (tool === "text") return setCursor("text");
+  if (tool === "rect" || tool === "ellipse" || tool === "frame") return setCursor("crosshair");
+  const h = s && handleAt(s, sx, sy);
+  setCursor(h ? ("corner" in h ? CURSORS[h.corner] : "pointer") : "default");
+}
+
+// ---- Pointer ---------------------------------------------------------------------------------------
+function onDown(e: PointerEvent) {
+  const s = currentScene();
+  if (!s) return;
+  const screen = { x: e.offsetX, y: e.offsetY };
+  const [px, py] = toPage(screen.x, screen.y);
+  const at = { x: px, y: py };
+  if (e.button === 1 || (e.button === 0 && (space || store.get().tool === "hand"))) {
+    gesture = { kind: "pan", screen };
+    setCursor("grabbing");
+  } else if (e.button !== 0) {
+    // Right-click selects what is under the pointer (unless it is already selected) for the menu.
+    const pick = labelAt(px, py) ?? clickPick(s, px, py, store.get().selection, e.ctrlKey || e.metaKey);
+    if (!pick || !store.get().selection.includes(pick)) store.set({ selection: pick ? [pick] : [] });
+    return;
+  } else {
+    if (editingPointer(e, at)) return;
+    stopTextEdit();
+    const tool = store.get().tool;
+    if (tool === "rect" || tool === "ellipse" || tool === "frame" || tool === "text") {
+      gesture = { kind: "draw", tool, from: at, container: frameAt(s, px, py) };
+    } else if (tool === "move") {
+      const h = handleAt(s, screen.x, screen.y);
+      if (h && "corner" in h) {
+        gesture = { kind: "resize", from: at, corner: h.corner, held: hold(s, store.get().selection), union: unionBox(s.boxes, store.get().selection)! };
+        beginChange();
+      } else if (h) {
+        gesture = { kind: "radius", id: h.id, box: boxOf(s, h.id), corner: h.radius };
+        beginChange();
+      } else {
+        const deep = e.ctrlKey || e.metaKey;
+        const selection = store.get().selection;
+        const pick = labelAt(px, py) ?? clickPick(s, px, py, selection, deep);
+        const fresh = !!pick && !selection.includes(pick);
+        // A press on something not yet selected selects it at once, so a drag moves it.
+        if (fresh) store.set({ selection: e.shiftKey ? [...selection, pick!] : [pick!] });
+        gesture = { kind: "press", at, screen, pick, shift: e.shiftKey, deep, fresh };
+      }
+    }
+  }
+  el.setPointerCapture(e.pointerId);
+  schedule();
+}
+
+function onMove(e: PointerEvent) {
+  const s = currentScene();
+  const screen = { x: e.offsetX, y: e.offsetY };
+  const [px, py] = toPage(screen.x, screen.y);
+  if (!gesture) {
+    if (!s) return;
+    idleCursor(s, screen.x, screen.y);
+    const tool = store.get().tool;
+    const hover = tool === "move" && !space ? (labelAt(px, py) ?? clickPick(s, px, py, store.get().selection, e.ctrlKey || e.metaKey)) : null;
+    if (hover !== store.get().hover) (store.set({ hover }), schedule());
+    return;
+  }
+  if (!s) return;
+  const g = gesture;
+  if (g.kind === "pan") {
+    view.x -= (screen.x - g.screen.x) / view.zoom;
+    view.y -= (screen.y - g.screen.y) / view.zoom;
+    g.screen = screen;
+  } else if (g.kind === "press") {
+    if (Math.hypot(screen.x - g.screen.x, screen.y - g.screen.y) < DRAG_START) return;
+    store.set({ hover: null });
+    if (g.pick) {
+      gesture = { kind: "move", from: g.at, held: hold(s, store.get().selection), union: unionBox(s.boxes, store.get().selection)!, live: false, deep: false };
+      overlay.moving = true;
+      beginChange();
+    } else gesture = { kind: "marquee", from: g.at, base: g.shift ? store.get().selection : [], deep: g.deep };
+    return onMove(e);
+  } else if (g.kind === "marquee") {
+    const rect = rectBetween(g.from, { x: px, y: py });
+    overlay.marquee = rect;
+    const picked = boxPick(s, rect, g.from, g.deep || e.ctrlKey || e.metaKey);
+    store.set({ selection: [...new Set([...g.base, ...picked])] });
+  } else if (g.kind === "move") moveTo(s, g, px, py, e.altKey, e.ctrlKey || e.metaKey);
+  else if (g.kind === "resize") resizeTo(g, px, py, e.shiftKey, e.altKey);
+  else if (g.kind === "radius") roundTo(g, px, py);
+  else if (g.kind === "draw") {
+    overlay.draft = drawnBox(g, { x: px, y: py }, e.shiftKey);
+  }
+  schedule();
+}
+
+function onUp(e: PointerEvent) {
+  const g = gesture;
+  gesture = null;
+  if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  const s = currentScene();
+  if (!g || !s) return;
+  const [px, py] = toPage(e.offsetX, e.offsetY);
+  if (g.kind === "press") {
+    // A click (no drag) on something already selected narrows the selection to it; with Shift it
+    // takes it out. A click on nothing clears the selection.
+    const selection = store.get().selection;
+    if (!g.pick) {
+      if (!g.shift) store.set({ selection: [] });
+    } else if (!g.fresh) {
+      if (g.shift) store.set({ selection: selection.filter((id) => id !== g.pick) });
+      else store.set({ selection: [g.pick] });
+    }
+  } else if (g.kind === "move") {
+    drop(s, g, px, py);
+    endChange();
+  } else if (g.kind === "resize" || g.kind === "radius") endChange();
+  else if (g.kind === "draw") draw(s, g, { x: px, y: py }, e.shiftKey);
+  Object.assign(overlay, { marquee: null, guides: [], drop: null, ghosts: [], draft: null, moving: false, resizing: false });
+  idleCursor(s, e.offsetX, e.offsetY);
+  schedule();
+}
+
+function onDoubleClick(e: MouseEvent) {
+  const s = currentScene();
+  if (!s || store.get().tool !== "move" || overlay.editing) return;
+  const [px, py] = toPage(e.offsetX, e.offsetY);
+  const r = doubleClickPick(s, px, py, store.get().selection);
+  if (r.edit && r.id) startTextEdit(r.id, { x: px, y: py });
+  else if (r.id) store.set({ selection: [r.id] });
+  schedule();
+}
+
+const rectBetween = (a: Point, b: Point): Box => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) });
+
+// ---- Moving ----------------------------------------------------------------------------------------
+/** The ids being moved, for skipping them (and what is inside them) as drop targets. */
+const movingIds = (g: { held: Held[] }) => new Set(g.held.map((h) => h.node.id));
+
+/**
+ * Where a move would drop. Top-level frames stay on the page. Nodes in a row or column stay in it
+ * (they change place) while the pointer is inside it; outside it, or with Ctrl/⌘ held, they go into
+ * the frame under the pointer.
+ */
+function dropTarget(s: Scene, g: { held: Held[] }, px: number, py: number, deep: boolean): TreeNode {
+  if (g.held.every((h) => h.parent.id === ROOT_ID)) return s.tree;
+  const parent = g.held[0]!.parent;
+  const pb = s.boxes.get(parent.id);
+  const inside = !!pb && px >= pb.x && px <= pb.x + pb.w && py >= pb.y && py <= pb.y + pb.h;
+  if (!deep && inside && flows(parent) && g.held.every((h) => h.parent.id === parent.id)) return parent;
+  return frameAt(s, px, py, movingIds(g));
+}
+
+function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number, noSnap: boolean, deep: boolean) {
+  g.deep = deep;
+  let dx = px - g.from.x;
+  let dy = py - g.from.y;
+  const target = dropTarget(s, g, px, py, deep);
+  const parent = g.held[0]!.parent;
+  const stays = g.held.every((h) => h.parent.id === target.id && h.free);
+  if (stays) {
+    // Moving within its own place: the nodes follow the pointer, snapping to what is beside them.
+    const moving = movingIds(g);
+    const others = parent.children.filter((c) => !moving.has(c.id) && c.props.visible !== false).map((c) => boxOf(s, c.id));
+    if (parent.id !== ROOT_ID) others.push(boxOf(s, parent.id));
+    const snap = noSnap ? { dx: 0, dy: 0, guides: [] } : snapBox({ ...g.union, x: g.union.x + dx, y: g.union.y + dy }, others, SNAP / view.zoom);
+    dx += snap.dx;
+    dy += snap.dy;
+    overlay.guides = snap.guides;
+    overlay.ghosts = [];
+    overlay.drop = null;
+    g.live = true;
+    edit(() => {
+      for (const h of g.held) docStore.update(doc, h.node.id, { x: Math.round(h.box.x - h.parentBox.x + dx), y: Math.round(h.box.y - h.parentBox.y + dy) });
+    });
+    return;
+  }
+  // Going somewhere else (another frame, or a place in a row or column): show where, move on drop.
+  if (g.live) {
+    edit(() => g.held.forEach((h) => docStore.update(doc, h.node.id, { x: Math.round(h.box.x - h.parentBox.x), y: Math.round(h.box.y - h.parentBox.y) })));
+    g.live = false;
+  }
+  overlay.guides = [];
+  overlay.ghosts = g.held.map((h) => ({ ...h.box, x: h.box.x + dx, y: h.box.y + dy }));
+  overlay.drop = flows(target) ? flowSlot(s, target, px, py, movingIds(g)).line : null;
+}
+
+function drop(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number) {
+  const target = dropTarget(s, g, px, py, g.deep);
+  if (g.held.every((h) => h.parent.id === target.id && h.free)) return; // moved as it went
+  const dx = px - g.from.x;
+  const dy = py - g.from.y;
+  edit(() => {
+    if (flows(target)) {
+      // Into a row or column: before the child now at the slot, keeping the moved nodes' order.
+      const moving = movingIds(g);
+      const { index: at } = flowSlot(s, target, px, py, moving);
+      const anchor = target.children.filter((c) => !moving.has(c.id))[at]?.id;
+      for (const h of g.held) {
+        const siblings = docStore.childIds(doc, target.id).filter((c) => c !== h.node.id);
+        docStore.move(doc, h.node.id, target.id, anchor ? siblings.indexOf(anchor) : undefined);
+      }
+    } else {
+      const tb = target.id === ROOT_ID ? PAGE : boxOf(s, target.id);
+      for (const h of g.held) {
+        docStore.move(doc, h.node.id, target.id);
+        docStore.update(doc, h.node.id, { x: Math.round(h.box.x + dx - tb.x), y: Math.round(h.box.y + dy - tb.y) });
+      }
+    }
+  });
+}
+
+// ---- Resizing --------------------------------------------------------------------------------------
+function resizeTo(g: Extract<Gesture, { kind: "resize" }>, px: number, py: number, keepRatio: boolean, fromCentre: boolean) {
+  overlay.resizing = true;
+  const u = g.union;
+  const dx = px - g.from.x;
+  const dy = py - g.from.y;
+  let [l, t, r, b] = [u.x, u.y, u.x + u.w, u.y + u.h];
+  const c = g.corner;
+  if (c.includes("w")) l += dx;
+  if (c.includes("e")) r += dx;
+  if (c.includes("n")) t += dy;
+  if (c.includes("s")) b += dy;
+  if (fromCentre) {
+    if (c.includes("w")) r -= dx;
+    if (c.includes("e")) l -= dx;
+    if (c.includes("n")) b -= dy;
+    if (c.includes("s")) t -= dy;
+  }
+  let w = Math.max(1, Math.abs(r - l));
+  let h = Math.max(1, Math.abs(b - t));
+  if (keepRatio && c.length === 2) {
+    const k = Math.max(w / u.w, h / u.h);
+    [w, h] = [u.w * k, u.h * k];
+    if (c.includes("w")) l = r - w;
+    if (c.includes("n")) t = b - h;
+  }
+  const box = { x: Math.min(l, r), y: Math.min(t, b), w, h };
+  const sx = box.w / u.w;
+  const sy = box.h / u.h;
+  const horizontal = c !== "n" && c !== "s";
+  const vertical = c !== "e" && c !== "w";
+  edit(() => {
+    for (const hd of g.held) {
+      const props: Partial<NodeProps> = {};
+      if (horizontal) props.width = Math.max(1, Math.round(hd.box.w * sx));
+      if (vertical) props.height = Math.max(1, Math.round(hd.box.h * sy));
+      if (hd.free) {
+        props.x = Math.round(box.x + (hd.box.x - u.x) * sx - hd.parentBox.x);
+        props.y = Math.round(box.y + (hd.box.y - u.y) * sy - hd.parentBox.y);
+      }
+      docStore.update(doc, hd.node.id, props);
+    }
+  });
+}
+
+/** Dragging a corner-radius handle towards the middle rounds all four corners. */
+function roundTo(g: Extract<Gesture, { kind: "radius" }>, px: number, py: number) {
+  const b = g.box;
+  const [cx, cy] = [g.corner % 2 ? b.x + b.w : b.x, g.corner < 2 ? b.y : b.y + b.h];
+  const inward = (Math.abs(px - cx) + Math.abs(py - cy)) / 2;
+  const radius = Math.round(Math.max(0, Math.min(Math.min(b.w, b.h) / 2, inward)));
+  edit(() => docStore.update(doc, g.id, { radius }));
+}
+
+// ---- Drawing ---------------------------------------------------------------------------------------
+function drawnBox(g: Extract<Gesture, { kind: "draw" }>, to: Point, square: boolean): Box {
+  let w = to.x - g.from.x;
+  let h = to.y - g.from.y;
+  if (square) {
+    const side = Math.max(Math.abs(w), Math.abs(h));
+    [w, h] = [Math.sign(w || 1) * side, Math.sign(h || 1) * side];
+  }
+  return rectBetween(g.from, { x: g.from.x + w, y: g.from.y + h });
+}
+
+function draw(s: Scene, g: Extract<Gesture, { kind: "draw" }>, to: Point, square: boolean) {
+  const dragged = Math.hypot(to.x - g.from.x, to.y - g.from.y) * view.zoom >= DRAG_START;
+  const box = dragged ? drawnBox(g, to, square) : { x: g.from.x, y: g.from.y, w: DEFAULT_SIZE, h: DEFAULT_SIZE };
+  const size = { width: Math.max(1, Math.round(box.w)), height: Math.max(1, Math.round(box.h)) };
+  const spec: NodeSpec =
+    g.tool === "rect"
+      ? { type: "rect", name: "Rectangle", ...size, fill: SHAPE_FILL }
+      : g.tool === "ellipse"
+        ? { type: "ellipse", name: "Ellipse", ...size, fill: SHAPE_FILL }
+        : g.tool === "frame"
+          ? { type: "frame", name: "Frame", ...size, fill: "#FFFFFF", layout: "none" }
+          : { type: "text", text: "", ...(dragged ? { width: size.width } : {}) };
+  const c = g.container;
+  let id = "";
+  edit(() => {
+    if (flows(c)) id = docStore.insert(doc, c.id, spec, flowSlot(s, c, g.from.x, g.from.y).index);
+    else {
+      const cb = c.id === ROOT_ID ? PAGE : boxOf(s, c.id);
+      id = docStore.insert(doc, c.id, { ...spec, x: Math.round(box.x - cb.x), y: Math.round(box.y - cb.y) });
+    }
+  });
+  store.set({ selection: [id], tool: "move" });
+  if (g.tool === "text") startTextEdit(id);
+}
+
+// ---- Keys ------------------------------------------------------------------------------------------
+const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "ellipse", f: "frame", a: "frame", t: "text" };
+
+/** Handles a key meant for the canvas; returns whether it did. */
+export function canvasKey(e: KeyboardEvent): boolean {
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (e.key === " " && !mod) {
+    e.preventDefault();
+    if (!space) (space = true), el && idleCursor(currentScene(), -1, -1);
+    return true;
+  }
+  if (!mod && !e.altKey && !e.shiftKey && TOOL_KEYS[key]) {
+    store.set({ tool: TOOL_KEYS[key]! });
+    return true;
+  }
+  if (e.key === "Escape" && store.get().tool !== "move") {
+    store.set({ tool: "move" });
+    return true;
+  }
+  if (e.key.startsWith("Arrow") && !mod) {
+    e.preventDefault();
+    nudge(e.key.slice(5).toLowerCase() as "left" | "right" | "up" | "down", e.shiftKey ? 10 : 1);
+    return true;
+  }
+  if (mod && (e.key === "]" || e.key === "[")) {
+    e.preventDefault();
+    step(e.key === "]" ? 1 : -1);
+    return true;
+  }
+  return false;
+}
+
+export function canvasKeyUp(e: KeyboardEvent): void {
+  if (e.key === " ") (space = false), el && idleCursor(currentScene(), -1, -1);
+}
+
+/**
+ * The arrows move freely placed nodes by a pixel (ten with Shift); a node in a row or column moves one
+ * place along it instead.
+ */
+function nudge(dir: "left" | "right" | "up" | "down", by: number) {
+  const s = currentScene();
+  if (!s) return;
+  const held = hold(s, store.get().selection);
+  if (!held.length) return;
+  const [dx, dy] = { left: [-by, 0], right: [by, 0], up: [0, -by], down: [0, by] }[dir];
+  edit(() => {
+    for (const h of held) {
+      if (h.free) {
+        docStore.update(doc, h.node.id, { x: Math.round(h.box.x - h.parentBox.x + dx!), y: Math.round(h.box.y - h.parentBox.y + dy!) });
+        continue;
+      }
+      const row = h.parent.props.layout === "row";
+      if ((row && dy) || (!row && dx)) continue;
+      const siblings = docStore.childIds(doc, h.parent.id);
+      const at = siblings.indexOf(h.node.id) + Math.sign(dx! + dy!);
+      if (at >= 0 && at < siblings.length) docStore.move(doc, h.node.id, h.parent.id, at);
+    }
+  });
+}
+
+/** Ctrl/⌘ + ] and [: bring forward or send backward one place. */
+function step(dir: 1 | -1) {
+  const ids = store.get().selection;
+  edit(() => {
+    for (const id of dir > 0 ? [...ids].reverse() : ids) {
+      const parent = docStore.parentOf(doc, id);
+      if (!parent) continue;
+      const siblings = docStore.childIds(doc, parent);
+      const at = siblings.indexOf(id) + dir;
+      if (at >= 0 && at < siblings.length) docStore.move(doc, id, parent, at);
+    }
+  });
+}
+
+export function attachGestures(canvas: HTMLCanvasElement): () => void {
+  el = canvas;
+  const onLeave = () => (store.get().hover && store.set({ hover: null }), schedule());
+  el.addEventListener("pointerdown", onDown);
+  el.addEventListener("pointermove", onMove);
+  el.addEventListener("pointerup", onUp);
+  el.addEventListener("pointercancel", onUp);
+  el.addEventListener("dblclick", onDoubleClick);
+  el.addEventListener("pointerleave", onLeave);
+  return () => {
+    el.removeEventListener("pointerdown", onDown);
+    el.removeEventListener("pointermove", onMove);
+    el.removeEventListener("pointerup", onUp);
+    el.removeEventListener("pointercancel", onUp);
+    el.removeEventListener("dblclick", onDoubleClick);
+    el.removeEventListener("pointerleave", onLeave);
+  };
+}

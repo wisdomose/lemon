@@ -25,7 +25,7 @@ export const promptSchema = new Schema({
       group: "inline",
       atom: true,
       selectable: false,
-      attrs: { id: {}, name: {}, kind: { default: "frame" } },
+      attrs: { id: {}, name: {}, kind: { default: "frame" }, members: { default: null } },
       toDOM: (n) => ["span", { "data-chip": n.attrs.id }, n.attrs.name],
     },
   },
@@ -34,7 +34,9 @@ export const promptSchema = new Schema({
 export interface ChipRef {
   id: string;
   name: string;
-  kind: LemonNodeType;
+  kind: LemonNodeType | "nodes";
+  /** For a chip standing for several selected nodes ("3 nodes"): each of them. */
+  members?: { id: string; kind: LemonNodeType; name: string }[] | null;
 }
 
 /** The last chip, with its position, if nothing but spaces follows it. */
@@ -87,7 +89,8 @@ export function promptText(doc: PMNode): { shown: string; forAgent: string; refs
       const ref = node.attrs as ChipRef;
       refs.push(ref);
       shown += `[${ref.name}]`;
-      forAgent += `<ref id="${ref.id}" type="${ref.kind}">${ref.name}</ref>`;
+      const each = ref.members ?? [ref];
+      forAgent += each.map((m) => `<ref id="${m.id}" type="${m.kind}">${m.name}</ref>`).join(" ");
     }
     return true;
   });

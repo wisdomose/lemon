@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { DEFAULT_MODEL } from "../agent/models.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
-export type Tool = "move" | "rect" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
+export type Tool = "move" | "rect" | "ellipse" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
 
 export type ChatItem =
   | { kind: "user"; text: string }
@@ -26,7 +26,8 @@ export type ChatItem =
 export interface EditorState {
   tab: Tab;
   tool: Tool;
-  selection: string | null;
+  /** Selected nodes, in the order they were picked (the last is the one panels show first). */
+  selection: string[];
   hover: string | null;
   zoom: number;
   /** Bumped on every document change, so panels that show the document re-read it. */
@@ -52,7 +53,7 @@ export interface Session {
 const initial: EditorState = {
   tab: "agent",
   tool: "move",
-  selection: null,
+  selection: [],
   hover: null,
   zoom: 1,
   docVersion: 0,

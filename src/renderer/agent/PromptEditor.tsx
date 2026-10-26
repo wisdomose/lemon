@@ -8,10 +8,10 @@ import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import type { Node as PMNode } from "prosemirror-model";
-import { Circle, createElement, Frame, Image, Square, Type, type IconNode } from "lucide";
+import { Circle, createElement, Frame, Image, Layers, Square, Type, type IconNode } from "lucide";
 import { followSelection, promptSchema, promptText, type ChipRef } from "./prompt-doc.js";
 
-const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image };
+const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image, nodes: Layers };
 
 /**
  * How a chip looks (measured from the reference: 21px tall, 1px border, 10px muted text). It is anchored

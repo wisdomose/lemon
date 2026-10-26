@@ -3,6 +3,7 @@ import { Minus, Plus } from "lucide-react";
 import { DropdownMenu as M } from "radix-ui";
 import { setZoom, zoomStep, zoomToFit } from "../canvas/canvas.js";
 import { currentScene } from "../scene.js";
+import { unionBox } from "../canvas/pick.js";
 import { store, useEditor } from "../store.js";
 import { Island } from "../ui/kit.js";
 import { MenuContent, MenuItem } from "../ui/menu.js";
@@ -10,10 +11,10 @@ import { MenuContent, MenuItem } from "../ui/menu.js";
 export function ZoomControl() {
   const zoom = useEditor((s) => s.zoom);
   // Sits 8px left of the properties panel while something is selected, as in the reference.
-  const panel = useEditor((s) => s.selection !== null);
+  const panel = useEditor((s) => s.selection.length > 0);
   const zoomToSelection = () => {
-    const id = store.get().selection;
-    const box = id ? currentScene()?.boxes.get(id) : undefined;
+    const s = currentScene();
+    const box = s && unionBox(s.boxes, store.get().selection);
     if (box) zoomToFit(true, box, 32);
   };
   return (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "radix-ui";
 import { ColourPicker } from "../ui/ColourPicker.js";
 import {
+  Copy,
   AlignCenterHorizontal,
   AlignCenterVertical,
   AlignEndHorizontal,
@@ -53,8 +54,15 @@ import { Island, cx } from "../ui/kit.js";
 // Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
 const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
 
-function set(id: string, props: Partial<NodeProps>) {
-  edit(() => store.update(doc, id, props));
+/** Changes every selected node (edits made with several selected apply to all of them). */
+function set(ids: string[], props: Partial<NodeProps>) {
+  edit(() => ids.forEach((id) => store.exists(doc, id) && store.update(doc, id, props)));
+}
+
+/** The value shared by all of `ids`, or "Mixed" (as in the reference, capture 34). */
+function shared(ids: string[], value: (id: string) => number | string): number | string {
+  const values = ids.map(value);
+  return values.every((v) => v === values[0]) ? values[0]! : "Mixed";
 }
 
 /** A number field with a leading letter or icon; commits on Enter or when it loses focus. */
@@ -168,8 +176,16 @@ export function PropertiesPanel() {
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
   const scene = currentScene();
-  const node = selection && scene ? findNode(scene.tree, selection) : undefined;
+  const ids = scene ? selection.filter((id) => findNode(scene.tree, id)) : [];
+  // The panel shows the last node picked; with several selected, values that differ read "Mixed".
+  const node = scene && ids.length ? findNode(scene.tree, ids.at(-1)!) : undefined;
   if (!node || !scene) return null;
+  const many = ids.length > 1;
+  const boxOf = (id: string) => scene.boxes.get(id) ?? { x: 0, y: 0, w: 0, h: 0 };
+  const parentBoxOf = (id: string) => {
+    const pid = store.parentOf(doc, id);
+    return pid && pid !== "root" ? boxOf(pid) : { x: 0, y: 0, w: 0, h: 0 };
+  };
   const p = node.props;
   const box = scene.boxes.get(node.id) ?? { x: 0, y: 0, w: 0, h: 0 };
   const parent = store.parentOf(doc, node.id);
@@ -186,15 +202,25 @@ export function PropertiesPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-line pt-2 pr-[13px] pb-2 pl-[11px]">
           <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-foreground">
-            <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
+            {many ? (
+              <>
+                <Copy size={16} strokeWidth={1.5} /> <span className="truncate">{ids.length} selected</span>
+              </>
+            ) : (
+              <>
+                <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
+              </>
+            )}
             <PanelRight size={16} strokeWidth={1.5} className="ml-auto text-muted-foreground" />
           </div>
-          <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
-            <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
-          </button>
+          {!many && (
+            <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
+              <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
+            </button>
+          )}
         </div>
 
-        <Section title="Context" action={<ChevronDown size={14} strokeWidth={1.5} />} />
+        {!many && <Section title="Context" action={<ChevronDown size={14} strokeWidth={1.5} />} />}
 
         <Section title="Alignment">
           <div className="flex gap-[6px]">
@@ -207,19 +233,19 @@ export function PropertiesPanel() {
           <div className="grid grid-cols-2 gap-[6px]">
             <NumberField
               lead="X"
-              value={Math.round((box.x - (parentBox?.x ?? 0)) * 10) / 10}
-              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (x) => set(node.id, { x }) : undefined}
+              value={shared(ids, (id) => Math.round((boxOf(id).x - parentBoxOf(id).x) * 10) / 10)}
+              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (x) => set(ids, { x }) : undefined}
             />
             <NumberField
               lead="Y"
-              value={Math.round((box.y - (parentBox?.y ?? 0)) * 10) / 10}
-              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (y) => set(node.id, { y }) : undefined}
+              value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)}
+              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (y) => set(ids, { y }) : undefined}
             />
             <NumberField lead={<RotateCw size={12} strokeWidth={1.5} />} value="0°" />
             <ButtonGroup icons={[RotateCw, FlipVertical2, FlipHorizontal2]} />
           </div>
           {parentFrame && parentFrame.props.layout !== "none" && (
-            <Check2 label="Absolute Position" checked={!!p.absolute} onChange={(v) => set(node.id, { absolute: v, ...(v ? { x: Math.round(box.x - parentBox!.x), y: Math.round(box.y - parentBox!.y) } : {}) })} />
+            <Check2 label="Absolute Position" checked={!!p.absolute} onChange={(v) => set(ids, { absolute: v, ...(v ? { x: Math.round(box.x - parentBox!.x), y: Math.round(box.y - parentBox!.y) } : {}) })} />
           )}
         </Section>
 
@@ -230,7 +256,7 @@ export function PropertiesPanel() {
           {isFrame && (
             <Segmented
               value={p.layout ?? "column"}
-              onChange={(layout) => set(node.id, { layout })}
+              onChange={(layout) => set(ids, { layout })}
               options={[
                 { value: "none", icon: LayoutGrid, label: "No layout" },
                 { value: "column", icon: ArrowDownFromLine, label: "Vertical" },
@@ -238,18 +264,18 @@ export function PropertiesPanel() {
               ]}
             />
           )}
-          {flex && <FlexControls node={node} />}
+          {flex && <FlexControls node={node} ids={ids} />}
           {/* Without layout buttons the label sits right under the title, as in the reference. */}
           <div className={cx(!isFrame && "-mt-[6px]")}><Label>Dimensions</Label></div>
           <div className="grid grid-cols-2 gap-[6px]">
-            <NumberField lead="W" value={sizeNum(p.width, box.w)} onCommit={(width) => set(node.id, { width })} />
-            <NumberField lead="H" value={sizeNum(p.height, box.h)} onCommit={(height) => set(node.id, { height })} />
-            <Check2 label="Fill Width" checked={p.width === "fill"} onChange={(v) => set(node.id, { width: v ? "fill" : Math.round(box.w) })} />
-            <Check2 label="Fill Height" checked={p.height === "fill"} onChange={(v) => set(node.id, { height: v ? "fill" : Math.round(box.h) })} />
+            <NumberField lead="W" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).width, boxOf(id).w))} onCommit={(width) => set(ids, { width })} />
+            <NumberField lead="H" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).height, boxOf(id).h))} onCommit={(height) => set(ids, { height })} />
+            <Check2 label="Fill Width" checked={p.width === "fill"} onChange={(v) => set(ids, { width: v ? "fill" : Math.round(box.w) })} />
+            <Check2 label="Fill Height" checked={p.height === "fill"} onChange={(v) => set(ids, { height: v ? "fill" : Math.round(box.h) })} />
             {(flex || node.type === "text") && (
               <>
-                <Check2 label="Hug Width" checked={p.width === "fit" || p.width === undefined} onChange={(v) => set(node.id, { width: v ? "fit" : Math.round(box.w) })} />
-                <Check2 label="Hug Height" checked={p.height === "fit" || p.height === undefined} onChange={(v) => set(node.id, { height: v ? "fit" : Math.round(box.h) })} />
+                <Check2 label="Hug Width" checked={p.width === "fit" || p.width === undefined} onChange={(v) => set(ids, { width: v ? "fit" : Math.round(box.w) })} />
+                <Check2 label="Hug Height" checked={p.height === "fit" || p.height === undefined} onChange={(v) => set(ids, { height: v ? "fit" : Math.round(box.h) })} />
               </>
             )}
           </div>
@@ -258,7 +284,7 @@ export function PropertiesPanel() {
         <Section
           title="Appearance"
           action={
-            <button type="button" aria-label="Visibility" onClick={() => set(node.id, { visible: p.visible === false })}>
+            <button type="button" aria-label="Visibility" onClick={() => set(ids, { visible: p.visible === false })}>
               {p.visible === false ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}
             </button>
           }
@@ -268,25 +294,25 @@ export function PropertiesPanel() {
               className="flex-1"
               lead={<SquareSlash size={12} strokeWidth={1.5} />}
               value={Math.round((p.opacity ?? 1) * 100)}
-              onCommit={(v) => set(node.id, { opacity: Math.max(0, Math.min(100, v)) / 100 })}
+              onCommit={(v) => set(ids, { opacity: Math.max(0, Math.min(100, v)) / 100 })}
             />
             <NumberField
               className="flex-1"
               lead={<SquareDashed size={12} strokeWidth={1.5} />}
               value={typeof p.radius === "number" ? p.radius : 0}
               disabled={node.type === "text"}
-              onCommit={(radius) => set(node.id, { radius })}
+              onCommit={(radius) => set(ids, { radius })}
             />
             <Scan size={16} strokeWidth={1.5} className="mt-1 shrink-0 text-muted-foreground" />
           </div>
-          {isFrame && <Check2 label="Clip Content" checked={!!p.clip} onChange={(clip) => set(node.id, { clip })} />}
+          {isFrame && <Check2 label="Clip Content" checked={!!p.clip} onChange={(clip) => set(ids, { clip })} />}
         </Section>
 
         <Section
           title="Fill"
           action={
             !colour && (
-              <button type="button" aria-label="Add fill" onClick={() => set(node.id, { fill: "#D9D9D9" })}>
+              <button type="button" aria-label="Add fill" onClick={() => set(ids, { fill: "#D9D9D9" })}>
                 <Plus size={16} strokeWidth={1.5} />
               </button>
             )
@@ -296,19 +322,19 @@ export function PropertiesPanel() {
             <ColourRow
               value={colour}
               allowGradient={node.type !== "text"}
-              onChange={(c) => set(node.id, node.type === "text" ? { color: c as string } : { fill: c })}
-              onRemove={node.type === "text" ? undefined : () => set(node.id, { fill: null as never })}
+              onChange={(c) => set(ids, node.type === "text" ? { color: c as string } : { fill: c })}
+              onRemove={node.type === "text" ? undefined : () => set(ids, { fill: null as never })}
             />
           )}
         </Section>
 
-        {node.type === "text" && <Typography node={node} />}
+        {node.type === "text" && <Typography node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "text")} />}
 
         <Section
           title="Stroke"
           action={
             !p.stroke && (
-              <button type="button" aria-label="Add stroke" onClick={() => set(node.id, { stroke: { color: "#000000", width: 1 } })}>
+              <button type="button" aria-label="Add stroke" onClick={() => set(ids, { stroke: { color: "#000000", width: 1 } })}>
                 <Plus size={16} strokeWidth={1.5} />
               </button>
             )
@@ -318,14 +344,14 @@ export function PropertiesPanel() {
             <>
               <ColourRow
                 value={p.stroke.color}
-                onChange={(color) => set(node.id, { stroke: { ...p.stroke!, color: color as string } })}
-                onRemove={() => set(node.id, { stroke: null as never })}
+                onChange={(color) => set(ids, { stroke: { ...p.stroke!, color: color as string } })}
+                onRemove={() => set(ids, { stroke: null as never })}
               />
               <div className="grid grid-cols-2 gap-[6px]">
                 <Label>Position</Label>
                 <Label>Weight</Label>
                 <div className={FIELD}>Inside <ChevronDown size={12} className="ml-auto" /></div>
-                <NumberField lead="W" value={p.stroke.width} onCommit={(width) => set(node.id, { stroke: { ...p.stroke!, width } })} />
+                <NumberField lead="W" value={p.stroke.width} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
               </div>
             </>
           )}
@@ -440,7 +466,7 @@ function ColourRow({
   );
 }
 
-function FlexControls({ node }: { node: TreeNode }) {
+function FlexControls({ node, ids }: { node: TreeNode; ids: string[] }) {
   const p = node.props;
   const row = p.layout === "row";
   // The 3×3 grid sets justify along the layout's axis and align across it.
@@ -450,7 +476,7 @@ function FlexControls({ node }: { node: TreeNode }) {
   const at = (col: number, r: number) => (row ? idx(justify) === col && idx(align) === r : idx(align) === col && idx(justify) === r);
   const pick = (col: number, r: number) => {
     const v = (i: number) => (["start", "center", "end"] as const)[i]!;
-    set(node.id, row ? { justify: v(col), align: v(r) } : { align: v(col), justify: v(r) });
+    set(ids, row ? { justify: v(col), align: v(r) } : { align: v(col), justify: v(r) });
   };
   const pad = Array.isArray(p.padding) ? p.padding : [p.padding ?? 0, p.padding ?? 0];
   const [py, px] = pad.length === 4 ? [pad[0], pad[1]] : [pad[0], pad[1]];
@@ -469,22 +495,22 @@ function FlexControls({ node }: { node: TreeNode }) {
           )}
         </div>
         <div className="space-y-1.5 text-[10px] text-foreground">
-          <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={p.gap ?? 0} onCommit={(gap) => set(node.id, { gap, justify: p.justify === "between" ? "start" : p.justify })} />
-          <button type="button" className="flex items-center gap-2" onClick={() => set(node.id, { justify: "between" })}>
+          <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={p.gap ?? 0} onCommit={(gap) => set(ids, { gap, justify: p.justify === "between" ? "start" : p.justify })} />
+          <button type="button" className="flex items-center gap-2" onClick={() => set(ids, { justify: "between" })}>
             <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justify === "between" && "border-[4px] border-foreground")} /> Space Between
           </button>
         </div>
       </div>
       <Label>Padding</Label>
       <div className="grid grid-cols-2 gap-[6px]">
-        <NumberField lead="↔" value={Number(px)} onCommit={(v) => set(node.id, { padding: [Number(py), v] })} />
-        <NumberField lead="↕" value={Number(py)} onCommit={(v) => set(node.id, { padding: [v, Number(px)] })} />
+        <NumberField lead="↔" value={Number(px)} onCommit={(v) => set(ids, { padding: [Number(py), v] })} />
+        <NumberField lead="↕" value={Number(py)} onCommit={(v) => set(ids, { padding: [v, Number(px)] })} />
       </div>
     </>
   );
 }
 
-function Typography({ node }: { node: TreeNode }) {
+function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
   const p = node.props;
   const WEIGHTS: [number, string][] = [
     [100, "Thin"], [200, "Extra Light"], [300, "Light"], [400, "Regular"], [500, "Medium"],
@@ -500,16 +526,16 @@ function Typography({ node }: { node: TreeNode }) {
         <div className={FIELD}>
           {weightName} <ChevronDown size={12} className="ml-auto" />
         </div>
-        <NumberField lead="Aa" value={Number(p.size ?? 16)} onCommit={(size) => set(node.id, { size })} />
+        <NumberField lead="Aa" value={Number(p.size ?? 16)} onCommit={(size) => set(ids, { size })} />
         <Label>Line height</Label>
         <Label>Letter spacing</Label>
-        <NumberField lead="↕" value={p.lineHeight ?? "Auto"} onCommit={(lineHeight) => set(node.id, { lineHeight })} />
-        <NumberField lead="|A|" value={p.letterSpacing ?? 0} onCommit={(letterSpacing) => set(node.id, { letterSpacing })} />
+        <NumberField lead="↕" value={p.lineHeight ?? "Auto"} onCommit={(lineHeight) => set(ids, { lineHeight })} />
+        <NumberField lead="|A|" value={p.letterSpacing ?? 0} onCommit={(letterSpacing) => set(ids, { letterSpacing })} />
         <Label>Horizontal</Label>
         <Label>Vertical</Label>
         <Segmented
           value={p.textAlign ?? "left"}
-          onChange={(textAlign) => set(node.id, { textAlign })}
+          onChange={(textAlign) => set(ids, { textAlign })}
           options={[
             { value: "left", icon: AlignLeft, label: "Left" },
             { value: "center", icon: AlignCenter, label: "Centre" },
