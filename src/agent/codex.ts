@@ -1,9 +1,13 @@
 // Codex's local app server owns authentication; Lemon handles only canvas tools and public account data.
+// Lemon ships its own Codex (the @openai/codex package, pinned) and starts its program directly: the
+// app-server protocol is experimental, so the person's installed Codex could speak another version of
+// it, and on Windows the installed `codex` is an npm .cmd shim that Node can't start without a shell.
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { CodexModel } from "./models.js";
 import { PRODUCT } from "../product.js";
@@ -16,6 +20,33 @@ interface RpcMessage {
   error?: { code?: number; message: string };
 }
 
+/** Codex's build for each platform: its package (an optional dependency of @openai/codex) and target. */
+const TARGETS: Record<string, string> = {
+  "win32-x64": "x86_64-pc-windows-msvc",
+  "win32-arm64": "aarch64-pc-windows-msvc",
+  "darwin-x64": "x86_64-apple-darwin",
+  "darwin-arm64": "aarch64-apple-darwin",
+  "linux-x64": "x86_64-unknown-linux-musl",
+  "linux-arm64": "aarch64-unknown-linux-musl",
+};
+
+/** The bundled Codex program for this computer (outside the app archive, where programs can run). */
+export function codexBinary(): string {
+  const platform = `${process.platform}-${process.arch}`;
+  const target = TARGETS[platform];
+  if (!target) throw new Error(`Codex doesn't run on this computer (${platform}).`);
+  let pkg: string;
+  try {
+    const codex = createRequire(import.meta.url).resolve("@openai/codex/package.json");
+    pkg = createRequire(codex).resolve(`@openai/codex-${platform}/package.json`);
+  } catch {
+    throw new Error(`This copy of ${PRODUCT.name} has no Codex for ${platform}. Reinstall ${PRODUCT.name}.`);
+  }
+  const exe = join(dirname(pkg), "vendor", target, "bin", process.platform === "win32" ? "codex.exe" : "codex").replace(/app\.asar(?=[\\/])/, "app.asar.unpacked");
+  if (!existsSync(exe)) throw new Error(`Codex is missing from this copy of ${PRODUCT.name} (${exe}). Reinstall ${PRODUCT.name}.`);
+  return exe;
+}
+
 /** A local JSON-lines connection, with request deadlines and deterministic process cleanup. */
 export class CodexConnection {
   private child: ChildProcessWithoutNullStreams;
@@ -26,7 +57,7 @@ export class CodexConnection {
   onClose?: (error: Error) => void;
 
   constructor() {
-    this.child = spawn("codex", ["app-server"], { stdio: "pipe", windowsHide: true });
+    this.child = spawn(codexBinary(), ["app-server"], { stdio: "pipe", windowsHide: true });
     // Drain diagnostics without exposing potentially sensitive configuration in the UI.
     this.child.stderr.resume();
     const lines = createInterface({ input: this.child.stdout });
@@ -43,7 +74,7 @@ export class CodexConnection {
         else pending.resolve(m.result);
       } else this.onMessage?.(m);
     });
-    this.child.on("error", () => this.fail(new Error("Could not start Codex. Install Codex CLI and run `codex login`.")));
+    this.child.on("error", (e) => this.fail(new Error(`Could not start Codex: ${e.message}`)));
     this.child.on("exit", () => this.fail(new Error("Codex app server stopped.")));
     this.child.stdin.on("error", () => this.fail(new Error("Codex connection closed.")));
   }
@@ -95,20 +126,63 @@ export interface ProviderStatus {
   loggedIn: boolean;
   email?: string;
   plan?: string;
+  /** Why Codex couldn't be asked (it didn't start, or stopped): not the same as being signed out. */
+  error?: string;
 }
 
 /** Read account metadata through Codex, without opening its credential files. */
 export async function codexStatus(): Promise<ProviderStatus> {
-  const connection = new CodexConnection();
+  let connection: CodexConnection | undefined;
   try {
+    connection = new CodexConnection();
     await connection.initialize();
     const { account } = await connection.request<{ account: { email?: string; planType?: string } | null }>("account/read", { refreshToken: false });
     return { loggedIn: !!account, ...(account?.email ? { email: account.email } : {}), ...(account?.planType ? { plan: account.planType } : {}) };
-  } catch {
-    return { loggedIn: false };
+  } catch (e) {
+    return { loggedIn: false, error: e instanceof Error ? e.message : String(e) };
   } finally {
-    connection.close();
+    connection?.close();
   }
+}
+
+/** How long a sign-in in the browser may take before it is given up. */
+const SIGN_IN_MS = 10 * 60_000;
+
+/**
+ * Signs in to Codex with a ChatGPT account: Codex gives a link, `open` shows it in the browser, and
+ * Codex keeps the credentials (as `codex login` would). Resolves with the account once done.
+ */
+export async function codexSignIn(open: (url: string) => void): Promise<ProviderStatus> {
+  let connection: CodexConnection | undefined;
+  try {
+    connection = new CodexConnection();
+    const c = connection;
+    let loginId: string | undefined;
+    const finished = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Sign-in took too long. Try again.")), SIGN_IN_MS);
+      c.onClose = (e) => (clearTimeout(timer), reject(e));
+      c.onMessage = (m) => {
+        if (m.method !== "account/login/completed") return;
+        const p = (m.params ?? {}) as { success?: boolean; error?: string | null; loginId?: string | null };
+        if (p.loginId && loginId && p.loginId !== loginId) return;
+        clearTimeout(timer);
+        if (p.success) resolve();
+        else reject(new Error(p.error || "Sign-in didn't finish."));
+      };
+    });
+    void finished.catch(() => {});
+    await c.initialize();
+    const started = await c.request<{ type: string; authUrl?: string; loginId?: string }>("account/login/start", { type: "chatgpt" });
+    if (!started.authUrl) throw new Error("Codex didn't give a sign-in link.");
+    loginId = started.loginId;
+    open(started.authUrl);
+    await finished;
+  } catch (e) {
+    connection?.close();
+    return { loggedIn: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  connection.close();
+  return codexStatus();
 }
 
 // Validate the public protocol boundary; malformed or partial catalogs must not replace cached models.
@@ -125,8 +199,22 @@ const modelPage = z.object({
   nextCursor: z.string().nullable().default(null),
 });
 
+/** How long a discovered model list is reused before Codex is asked again (each ask starts Codex). */
+const MODELS_FRESH_MS = 10 * 60_000;
+let known: { at: number; models: Promise<CodexModel[]> } | undefined;
+
+/** The models Codex offers: asked again only when the last answer is old (or `fresh` is asked for). */
+export function codexModels(fresh = false): Promise<CodexModel[]> {
+  if (!fresh && known && performance.now() - known.at < MODELS_FRESH_MS) return known.models;
+  const models = discoverModels();
+  known = { at: performance.now(), models };
+  // A failed ask is not remembered.
+  models.catch(() => known?.models === models && (known = undefined));
+  return models;
+}
+
 /** Discover every picker-visible model through the signed-in CLI, without starting a model turn. */
-export async function codexModels(): Promise<CodexModel[]> {
+async function discoverModels(): Promise<CodexModel[]> {
   const connection = new CodexConnection();
   try {
     await connection.initialize();

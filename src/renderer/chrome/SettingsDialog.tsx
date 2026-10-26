@@ -4,6 +4,7 @@ import { Dialog as D, Switch as S } from "radix-ui";
 import { Bot, MessageSquare, Moon, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
 import { PRODUCT } from "../../product.js";
 import { MODELS } from "../../agent/models.js";
+import type { ProviderStatus } from "../../agent/codex.js";
 import { bridge } from "../bridge.js";
 import { setSetting, useSettings, type Settings } from "../settings.js";
 import { cx } from "../ui/kit.js";
@@ -20,7 +21,7 @@ const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [page, setPage] = useState<Page>("general");
   const [claude, setClaude] = useState<{ loggedIn: boolean; email?: string; plan?: string }>();
-  const [codex, setCodex] = useState<{ loggedIn: boolean; email?: string; plan?: string }>();
+  const [codex, setCodex] = useState<ProviderStatus>();
   useEffect(() => {
     if (!open) return;
     // Refresh both providers independently so one missing CLI cannot hide the other account.
@@ -71,7 +72,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               <X size={16} strokeWidth={1.5} />
             </D.Close>
             {page === "general" && <General />}
-            {page === "agents" && <Agents claude={claude} codex={codex} />}
+            {page === "agents" && <Agents claude={claude} codex={codex} onCodex={setCodex} />}
             {page === "names" && <Placeholder title="Agent Names" text="Choose the names agents show on their cursors. Coming with parallel agents." />}
             {page === "chat" && <ChatPage />}
             {page === "mcp" && <Placeholder title="MCP" text="Give agents extra tools from MCP servers, and let other AI tools design in this app. Not built yet." />}
@@ -194,7 +195,18 @@ function General() {
   );
 }
 
-function Agents({ claude, codex }: { claude?: { loggedIn: boolean; email?: string }; codex?: { loggedIn: boolean; email?: string; plan?: string } }) {
+function Agents({ claude, codex, onCodex }: { claude?: { loggedIn: boolean; email?: string }; codex?: ProviderStatus; onCodex: (s: ProviderStatus) => void }) {
+  const [signingIn, setSigningIn] = useState(false);
+  // Codex comes with the app; signing in opens the browser (ChatGPT account), as `codex login` does.
+  const signIn = () => {
+    setSigningIn(true);
+    void bridge.codexSignIn().then(onCodex).finally(() => setSigningIn(false));
+  };
+  const codexNote = codex?.loggedIn
+    ? [codex.email, codex.plan].filter(Boolean).join(" · ") || "Signed in with ChatGPT"
+    : codex?.error
+      ? codex.error
+      : "Sign in with your ChatGPT account";
   return (
     <>
       <H1>Agents</H1>
@@ -212,11 +224,22 @@ function Agents({ claude, codex }: { claude?: { loggedIn: boolean; email?: strin
           {claude === undefined ? "Checking status…" : claude.loggedIn ? "Signed in" : "Not connected"}
         </span>
       </Row>
-      <Row label="Codex" note={codex?.loggedIn ? [codex.email, codex.plan].filter(Boolean).join(" · ") || "Uses your configured Codex model" : "Install Codex CLI, then run codex login"}>
-        <span className={cx("flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px]", codex?.loggedIn ? "border-input text-foreground" : "border-amber-500/60 text-amber-400")}>
-          {codex?.loggedIn && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-          {codex === undefined ? "Checking status…" : codex.loggedIn ? "Signed in" : "Not connected"}
-        </span>
+      <Row label="Codex" note={codexNote}>
+        {codex && !codex.loggedIn && !codex.error ? (
+          <button
+            type="button"
+            disabled={signingIn}
+            onClick={signIn}
+            className="flex h-6 items-center rounded-full border border-input px-2.5 text-[12px] text-foreground hover:bg-foreground/5 disabled:opacity-60"
+          >
+            {signingIn ? "Waiting for the browser…" : "Sign in"}
+          </button>
+        ) : (
+          <span className={cx("flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px]", codex?.loggedIn ? "border-input text-foreground" : "border-amber-500/60 text-amber-400")}>
+            {codex?.loggedIn && <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />}
+            {codex === undefined ? "Checking status…" : codex.loggedIn ? "Signed in" : "Couldn't start"}
+          </span>
+        )}
       </Row>
     </>
   );

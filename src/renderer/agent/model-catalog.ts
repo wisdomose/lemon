@@ -4,10 +4,11 @@ import { store } from "../store.js";
 
 let pending: Promise<void> | undefined;
 
-export function refreshCodexModels(): Promise<void> {
+/** Asks for Codex's models (`fresh`: ask Codex again rather than reuse its recent answer). */
+export function refreshCodexModels(fresh = false): Promise<void> {
   if (pending) return pending;
   store.set({ codexModelsState: "loading", codexModelsError: undefined });
-  pending = bridge.codexModels().then((models) => {
+  pending = bridge.codexModels(fresh).then((models) => {
     store.set((s) => {
       const selected = models.find((m) => m.id === s.model);
       // A refreshed catalog may remove an effort. Let Codex choose its default in that case.
