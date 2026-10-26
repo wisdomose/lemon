@@ -15,6 +15,7 @@ import { getVars, toTree } from "../src/doc/store.js";
 import { layout } from "../src/layout/layout.js";
 import { check } from "../src/layout/check.js";
 import { screenshot } from "../src/render/screenshot.js";
+import { assetLookup } from "../src/doc/assets.js";
 
 const { values } = parseArgs({
   options: {
@@ -42,7 +43,7 @@ function snapshot(file: string, maxSide: number): void {
   const vars = getVars(doc);
   const boxes = layout(tree, vars, engine.text);
   for (const frame of tree.children) {
-    const pic = screenshot(engine.ck, tree, boxes, vars, engine.text, frame.id, maxSide);
+    const pic = screenshot(engine.ck, tree, boxes, vars, engine.text, assetLookup(doc), frame.id, maxSide);
     writeFileSync(`${file}-${frame.id}.png`, pic.png);
   }
 }

@@ -2,7 +2,8 @@
 // follow the reference captures; fields edit the document.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "radix-ui";
-import { ColourPicker } from "../ui/ColourPicker.js";
+import { ColourPicker, type PictureSource } from "../ui/ColourPicker.js";
+import { pictures } from "../pictures.js";
 import {
   Copy,
   AlignCenterHorizontal,
@@ -24,7 +25,11 @@ import {
   Check,
   ChevronDown,
   Circle,
+  Component,
+  Diamond,
+  DiamondMinus,
   DiamondPlus,
+  Focus,
   Frame,
   Eye,
   EyeOff,
@@ -39,6 +44,7 @@ import {
   RotateCw,
   Scan,
   Settings,
+  Smile,
   Square,
   SquareDashed,
   Type,
@@ -49,7 +55,8 @@ import type { LinearGradient, NodeProps, Paint, Size, TreeNode } from "../../doc
 import { findNode } from "../../render/screenshot.js";
 import { currentScene, doc, edit } from "../scene.js";
 import { useEditor } from "../store.js";
-import { Island, cx } from "../ui/kit.js";
+import { Island, Tip, cx } from "../ui/kit.js";
+import { COPY_COLOUR, detachSelected, goToMain, kindOf, makeComponents, unmakeComponent } from "../components.js";
 
 // Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
 const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
@@ -162,10 +169,13 @@ function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
 }
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
+  if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
+  if (n.props.component) return { icon: Component, label: typeInfo({ ...n, props: { ...n.props, component: false } }).label };
   if (n.type === "text") return { icon: Type, label: "Text" };
   if (n.type === "rect") return { icon: Square, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
   if (n.type === "image") return { icon: ImageIcon, label: "Image" };
+  if (n.type === "icon") return { icon: Smile, label: "Icon" };
   return { icon: n.props.layout === "none" ? Frame : AlignHorizontalJustifyStart, label: "Frame" };
 }
 
@@ -195,28 +205,68 @@ export function PropertiesPanel() {
   const isFrame = node.type === "frame";
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
-  const colour: Paint | undefined = node.type === "text" ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
+  const kind = kindOf(node);
+  // Text and icons are coloured by `color`; everything else by its fill.
+  const inked = node.type === "text" || node.type === "icon";
+  const colour: Paint | undefined = inked ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-line pt-2 pr-[13px] pb-2 pl-[11px]">
-          <div className="flex h-5 items-center gap-2 pl-1 text-[11px] text-foreground">
+          <div className="flex h-6 items-center gap-2 text-[11px] text-foreground">
             {many ? (
-              <>
+              <span className="flex min-w-0 items-center gap-2 pl-1">
                 <Copy size={16} strokeWidth={1.5} /> <span className="truncate">{ids.length} selected</span>
-              </>
+              </span>
             ) : (
-              <>
+              <span
+                className={cx(
+                  "flex h-6 min-w-0 flex-1 items-center gap-2 rounded-md pl-1",
+                  // A main component's name sits on a violet tint; a copy's in a dashed violet outline (captures 38, 39).
+                  kind === "main" && "bg-[#3d3955] pl-[5px]",
+                  (kind === "instance" || kind === "part") && "border border-dashed pl-1",
+                )}
+                style={kind ? { color: COPY_COLOUR, borderColor: kind === "main" ? undefined : `${COPY_COLOUR}b3` } : undefined}
+              >
                 <info.icon size={16} strokeWidth={1.5} /> <span className="truncate">{p.name ?? info.label}</span>
-              </>
+              </span>
             )}
-            <PanelRight size={16} strokeWidth={1.5} className="ml-auto text-muted-foreground" />
+            <PanelRight size={16} strokeWidth={1.5} className="ml-auto shrink-0 text-muted-foreground" />
           </div>
           {!many && (
-            <button type="button" className="mt-[11px] flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
-              <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
-            </button>
+            <div className="mt-[11px] flex h-6 items-center gap-1">
+              {kind === "main" ? (
+                <button type="button" onClick={() => unmakeComponent(node.id)} className="flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
+                  <DiamondMinus size={14} strokeWidth={1.5} /> Detach Component
+                </button>
+              ) : (
+                <>
+                  {node.instance && (
+                    <Tip label="Go to main component">
+                      <button type="button" aria-label="Go to main component" onClick={() => goToMain(node.id)} className="flex h-6 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground">
+                        <Focus size={14} strokeWidth={1.5} />
+                      </button>
+                    </Tip>
+                  )}
+                  {kind === "instance" && !store.isPart(node.id) && (
+                    <Tip label="Detach instance" keys="Ctrl Alt X">
+                      <button type="button" aria-label="Detach instance" onClick={detachSelected} className="flex h-6 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground">
+                        <DiamondMinus size={14} strokeWidth={1.5} />
+                      </button>
+                    </Tip>
+                  )}
+                  <button
+                    type="button"
+                    disabled={store.isPart(node.id)}
+                    onClick={makeComponents}
+                    className="ml-auto flex h-6 flex-1 items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground disabled:opacity-50"
+                  >
+                    <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -241,7 +291,12 @@ export function PropertiesPanel() {
               value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)}
               onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (y) => set(ids, { y }) : undefined}
             />
-            <NumberField lead={<RotateCw size={12} strokeWidth={1.5} />} value="0°" />
+            <NumberField
+              lead={<RotateCw size={12} strokeWidth={1.5} />}
+              value={shared(ids, (id) => Number(findNode(scene.tree, id)?.props.rotation ?? 0))}
+              suffix="°"
+              onCommit={(rotation) => set(ids, { rotation: rotation || null } as never)}
+            />
             <ButtonGroup icons={[RotateCw, FlipVertical2, FlipHorizontal2]} />
           </div>
           {parentFrame && parentFrame.props.layout !== "none" && (
@@ -321,9 +376,10 @@ export function PropertiesPanel() {
           {colour && (
             <ColourRow
               value={colour}
-              allowGradient={node.type !== "text"}
-              onChange={(c) => set(ids, node.type === "text" ? { color: c as string } : { fill: c })}
-              onRemove={node.type === "text" ? undefined : () => set(ids, { fill: null as never })}
+              allowGradient={!inked}
+              pictures={inked ? undefined : pictures}
+              onChange={(c) => set(ids, inked ? { color: c as string } : { fill: c })}
+              onRemove={inked ? undefined : () => set(ids, { fill: null as never })}
             />
           )}
         </Section>
@@ -351,7 +407,7 @@ export function PropertiesPanel() {
                 <Label>Position</Label>
                 <Label>Weight</Label>
                 <div className={FIELD}>Inside <ChevronDown size={12} className="ml-auto" /></div>
-                <NumberField lead="W" value={p.stroke.width} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
+                <NumberField lead="W" value={typeof p.stroke.width === "number" ? p.stroke.width : "Mixed"} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
               </div>
             </>
           )}
@@ -401,11 +457,13 @@ function ColourRow({
   onChange,
   onRemove,
   allowGradient = false,
+  pictures: source,
 }: {
   value: Paint;
   onChange: (c: Paint) => void;
   onRemove?: () => void;
   allowGradient?: boolean;
+  pictures?: PictureSource;
 }) {
   const solid = typeof value === "string" ? value : undefined;
   const [text, setText] = useState(solid ? hex(solid) : "");
@@ -413,9 +471,13 @@ function ColourRow({
   const [open, setOpen] = useState(false);
   const row = useRef<HTMLDivElement>(null);
   const isVar = !!solid?.startsWith("$");
+  const picture = typeof value === "object" && value.type === "image" ? value : undefined;
+  const pictureUrl = picture && source?.url(picture.asset);
   const swatch = solid
     ? isVar ? "transparent" : solid
-    : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
+    : picture
+      ? pictureUrl ? `center / cover url(${pictureUrl})` : "#777"
+      : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
   // Anchor: the panel's left edge, at the row's height.
   const anchor = {
     current: {
@@ -435,7 +497,7 @@ function ColourRow({
           <button type="button" aria-label="Edit colour" className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: swatch }} />
         </Popover.Trigger>
         <input
-          value={isVar ? solid : solid ? text : "Linear"}
+          value={isVar ? solid : solid ? text : picture ? "Image" : "Linear"}
           readOnly={isVar || !solid}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(`#${text}`)}
@@ -459,7 +521,7 @@ function ColourRow({
           onOpenAutoFocus={(e) => e.preventDefault()}
           className="z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none"
         >
-          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} />
+          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} pictures={source} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

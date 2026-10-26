@@ -14,7 +14,7 @@
 import * as Y from "yjs";
 import { generateKeyBetween } from "fractional-indexing";
 import { ROOT_ID } from "./schema.js";
-import { childIds, nodesOf } from "./store.js";
+import { childIds, exists, nodesOf } from "./store.js";
 
 const HALF = 2 ** 31;
 /** A client id for a person's copy of the document (wins ties). */
@@ -160,5 +160,5 @@ export function repairTree(doc: Y.Doc): boolean {
 
 /** The selection after a change: kept if the node still exists, cleared if someone deleted it. */
 export function reconcileSelection(doc: Y.Doc, id: string | null): string | null {
-  return id && nodesOf(doc).has(id) ? id : null;
+  return id && id !== ROOT_ID && exists(doc, id) ? id : null;
 }

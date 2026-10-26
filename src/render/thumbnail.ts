@@ -5,6 +5,7 @@ import { getVars, toTree } from "../doc/store.js";
 import { facesUsed, layout } from "../layout/layout.js";
 import type { Engine } from "../engine.js";
 import { drawNode } from "./draw.js";
+import { assetLookup } from "../doc/assets.js";
 
 /** The card's picture area (Dashboard), at twice its size for sharp screens. */
 export const THUMB = { width: 546, height: 340, margin: 32 } as const;
@@ -34,7 +35,7 @@ export async function thumbnail(engine: Engine, doc: Y.Doc): Promise<Uint8Array 
     canvas.translate((THUMB.width - (x1 - x0) * scale) / 2, (THUMB.height - (y1 - y0) * scale) / 2);
     canvas.scale(scale, scale);
     canvas.translate(-x0, -y0);
-    for (const top of page.children) drawNode({ ck, text: engine.text, vars, boxes }, canvas, top);
+    for (const top of page.children) drawNode({ ck, text: engine.text, vars, boxes, assets: assetLookup(doc) }, canvas, top);
     const image = surface.makeImageSnapshot();
     const png = image.encodeToBytes();
     image.delete();

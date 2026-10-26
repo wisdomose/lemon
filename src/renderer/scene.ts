@@ -5,6 +5,7 @@ import selawik400 from "./ui-fonts/selawk.ttf?url";
 import selawik600 from "./ui-fonts/selawksb.ttf?url";
 import { createEngine, type Engine } from "../engine.js";
 import { getVars, toTree } from "../doc/store.js";
+import { assetLookup } from "../doc/assets.js";
 import { PERSON_EDIT, personClientId, personUndo, reconcileSelection } from "../doc/live.js";
 import { layout, type Boxes } from "../layout/layout.js";
 import { DEFAULT_FONT, FontsNeeded } from "../text/fonts.js";
@@ -19,6 +20,8 @@ doc.clientID = personClientId();
 export let engine: Engine;
 /** The person's own undo history (Ctrl+Z); agents' changes are never in it. */
 export const history = personUndo(doc);
+/** The document's pictures, for drawing. */
+export const assets = assetLookup(doc);
 
 /** The UI font family on the canvas (frame names, size pills, cursor labels): Segoe UI's open twin. */
 export const CANVAS_UI_FONT = "Selawik";

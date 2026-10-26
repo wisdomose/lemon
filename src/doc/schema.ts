@@ -4,8 +4,8 @@
 // can edit at the same time through Yjs. Read as a tree (TreeNode) for layout, drawing, the agent's
 // scripts and exports.
 
-export type NodeType = "frame" | "text" | "rect" | "ellipse" | "image";
-export const NODE_TYPES: readonly NodeType[] = ["frame", "text", "rect", "ellipse", "image"];
+export type NodeType = "frame" | "text" | "rect" | "ellipse" | "image" | "icon" | "instance";
+export const NODE_TYPES: readonly NodeType[] = ["frame", "text", "rect", "ellipse", "image", "icon", "instance"];
 
 /** A size along one axis: a fixed number of pixels, fill the parent, or fit the content. */
 export type Size = number | "fill" | "fit";
@@ -19,11 +19,19 @@ export interface LinearGradient {
   angle: number;
   stops: { color: Color; at: number }[];
 }
-export type Paint = Color | LinearGradient;
+/** A picture filling a shape. `asset` is the picture's id in the document's assets (doc/assets.ts). */
+export interface ImageFill {
+  type: "image";
+  asset: string;
+  /** "cover" (default) fills the shape and crops; "contain" shows all of it; "stretch" distorts to fit. */
+  fit?: "cover" | "contain" | "stretch";
+}
+export type Paint = Color | LinearGradient | ImageFill;
 
 export interface Stroke {
   color: Color;
-  width: number;
+  /** One width all round, or [top, right, bottom, left] (0 for no line on that side). */
+  width: number | [number, number, number, number];
 }
 
 export interface Shadow {
@@ -48,6 +56,8 @@ export interface NodeProps {
   maxHeight?: number;
   visible?: boolean;
   opacity?: number;
+  /** Degrees, counter-clockwise around the top-left corner (as Pen). Drawn only: layout uses the unturned box. */
+  rotation?: number;
   fill?: Paint;
   stroke?: Stroke;
   /** One radius, or [top-left, top-right, bottom-right, bottom-left]. */
@@ -55,6 +65,8 @@ export interface NodeProps {
   shadow?: Shadow;
   /** A top-level frame an agent is building: drawn with the "Generating" shimmer until cleared. */
   generating?: boolean;
+  /** A main component: other places can show copies of it (instances) that follow its changes. */
+  component?: boolean;
 
   // Frame layout: a single axis, no wrapping.
   layout?: "row" | "column" | "none";
@@ -79,8 +91,11 @@ export interface NodeProps {
   textAlign?: "left" | "center" | "right";
   uppercase?: boolean;
 
-  // Image: until there is an image source, a placeholder describing the photo that belongs here.
+  // Image: a picture as its fill; without one, a placeholder describing the photo that belongs here.
   description?: string;
+
+  // Icon: a Lucide icon by name ("arrow-right"), drawn in `color` and scaled to fit its box.
+  icon?: string;
 }
 
 export type PropName = keyof NodeProps;
@@ -93,6 +108,8 @@ export interface TreeNode {
   type: NodeType;
   props: NodeProps;
   children: TreeNode[];
+  /** On a copy of a component: the main component's id (the copy is read as the main's tree). */
+  instance?: string;
 }
 
 /** What an agent or a person sends to create nodes: a node with nested children. */
@@ -101,7 +118,14 @@ export interface NodeSpec extends NodeProps {
   /** A label the script can use to find this node's id afterwards (returned in `refs`). */
   ref?: string;
   children?: NodeSpec[];
+  /** An instance's main component. */
+  of?: string;
+  /** An instance's changes to parts of its main component, by their id path (see doc/components.ts). */
+  overrides?: Overrides;
 }
+
+/** An instance's changes to its main component's parts: properties by the part's id path in the main. */
+export type Overrides = Record<string, Partial<NodeProps>>;
 
 /** Variables (design tokens): colours, numbers and font names a node can reference as "$name". */
 export type Vars = Record<string, string | number>;
@@ -112,4 +136,7 @@ export const DEFAULTS: Record<NodeType, Partial<NodeProps>> = {
   rect: { width: 100, height: 100 },
   ellipse: { width: 100, height: 100 },
   image: { width: 400, height: 300 },
+  icon: { width: 24, height: 24, color: "#000000" },
+  // An instance takes everything from its main component; its own properties override.
+  instance: {},
 };

@@ -17,6 +17,7 @@ import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub,
 import { useEditor } from "./store.js";
 import { selectAll, selectChildren, selectParents, unionBox, type Laid } from "./canvas/pick.js";
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
+import { detachSelected, makeComponents } from "./components.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,6 +35,8 @@ export function App({ initial }: { initial: string }) {
       const key = e.key.toLowerCase();
       if (canvasKey(e)) schedule();
       else if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      else if (mod && e.altKey && e.code === "KeyK") (e.preventDefault(), makeComponents());
+      else if (mod && e.altKey && e.code === "KeyX") (e.preventDefault(), detachSelected());
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
       else if (mod && ((key === "z" && e.shiftKey) || key === "y")) (e.preventDefault(), history.redo());
       else if (e.key === "Escape") store.set({ selection: [] });
@@ -117,7 +120,7 @@ function deleteSelection() {
 
 /** Bring to front (`]`) or send to back (`[`), keeping the selected nodes' order among themselves. */
 function reorder(front: boolean) {
-  const ids = store.get().selection;
+  const ids = store.get().selection.filter((id) => !docStore.isPart(id));
   edit(() => {
     for (const id of front ? ids : [...ids].reverse()) {
       const parent = docStore.parentOf(doc, id);
@@ -137,6 +140,7 @@ function CanvasMenu() {
   useEditor((s) => s.docVersion);
   const frames = selection.filter((id) => docStore.typeOf(doc, id) === "frame");
   const flex = frames.length > 0 && frames.every((id) => docStore.propsOf(doc, id).layout !== "none");
+  const copies = selection.some((id) => !docStore.isPart(id) && docStore.isInstance(doc, id));
   return (
     <ContextContent>
       <ContextItem label="Copy" keys="Ctrl C" />
@@ -160,7 +164,8 @@ function CanvasMenu() {
         <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("column")} />
       )}
       <ContextSeparator />
-      <ContextItem label="Create Component" keys="Ctrl Alt K" />
+      <ContextItem label="Create Component" keys="Ctrl Alt K" onSelect={makeComponents} />
+      {copies && <ContextItem label="Detach instance" keys="Ctrl Alt X" onSelect={detachSelected} />}
       <ContextSeparator />
       <ContextItem label="Flip horizontal" keys="Shift H" />
       <ContextItem label="Flip vertical" keys="Shift V" />

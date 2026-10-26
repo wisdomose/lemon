@@ -4,10 +4,11 @@ import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode } from "../../render/draw.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, currentScene, engine, type Scene } from "../scene.js";
+import { CANVAS_UI_FONT, assets, currentScene, engine, type Scene } from "../scene.js";
 import { store } from "../store.js";
 import { overlay } from "./overlay.js";
-import { unionBox } from "./pick.js";
+import { index, unionBox } from "./pick.js";
+import { COPY_COLOUR, MAIN_COLOUR, kindOf } from "../components.js";
 import { findNode } from "../../render/screenshot.js";
 import { drawTextEditing } from "./text-edit.js";
 import { colorOf } from "../../doc/values.js";
@@ -225,6 +226,24 @@ export function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
 }
 
 // ---- Drawing --------------------------------------------------------------------------------------
+/** Every node of a scene by id (built once per scene). */
+const indexes = new WeakMap<Scene, Map<string, TreeNode>>();
+function nodeIn(s: Scene, id: string): TreeNode | undefined {
+  let byId = indexes.get(s);
+  if (!byId) indexes.set(s, (byId = index(s.tree)));
+  return byId.get(id);
+}
+
+/** The outline colour for nodes: magenta for a main component, violet (dashed for the copy itself) inside a copy. */
+function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
+  const kinds = new Set(ids.map((id) => kindOf(nodeIn(s, id))));
+  if (kinds.size !== 1) return { color: SELECT, dashed: false };
+  const [k] = kinds;
+  if (k === "main") return { color: MAIN_COLOUR, dashed: false };
+  if (k === "instance" || k === "part") return { color: COPY_COLOUR, dashed: k === "instance" };
+  return { color: SELECT, dashed: false };
+}
+
 function uiText(text: string, size: number, color: string, weight = 400) {
   return engine.text.paragraph({ text, font: CANVAS_UI_FONT, size, weight, color, lineHeight: 1.2 }, {});
 }
@@ -289,7 +308,7 @@ function draw() {
       if (frame.props.generating) drawGenerating(canvas, s.boxes.get(frame.id));
     }
     for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id));
-    if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover));
+    if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover), accent(s, [st.hover]));
     drawSelection(canvas, s, st.selection);
     drawOverlay(canvas, s);
     for (const c of cursors.values()) drawCursor(canvas, c);
@@ -308,7 +327,7 @@ function documentPicture(s: Scene): SkPicture {
   const { ck } = engine;
   const recorder = new ck.PictureRecorder();
   const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes }, c, frame);
+  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
@@ -362,7 +381,9 @@ function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: bo
     canvas.drawParagraph(labelParagraph(f, b, LIVE), x + SPARKLE_W, y - LABEL_SIZE - 8);
     return;
   }
-  canvas.drawParagraph(labelParagraph(f, b, selected ? SELECT : label()), x, y - LABEL_SIZE - 8);
+  const kind = kindOf(f);
+  const colour = kind === "main" ? MAIN_COLOUR : kind === "instance" ? COPY_COLOUR : selected ? SELECT : label();
+  canvas.drawParagraph(labelParagraph(f, b, colour), x, y - LABEL_SIZE - 8);
 }
 
 /** The sparkle before "Generating": a four-point star with a small one above it. */
@@ -383,15 +404,19 @@ function drawSparkle(canvas: Canvas, cx: number, cy: number) {
   paint.delete();
 }
 
-function outline(canvas: Canvas, b: Box | undefined) {
+function outline(canvas: Canvas, b: Box | undefined, look: { color: string; dashed: boolean } = { color: SELECT, dashed: false }) {
   if (!b) return;
   const { ck } = engine;
   const [x, y] = toScreen(b.x, b.y);
   const paint = new ck.Paint();
-  paint.setColor(ck.parseColorString(SELECT));
+  paint.setColor(ck.parseColorString(look.color));
   paint.setStyle(ck.PaintStyle.Stroke);
   paint.setStrokeWidth(1);
+  // A copy's dashes: 4 on, 3 off (capture 39).
+  const dash = look.dashed ? ck.PathEffect.MakeDash([4, 3], 0) : null;
+  if (dash) paint.setPathEffect(dash);
   canvas.drawRect(ck.XYWHRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(b.w * view.zoom), Math.round(b.h * view.zoom)), paint);
+  dash?.delete();
   paint.delete();
 }
 
@@ -405,8 +430,9 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
   const { ck } = engine;
   // While moving, Pen shows the moved nodes bare (capture 35).
   if (overlay.moving) return;
-  if (ids.length > 1) for (const id of ids) outline(canvas, s.boxes.get(id));
-  outline(canvas, b);
+  const look = accent(s, ids);
+  if (ids.length > 1) for (const id of ids) outline(canvas, s.boxes.get(id), accent(s, [id]));
+  outline(canvas, b, look);
   if (overlay.editing) return;
   const tree = s.tree;
   const id = ids.length === 1 ? ids[0]! : undefined;
@@ -418,7 +444,7 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
   const stroke = new ck.Paint();
   stroke.setStyle(ck.PaintStyle.Stroke);
   stroke.setStrokeWidth(1);
-  stroke.setColor(ck.parseColorString(SELECT));
+  stroke.setColor(ck.parseColorString(look.color));
   // Corner handles, and a rectangle's corner-radius handles inside them.
   fill.setColor(ck.WHITE);
   if (!overlay.resizing) {
@@ -436,8 +462,8 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
     }
   }
 
-  drawPill(canvas, b);
-  fill.setColor(ck.parseColorString(SELECT));
+  drawPill(canvas, b, look.color);
+  fill.setColor(ck.parseColorString(look.color));
   // A selected top-level frame shows a small badge outside its top-right corner.
   if (id && !overlay.resizing && tree.children.some((f) => f.id === id)) {
     const bx = Math.round(x + w + 7);
@@ -461,7 +487,7 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
 }
 
 /** The size pill ("764 × 270"), centred below a box (page coordinates). */
-function drawPill(canvas: Canvas, b: Box) {
+function drawPill(canvas: Canvas, b: Box, color = SELECT) {
   const { ck } = engine;
   const [x, y] = toScreen(b.x, b.y);
   const label = uiText(`${Math.round(b.w)} × ${Math.round(b.h)}`, 12, "#ffffff");
@@ -471,7 +497,7 @@ function drawPill(canvas: Canvas, b: Box) {
   const py = Math.round(y + b.h * view.zoom + PILL_GAP);
   const fill = new ck.Paint();
   fill.setAntiAlias(true);
-  fill.setColor(ck.parseColorString(SELECT));
+  fill.setColor(ck.parseColorString(color));
   canvas.drawRRect(ck.RRectXY(ck.XYWHRect(px, py, pw, PILL_H), 4, 4), fill);
   canvas.drawParagraph(label, px + 6, py + (PILL_H - label.getHeight()) / 2);
   fill.delete();

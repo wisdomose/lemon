@@ -35,6 +35,19 @@ export interface StartPrompt {
 }
 
 export type SaveState = "saved" | "saving" | "error";
+
+/** Something the window tells the person once it opens (what an import brought over). */
+export interface Notice {
+  title: string;
+  details: string[];
+}
+
+/** A document made elsewhere (an imported Pen file): it opens as a new draft named `name`. */
+export interface Seed {
+  state: Uint8Array;
+  name: string;
+  notice?: Notice;
+}
 export interface FileInfo {
   name: string;
   state: SaveState;
@@ -76,10 +89,15 @@ export class Editor {
     private readonly shared: Shared,
     path?: string,
     private startPrompt?: StartPrompt,
+    seed?: Seed,
   ) {
     // Agents write to this copy directly, statement by statement: it loses same-moment ties to people (doc/live.ts).
     this.doc.clientID = agentClientId();
-    if (path?.endsWith(".yjs")) {
+    this.notice = seed?.notice;
+    if (seed) {
+      Y.applyUpdate(this.doc, seed.state);
+      path = shared.noSave ? undefined : newDraftPath(seed.name);
+    } else if (path?.endsWith(".yjs")) {
       Y.applyUpdate(this.doc, readFileSync(path));
       path = undefined;
     } else if (path) readFile(readFileSync(path, "utf8"), this.doc);
@@ -123,6 +141,19 @@ export class Editor {
     });
     this.win.on("closed", () => shared.changed());
     void this.win.loadURL(shared.pageUrl("index"));
+    // An imported document is written to its draft now.
+    if (seed && this.path) {
+      this.dirty = true;
+      this.flush();
+    }
+  }
+
+  private notice: Notice | undefined;
+  /** What to tell the person when the window opens, once (the window asks when it is ready). */
+  takeNotice(): Notice | undefined {
+    const n = this.notice;
+    this.notice = undefined;
+    return n;
   }
 
   /** Applies a change made in the window. */
