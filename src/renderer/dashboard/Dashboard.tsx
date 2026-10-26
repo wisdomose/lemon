@@ -2,7 +2,8 @@
 // header with Open File and New File, the prompt starter, the import tiles and the file browser.
 // Sizes measured from capture 01 (the window's content is 1426 × 896; the native title and menu bars
 // take the rest).
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Dialog as D } from "radix-ui";
 import {
   AppWindow,
   ArrowUp,
@@ -135,6 +136,7 @@ const KINDS = [
 
 function PromptStarter({ onHide }: { onHide: () => void }) {
   const [kind, setKind] = useState(0);
+  const [asking, setAsking] = useState(false);
   const [canSend, setCanSend] = useState(false);
   const editor = useRef<PromptEditorHandle>(null);
   const footer = useRef<HTMLDivElement>(null);
@@ -152,7 +154,7 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
       <button
         type="button"
         aria-label="Hide"
-        onClick={onHide}
+        onClick={() => setAsking(true)}
         className="absolute top-3 right-0 flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
       >
         <X size={14} strokeWidth={1.5} />
@@ -176,14 +178,22 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
             );
           })}
         </div>
-        <div className="relative mt-6">
-          {/* The soft glow behind the box takes the picked kind's colour. */}
-          <div
-            aria-hidden
-            className={cx("pointer-events-none absolute -inset-3 rounded-[24px] opacity-[0.18] blur-2xl transition-colors duration-700", animations && "animate-pulse")}
-            style={{ background: `radial-gradient(60% 80% at 50% 50%, ${KINDS[kind]!.glow}, transparent 70%)` }}
-          />
-          <div className="relative flex h-32 flex-col rounded-[14px] border border-border bg-background">
+        {/* A 1px border with the picked kind's colour flowing round it, and its soft glow outside. */}
+        <div
+          className={cx("glow-ring relative mt-6 rounded-[15px] p-px", animations && "glow-moving")}
+          style={{ "--glow": KINDS[kind]!.glow } as CSSProperties}
+        >
+          <div aria-hidden className="glow-halo pointer-events-none absolute inset-0">
+            <div className="absolute inset-0 overflow-hidden rounded-[15px]">
+              <span className="glow-spot" />
+              <span className="glow-spot" />
+            </div>
+          </div>
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[15px] bg-border">
+            <span className="glow-spot" />
+            <span className="glow-spot" />
+          </div>
+          <div className="relative flex h-[126px] flex-col rounded-[14px] bg-background">
             <div className="flex min-h-0 flex-1 overflow-y-auto px-4 pt-3">
               <PromptEditor ref={editor} large selection={null} placeholder="Design anything..." onSubmit={send} onChange={setCanSend} />
             </div>
@@ -214,7 +224,42 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
           <Tile icon={ImagePlus} label="Recreate a screenshot" />
         </div>
       </div>
+      <HideDialog open={asking} onOpenChange={setAsking} onHide={onHide} />
     </section>
+  );
+}
+
+/** The × asks first (as in Pen); the setting brings the prompt back. Measured from Pen's dialog. */
+function HideDialog({ open, onOpenChange, onHide }: { open: boolean; onOpenChange: (o: boolean) => void; onHide: () => void }) {
+  return (
+    <D.Root open={open} onOpenChange={onOpenChange}>
+      <D.Portal>
+        <D.Overlay className="fixed inset-0 z-40 bg-black/50" />
+        <D.Content className="fixed top-1/2 left-1/2 z-50 w-[448px] -translate-x-1/2 -translate-y-1/2 rounded-[12px] border border-border bg-background p-6 text-foreground outline-none">
+          <D.Title className="text-[18px] leading-6 font-semibold text-popover-foreground">Hide agent input?</D.Title>
+          <D.Description className="mt-2 text-[14px] leading-5 text-muted-foreground">
+            This removes the prompt box from the dashboard. You can turn it back on later in Settings → General.
+          </D.Description>
+          <div className="mt-4 flex justify-end gap-2">
+            <D.Close asChild>
+              <button type="button" className="h-9 rounded-[8px] border border-input bg-[#242428] px-4 text-[14px] font-semibold text-foreground hover:bg-[#2c2c31]">
+                Cancel
+              </button>
+            </D.Close>
+            <button
+              type="button"
+              onClick={() => (onOpenChange(false), onHide())}
+              className="h-9 rounded-[8px] bg-primary px-4 text-[14px] font-semibold text-primary-foreground hover:bg-zinc-200"
+            >
+              Hide forever
+            </button>
+          </div>
+          <D.Close aria-label="Close" className="absolute top-4 right-4 rounded-sm text-muted-foreground hover:text-foreground">
+            <X size={14} strokeWidth={1.5} />
+          </D.Close>
+        </D.Content>
+      </D.Portal>
+    </D.Root>
   );
 }
 
