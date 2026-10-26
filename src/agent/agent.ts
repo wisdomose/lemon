@@ -12,7 +12,7 @@ import type { Sandbox } from "../sandbox/sandbox.js";
 import { execute, LiveRun, type ExecuteResult, type Focus } from "./execute.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
-import { pickStartingPoints } from "./directions.js";
+import { pickStartingPoints, type Direction } from "./directions.js";
 import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { FailedScripts } from "./patches.js";
@@ -83,6 +83,14 @@ export interface AgentOptions {
   /** The agent's name, shown on its cursor and in the chat. */
   name?: string;
   recentDirections?: string[];
+  /** Starting points chosen by the caller (a team gives each agent different ones); null for none. */
+  directions?: Direction[] | null;
+  /** What this agent does in a team: added to the request (see team.ts). */
+  brief?: string;
+  /** Values its first script starts with (a team agent's own frame, as `mine`). */
+  globals?: Globals;
+  /** Frames whose "being built" mark the team owns: this agent leaves them marked when it ends. */
+  leaveMarked?: string[];
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
@@ -148,7 +156,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const steps: StepRecord[] = [];
   // People's edits during this run: a step doesn't overwrite what the agent couldn't have seen.
   const personEdits = new PersonEdits(o.doc);
-  const directions = pickStartingPoints(o.recentDirections);
+  const directions = o.directions === null ? [] : (o.directions ?? pickStartingPoints(o.recentDirections));
   emit({ type: "started", directions: directions.map((d) => d.id), name: o.name ?? "agent", model, prompt: o.prompt });
   // "Thought for Ns": time from the last thing the agent did to its next action.
   let lastActivity = performance.now();
@@ -163,7 +171,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   /** Steps whose card appeared while being written (their thinking time is already shown). */
   const announced = new Set<number>();
   /** Values the agent's scripts left on the global object, carried into its next script. */
-  let globals: Globals = {};
+  let globals: Globals = o.globals ?? {};
+  /** Top-level frames this agent's steps touched (its "being built" marks are cleared at the end). */
+  const touched = new Set<string>();
   const failed = new FailedScripts();
   /** Each step's origin (its changes' label in the document), made when the step is first seen. */
   const origins = new Map<number, AgentChange>();
@@ -273,6 +283,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         at: (performance.now() - started) / 1000,
       };
       steps.push(step);
+      r.frames.forEach((f) => touched.add(f));
       const output = summarise(r, failedId);
       emit({
         type: "step-end",
@@ -306,7 +317,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     o.prompt.trim(),
     "",
     `<canvas>${canvasSummary(o.doc)}</canvas>`,
-    `<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`,
+    ...(directions.length ? [`<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : []),
+    ...(o.brief ? [`<team>${o.brief}</team>`] : []),
   ].join("\n");
 
   const stats: AgentStats = {
@@ -372,7 +384,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   // Steps whose call never came (the run stopped while the agent was writing): remove what landed.
   for (const run of live.values()) await run.cancel();
   // A frame the agent left marked as being built (it stopped, or forgot) is no longer being built.
-  const marked = [...nodesOf(o.doc).entries()].filter(([, rec]) => rec.get("generating")).map(([id]) => id);
+  // Only its own: other agents may still be building theirs.
+  const marked = [...touched].filter((id) => nodesOf(o.doc).get(id)?.get("generating") && !o.leaveMarked?.includes(id));
   if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("generating")), new AgentChange(o.name ?? "agent", steps.length));
   stats.durationMs = performance.now() - started;
   personEdits.dispose();

@@ -1,17 +1,27 @@
 // The window's state: what panel is open, what is selected, and the agent chat. One small store read
 // by React through useSyncExternalStore; the canvas reads it directly.
 import { useSyncExternalStore } from "react";
-import { DEFAULT_MODEL } from "../agent/models.js";
+import { DEFAULT_MODEL, type Team } from "../agent/models.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
 export type Tool = "move" | "rect" | "ellipse" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
 
-export type ChatItem =
+/**
+ * One thing in the chat. Items from one of several agents carry `agent` (its place in the team), and
+ * the chat groups them under that agent.
+ */
+export type ChatItem = (
   | { kind: "user"; text: string }
   | { kind: "agent-head"; name: string; model: string }
   | { kind: "thought"; seconds: number }
+  /** Several agents start on a request. */
+  | { kind: "team"; mode: Team["mode"]; count: number }
+  /** One agent's proposal while the team plans (Split Work). */
+  | { kind: "proposal"; text: string }
+  /** The plan the team agreed: the look, and who builds what. */
+  | { kind: "plan"; text: string; parts: { agent: number; name: string }[] }
   | {
       kind: "step";
       index: number;
@@ -23,7 +33,8 @@ export type ChatItem =
     }
   | { kind: "text"; text: string }
   | { kind: "designed"; seconds: number }
-  | { kind: "error"; text: string };
+  | { kind: "error"; text: string }
+) & { agent?: number };
 
 export interface EditorState {
   tab: Tab;
@@ -40,6 +51,8 @@ export interface EditorState {
   /** The chat session's title (its first prompt). */
   session: string | null;
   model: string;
+  /** How many agents the next request goes to, and how they share it (the ⚡ choice). */
+  team: Team;
   settingsOpen: boolean;
   /** Past conversations, newest first. */
   history: Session[];
@@ -65,6 +78,7 @@ const initial: EditorState = {
   agentStatus: null,
   session: null,
   model: DEFAULT_MODEL,
+  team: { count: 1, mode: "split" },
   settingsOpen: false,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },

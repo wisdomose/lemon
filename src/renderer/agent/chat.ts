@@ -1,7 +1,8 @@
-// Turns agent events from the host into chat items, and sends prompts.
-import type { AgentEvent } from "../../agent/agent.js";
-import { modelLabel } from "../../agent/models.js";
-import { cursor, hideCursor, moveCursor, schedule, zoomToFit } from "../canvas/canvas.js";
+// Turns agent events from the host into chat items, and sends prompts. Several agents (a team) send
+// events tagged with their place in the team; their items carry it and the chat groups them.
+import type { TaggedEvent } from "../../agent/team.js";
+import { AGENTS, modelLabel } from "../../agent/models.js";
+import { hideCursor, moveCursor, schedule, zoomToFit } from "../canvas/canvas.js";
 import { bridge, currentScene, doc, laidOut } from "../scene.js";
 import { childIds } from "../../doc/store.js";
 import { ROOT_ID } from "../../doc/schema.js";
@@ -14,16 +15,18 @@ const pngUrl = (png: Uint8Array) => URL.createObjectURL(new Blob([png as BlobPar
 function push(item: ChatItem) {
   store.set((s) => ({ chat: [...s.chat, item] }));
 }
-function updateStep(index: number, patch: Partial<Extract<ChatItem, { kind: "step" }>>) {
-  store.set((s) => ({
-    chat: s.chat.map((c) => (c.kind === "step" && c.index === index ? { ...c, ...patch } : c)),
-  }));
+type StepItem = Extract<ChatItem, { kind: "step" }>;
+const isStep = (c: ChatItem, agent: number | undefined, index: number): c is StepItem => c.kind === "step" && c.index === index && c.agent === agent;
+function updateStep(agent: number | undefined, index: number, patch: Partial<StepItem>) {
+  store.set((s) => ({ chat: s.chat.map((c) => (isStep(c, agent, index) ? { ...c, ...patch } : c)) }));
 }
 
 /** Top-level frames before this run; cleared once the view has been fitted to a new one. */
 let framesBefore: Set<string> | undefined;
-/** Steps whose elements landed while they were written (the cursor already followed them). */
-const landed = new Set<number>();
+/** Steps whose elements landed while they were written (the cursor already followed them), as "agent:index". */
+const landed = new Set<string>();
+/** A team is running: one agent finishing doesn't end the run. */
+let teamRunning = false;
 
 /** The first time the agent adds a top-level frame, fits the view to it once it can be laid out (its fonts may still be loading). */
 function fitNewFrame(): void {
@@ -32,63 +35,98 @@ function fitNewFrame(): void {
   void laidOut().then(() => zoomToFit());
 }
 
-export function handleAgentEvent(e: AgentEvent): void {
+/** The run is over: cards for steps that never ran go, and the chat says how long it took. */
+function finished(seconds: number) {
+  hideCursor();
+  teamRunning = false;
+  store.set((s) => ({ agentStatus: null, chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
+  push({ kind: "designed", seconds });
+  schedule();
+}
+
+export function handleAgentEvent(e: TaggedEvent): void {
+  const agent = "agent" in e ? e.agent : undefined;
+  const tag = agent === undefined ? {} : { agent };
+  const who = { agent: agent ?? 0, ...AGENTS[agent ?? 0]! };
   switch (e.type) {
-    case "started":
+    case "team-started":
       framesBefore = new Set(childIds(doc, ROOT_ID));
       landed.clear();
-      cursor.name = e.name;
+      teamRunning = true;
       store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
-      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model) });
+      push({ kind: "team", mode: e.mode, count: e.count });
+      break;
+    case "team-proposal":
+      push({ kind: "proposal", text: e.text, agent: e.agent });
+      break;
+    case "team-plan":
+      push({ kind: "plan", text: e.text, parts: e.parts });
+      break;
+    case "team-done":
+      finished(Math.round(e.durationMs / 1000));
+      break;
+    case "started":
+      // An agent of a team (its events carry its place), even if the team's own start went unseen.
+      if (agent !== undefined && !teamRunning) {
+        teamRunning = true;
+        framesBefore = new Set(childIds(doc, ROOT_ID));
+        store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
+      } else if (!teamRunning) {
+        framesBefore = new Set(childIds(doc, ROOT_ID));
+        landed.clear();
+        store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
+      }
+      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model), ...tag });
       break;
     case "thought":
-      push({ kind: "thought", seconds: e.seconds });
+      push({ kind: "thought", seconds: e.seconds, ...tag });
       break;
     // The card appears as soon as the agent starts writing the step (step-writing); step-start
     // covers a step whose writing wasn't seen.
     case "step-writing":
     case "step-start":
       store.set({ agentStatus: null });
-      if (store.get().chat.some((c) => c.kind === "step" && c.index === e.index)) updateStep(e.index, { title: e.title });
-      else push({ kind: "step", index: e.index, title: e.title, state: "running" });
+      if (store.get().chat.some((c) => isStep(c, agent, e.index))) updateStep(agent, e.index, { title: e.title });
+      else push({ kind: "step", index: e.index, title: e.title, state: "running", ...tag });
       break;
     case "step-target": {
       const s = currentScene();
       const at = s && targetPoint(e.target, s);
-      if (at) moveCursor([at]);
+      if (at) moveCursor([at], who);
       break;
     }
     // A statement of the step being written has landed.
     case "step-progress":
-      landed.add(e.index);
-      moveCursor(aimPath(e.focus));
+      landed.add(`${agent}:${e.index}`);
+      moveCursor(aimPath(e.focus), who);
       fitNewFrame();
       break;
     case "step-end":
-      updateStep(e.step.index, {
+      updateStep(agent, e.step.index, {
         state: e.step.ok ? "ok" : "failed",
         script: e.detail.script,
         output: e.detail.output,
         pictures: e.detail.pictures.map((p) => ({ url: pngUrl(p.png), width: p.width, height: p.height })),
       });
-      store.set({ agentStatus: "thinking" });
+      if (!teamRunning) store.set({ agentStatus: "thinking" });
       // A step that landed all at once (a patched one); one that landed as it was written stays put.
-      if (e.focus && !landed.has(e.step.index)) moveCursor(aimPath(e.focus));
+      if (e.focus && !landed.has(`${agent}:${e.step.index}`)) moveCursor(aimPath(e.focus), who);
       fitNewFrame();
       schedule();
       break;
     case "text":
-      push({ kind: "text", text: e.text });
+      push({ kind: "text", text: e.text, ...tag });
       break;
     case "done":
-      hideCursor();
-      // A card for a step the agent began writing but that never ran (its call was rejected).
-      store.set((s) => ({ agentStatus: null, chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
-      push({ kind: "designed", seconds: Math.round(e.stats.durationMs / 1000) });
-      schedule();
+      if (!teamRunning) finished(Math.round(e.stats.durationMs / 1000));
+      else {
+        // One of the team is done: its cursor goes, and its unfinished cards.
+        hideCursor(agent);
+        store.set((s) => ({ chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running" && c.agent === agent)) }));
+      }
       break;
     case "error":
-      push({ kind: "error", text: e.message });
+      push({ kind: "error", text: e.message, ...tag });
       break;
   }
 }
@@ -98,7 +136,8 @@ export function sendPrompt(text: string, forAgent?: string): void {
   if (!text.trim() || !bridge.canRunAgent || store.get().agentStatus) return;
   push({ kind: "user", text: text.trim() });
   store.set((s) => ({ agentStatus: "planning", session: s.session ?? text.trim() }));
-  void bridge.runAgent((forAgent ?? text).trim(), store.get().model);
+  const { model, team } = store.get();
+  void bridge.runAgent((forAgent ?? text).trim(), model, team);
 }
 
 // Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's

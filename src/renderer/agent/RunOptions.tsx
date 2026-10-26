@@ -1,22 +1,29 @@
 // The prompt footer's run options: parallel agents (⚡) and "let it cook" variants (▦). Layout measured
 // from the reference: a 300px popover over the chat box, 6px above the footer row, chips 44px wide.
-// Only one agent and no variants exist yet, so the other choices are shown but disabled.
+// Parallel agents work (team.ts); variants don't exist yet, so their choices are shown but disabled.
 import { useState, type ReactNode, type RefObject } from "react";
 import { Popover as P } from "radix-ui";
 import { LayoutGrid, Zap } from "lucide-react";
 import { cx } from "../ui/kit.js";
+import { MAX_AGENTS } from "../../agent/models.js";
+import { store, useEditor } from "../store.js";
 
 const LABEL = "mb-[5px] pl-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase";
 
-function Chip({ children, selected, disabled }: { children: ReactNode; selected?: boolean; disabled?: boolean }) {
+function Chip({ children, selected, disabled, onClick }: { children: ReactNode; selected?: boolean; disabled?: boolean; onClick?: () => void }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       title={disabled ? "Not available yet" : undefined}
       className={cx(
         "flex h-[26px] min-w-[44px] items-center justify-center gap-1 rounded-[6px] px-2 text-[11px] font-semibold",
-        selected ? "bg-amber-500/15 text-amber-500" : "border border-dashed border-input text-muted-foreground/60",
+        selected
+          ? "bg-amber-500/15 text-amber-500"
+          : disabled
+            ? "border border-dashed border-input text-muted-foreground/60"
+            : "border border-input text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
@@ -24,11 +31,12 @@ function Chip({ children, selected, disabled }: { children: ReactNode; selected?
   );
 }
 
-function Card({ title, text, selected }: { title: string; text: string; selected?: boolean }) {
+function Card({ title, text, selected, onClick }: { title: string; text: string; selected?: boolean; onClick?: () => void }) {
   return (
     <button
       type="button"
-      disabled={!selected}
+      disabled={!selected && !onClick}
+      onClick={onClick}
       className={cx(
         "flex h-[46px] flex-1 flex-col items-center justify-center rounded-[6px] border px-2 text-center",
         selected ? "border-transparent bg-input" : "border-input",
@@ -71,6 +79,8 @@ function OptionPopover({
 }
 
 export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | null> }) {
+  const team = useEditor((s) => s.team);
+  const set = (patch: Partial<typeof team>) => store.set((s) => ({ team: { ...s.team, ...patch } }));
   return (
     <OptionPopover
       anchor={anchor}
@@ -80,25 +90,24 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
           aria-label="Parallel agents"
           className={cx("ml-auto flex h-6 items-center gap-[3px] rounded-[6px] px-1 font-semibold text-amber-500", open && "bg-amber-500/10")}
         >
-          <Zap size={12} strokeWidth={1.75} /> 1x
+          <Zap size={12} strokeWidth={1.75} /> {team.count}x
         </button>
       )}
     >
       <div className={LABEL}>Parallel agents</div>
       <div className="flex gap-1">
-        <Chip selected>
-          <Zap size={11} strokeWidth={1.75} /> 1x
-        </Chip>
-        {[2, 3, 4, 5, 6].map((n) => (
-          <Chip key={n} disabled>
+        {Array.from({ length: MAX_AGENTS }, (_, i) => i + 1).map((n) => (
+          <Chip key={n} selected={team.count === n} onClick={() => set({ count: n })}>
+            {n === 1 && <Zap size={11} strokeWidth={1.75} />}
             {n}x
           </Chip>
         ))}
       </div>
       <div className="mt-[13px] flex gap-1">
-        <Card title="Split Work" text="Several agents work on different tasks" selected />
-        <Card title="Side by Side" text="Several agents work on the same task" />
+        <Card title="Split Work" text="Several agents work on different tasks" selected={team.mode === "split"} onClick={() => set({ mode: "split" })} />
+        <Card title="Side by Side" text="Several agents work on the same task" selected={team.mode === "side"} onClick={() => set({ mode: "side" })} />
       </div>
+      {team.count > 1 && <p className="mt-2 pl-1 text-[10px] text-muted-foreground">Each agent uses your subscription separately.</p>}
     </OptionPopover>
   );
 }

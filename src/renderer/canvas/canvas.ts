@@ -10,6 +10,7 @@ import { overlay } from "./overlay.js";
 import { unionBox } from "./pick.js";
 import { findNode } from "../../render/screenshot.js";
 import { drawTextEditing } from "./text-edit.js";
+import { colorOf } from "../../doc/values.js";
 import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
@@ -47,57 +48,62 @@ export const ZOOM_PRESETS = [0.02, 0.03, 0.05, 0.08, 0.125, 0.25, 0.5, 1, 2, 4, 
 export const view = { x: 0, y: 0, zoom: 1 };
 type Point = { x: number; y: number };
 /**
- * The agent's cursor (page coordinates): gliding from `from` to `to` over `ms` from `movedAt`, then the
- * rest of its path (`path`); `next` is the newest spot it was sent to while busy.
+ * An agent's cursor (page coordinates): gliding from `from` to `to` over `ms` from `movedAt`, then the
+ * rest of its path (`path`); `next` is the newest spot it was sent to while busy. One per agent, by
+ * its place in the team (0 when one agent works alone).
  */
-export const cursor = {
-  name: "",
-  shown: false,
-  since: 0,
-  from: { x: 0, y: 0 } as Point,
-  to: { x: 0, y: 0 } as Point,
-  movedAt: 0,
-  ms: 0,
-  path: [] as Point[],
-  next: undefined as Point[] | undefined,
-};
+interface Cursor {
+  name: string;
+  color: string;
+  since: number;
+  from: Point;
+  to: Point;
+  movedAt: number;
+  ms: number;
+  path: Point[];
+  next: Point[] | undefined;
+}
+const cursors = new Map<number, Cursor>();
 
 /** Starts the next leg once the cursor has arrived and rested: the rest of a box being drawn, or a new spot. */
-function advance(now: number): void {
-  const rest = cursor.path.length ? DRAW_PAUSE_MS : REST_MS;
-  if (now < cursor.movedAt + cursor.ms + rest) return;
+function advance(c: Cursor, now: number): void {
+  const rest = c.path.length ? DRAW_PAUSE_MS : REST_MS;
+  if (now < c.movedAt + c.ms + rest) return;
   let ms = DRAW_MS;
-  if (!cursor.path.length) {
-    if (!cursor.next) return;
-    cursor.path = cursor.next;
-    cursor.next = undefined;
+  if (!c.path.length) {
+    if (!c.next) return;
+    c.path = c.next;
+    c.next = undefined;
     ms = GLIDE_MS;
   }
-  Object.assign(cursor, { from: cursor.to, to: cursor.path.shift()!, movedAt: now, ms });
+  Object.assign(c, { from: c.to, to: c.path.shift()!, movedAt: now, ms });
 }
 
-function cursorAt(now: number): Point {
-  advance(now);
-  const k = cursor.ms ? Math.min(1, (now - cursor.movedAt) / cursor.ms) : 1;
+function cursorAt(c: Cursor, now: number): Point {
+  advance(c, now);
+  const k = c.ms ? Math.min(1, (now - c.movedAt) / c.ms) : 1;
   const e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
-  return { x: cursor.from.x + (cursor.to.x - cursor.from.x) * e, y: cursor.from.y + (cursor.to.y - cursor.from.y) * e };
+  return { x: c.from.x + (c.to.x - c.from.x) * e, y: c.from.y + (c.to.y - c.from.y) * e };
 }
 
 /**
- * Sends the agent's cursor along a path of page points (one spot, or a box's corners to draw it): it
+ * Sends an agent's cursor along a path of page points (one spot, or a box's corners to draw it): it
  * fades in at the start the first time; while busy, the newest path waits and replaces older ones.
  */
-export function moveCursor(path: Point[]): void {
+export function moveCursor(path: Point[], who: { agent: number; name: string; color: string }): void {
   if (!path.length) return;
   const now = performance.now();
-  if (!cursor.shown) {
-    Object.assign(cursor, { shown: true, since: now, from: path[0], to: path[0], movedAt: now, ms: 0, path: path.slice(1), next: undefined });
-  } else cursor.next = path;
+  const c = cursors.get(who.agent);
+  if (!c) {
+    cursors.set(who.agent, { name: who.name, color: who.color, since: now, from: path[0]!, to: path[0]!, movedAt: now, ms: 0, path: path.slice(1), next: undefined });
+  } else c.next = path;
   schedule();
 }
 
-export function hideCursor(): void {
-  Object.assign(cursor, { shown: false, path: [], next: undefined });
+/** Hides one agent's cursor, or every cursor. */
+export function hideCursor(agent?: number): void {
+  if (agent === undefined) cursors.clear();
+  else cursors.delete(agent);
   schedule();
 }
 
@@ -279,13 +285,13 @@ function draw() {
     if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover));
     drawSelection(canvas, s, st.selection);
     drawOverlay(canvas, s);
-    if (cursor.shown) drawCursor(canvas);
+    for (const c of cursors.values()) drawCursor(canvas, c);
     canvas.restore();
   }
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursor.shown || overlay.editing || s?.tree.children.some((f) => f.props.generating)) schedule();
+  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.generating)) schedule();
 }
 
 /** The document drawn once per change and replayed for every frame of animation. */
@@ -520,22 +526,23 @@ function drawOverlay(canvas: Canvas, s: Scene) {
   if (overlay.editing) drawTextEditing(canvas, s);
 }
 
-function drawCursor(canvas: Canvas) {
+function drawCursor(canvas: Canvas, c: Cursor) {
   const { ck } = engine;
   const now = performance.now();
-  const alpha = Math.min(1, (now - cursor.since) / 200);
-  const at = cursorAt(now);
-  // At rest it wobbles by a pixel or two, as Pen's does.
+  const alpha = Math.min(1, (now - c.since) / 200);
+  const at = cursorAt(c, now);
+  // At rest it wobbles by a pixel or two, as Pen's does (each agent's a little out of step).
   const [sx, sy] = toScreen(at.x, at.y);
-  const x = sx + Math.sin(now / 650) * 1.5;
-  const y = sy + Math.sin(now / 830 + 1) * 1.5;
+  const x = sx + Math.sin(now / 650 + c.since) * 1.5;
+  const y = sy + Math.sin(now / 830 + 1 + c.since) * 1.5;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
-  paint.setColor(ck.Color4f(0.66, 0.33, 0.97, alpha));
+  const [r, g, b] = colorOf(c.color, {});
+  paint.setColor(ck.Color4f(r, g, b, alpha));
   const path = new ck.PathBuilder().addPolygon([x, y, x + 4, y + 16, x + 7.5, y + 9.5, x + 14, y + 7], true).detachAndDelete();
   canvas.drawPath(path, paint);
   path.delete();
-  const label = uiText(cursor.name, 11, "#ffffff", 600);
+  const label = uiText(c.name, 11, "#ffffff", 600);
   label.layout(200);
   const w = Math.ceil(label.getMaxIntrinsicWidth()) + 10;
   canvas.drawRRect(ck.RRectXY(ck.XYWHRect(x + 12, y + 14, w, 17), 3, 3), paint);

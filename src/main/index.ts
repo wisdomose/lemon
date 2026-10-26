@@ -16,6 +16,7 @@ import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
 import { dashboardWindow, openDashboard, refreshDashboard } from "./dashboard.js";
 import { buildMenu } from "./menu.js";
+import type { Team } from "../agent/models.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -161,7 +162,7 @@ async function main() {
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-  ipcMain.handle("agent:run", (e, prompt: string, model?: string) => editorOf(e)?.runAgent(prompt, model));
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team) => editorOf(e)?.runAgent(prompt, model, team));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
   ipcMain.handle("claude:status", () => claudeStatus());
   ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
@@ -228,8 +229,13 @@ async function developerRun(open: string | undefined) {
   win.webContents.once("did-finish-load", async () => {
     log("window loaded");
     if (env.LEMON_PROMPT) {
-      const stats = await editor.runAgent(env.LEMON_PROMPT);
-      console.log(JSON.stringify({ ok: stats.ok, seconds: Math.round(stats.durationMs / 1000), steps: stats.steps.length, reply: stats.reply }));
+      // LEMON_TEAM="3 split" (or "2 side") sends the prompt to several agents.
+      const [count, mode] = (env.LEMON_TEAM ?? "").split(/\s+/);
+      const team = count ? { count: Number(count), mode: mode === "side" ? ("side" as const) : ("split" as const) } : undefined;
+      const all = await editor.runAgent(env.LEMON_PROMPT, undefined, team);
+      for (const stats of all) {
+        console.log(JSON.stringify({ ok: stats.ok, seconds: Math.round(stats.durationMs / 1000), steps: stats.steps.length, costUsd: stats.costUsd, reply: stats.reply }));
+      }
       if (env.LEMON_CAPTURE) writeFileSync(env.LEMON_CAPTURE.replace(/\.png$/, ".yjs"), Y.encodeStateAsUpdate(editor.doc));
     }
     if (!env.LEMON_CAPTURE) return;

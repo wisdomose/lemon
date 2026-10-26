@@ -140,3 +140,6 @@ made-up details such as prices or names, and anything the check found that you c
 ("tokens", "hex", "flex"). Don't narrate your steps; they saw them.`;
 
 export const INSTRUCTIONS = [ROLE, TOOL, PROCESS, CRAFT, REPLY].join("\n\n");
+
+/** What a team's agents know while they plan together, before any of them builds (team.ts). */
+export const PLANNING_CONTEXT = [ROLE, CRAFT].join("\n\n");

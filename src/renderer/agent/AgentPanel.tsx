@@ -1,6 +1,7 @@
 // The Agent tab: session row, then the empty state or the conversation with step cards.
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronsUpDown, CircleCheck, CircleX, Plus } from "lucide-react";
+import { AGENTS } from "../../agent/models.js";
 import { useEditor, type ChatItem } from "../store.js";
 import { markdown } from "../markdown.js";
 import { cx } from "../ui/kit.js";
@@ -99,9 +100,9 @@ function Thread({ chat, status }: { chat: ChatItem[]; status: "planning" | "thin
         className="h-full overflow-y-auto pt-3 pr-[17px] pb-6 pl-[13px]"
       >
         <div className="flex flex-col gap-3">
-          {chat.map((item, i) => (
-            <Item key={i} item={item} />
-          ))}
+          {arrange(chat).map((unit, i) =>
+            Array.isArray(unit) ? <TeamGroups key={i} groups={unit} /> : <Item key={i} item={unit} />,
+          )}
           {status && <Working text={status === "planning" ? "Planning next moves" : "Thinking"} />}
         </div>
       </div>
@@ -116,6 +117,41 @@ function Thread({ chat, status }: { chat: ChatItem[]; status: "planning" | "thin
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * The chat in display order: a team's building (items tagged with an agent, other than proposals) is
+ * gathered at the place it began into one group per agent, in team order; everything else stays in
+ * the order it came.
+ */
+function arrange(chat: ChatItem[]): (ChatItem | ChatItem[][])[] {
+  const out: (ChatItem | ChatItem[][])[] = [];
+  let groups: ChatItem[][] | null = null;
+  for (const item of chat) {
+    if (item.kind === "team") groups = null;
+    if (item.agent === undefined || item.kind === "proposal") {
+      out.push(item);
+      continue;
+    }
+    if (!groups) out.push((groups = []));
+    (groups[item.agent] ??= []).push(item);
+  }
+  return out.map((u) => (Array.isArray(u) ? u.filter(Boolean) : u));
+}
+
+/** A team's agents, each with its own items under its name. */
+function TeamGroups({ groups }: { groups: ChatItem[][] }) {
+  return (
+    <>
+      {groups.map((items, i) => (
+        <div key={i} className="flex flex-col gap-3 border-l-2 pl-3" style={{ borderColor: `${AGENTS[items[0]!.agent ?? 0]!.color}55` }}>
+          {items.map((item, j) => (
+            <Item key={j} item={item} />
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -138,13 +174,48 @@ function Item({ item }: { item: ChatItem }) {
     case "agent-head":
       return (
         <div className="-mb-2 flex items-center gap-1.5 text-[12px]">
-          <span className="h-[7px] w-[7px] rounded-full bg-[#a855f7]" />
+          <span className="h-[7px] w-[7px] rounded-full" style={{ background: AGENTS[item.agent ?? 0]!.color }} />
           <span className="font-semibold text-foreground">{item.name}</span>
           <span className="text-muted-foreground">{item.model}</span>
         </div>
       );
     case "thought":
       return <div className="text-[13px] text-muted-foreground">Thought for {item.seconds}s</div>;
+    case "team":
+      return (
+        <div className="text-[13px] text-muted-foreground">
+          {item.count} agents · {item.mode === "split" ? "Split Work: planning together" : "Side by Side: a version each"}
+        </div>
+      );
+    case "proposal": {
+      const a = AGENTS[item.agent ?? 0]!;
+      return (
+        <div className="text-[13px] leading-5">
+          <div className="mb-0.5 flex items-center gap-1.5 text-[12px]">
+            <span className="h-[7px] w-[7px] rounded-full" style={{ background: a.color }} />
+            <span className="font-semibold text-foreground">{a.name}</span>
+            <span className="text-muted-foreground">proposes</span>
+          </div>
+          <div className="whitespace-pre-wrap text-muted-foreground">{item.text}</div>
+        </div>
+      );
+    }
+    case "plan":
+      return (
+        <div className="rounded-[8px] border border-input px-3 py-2.5 text-[13px] leading-5">
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Agreed plan</div>
+          <div className="text-foreground">{item.text}</div>
+          <div className="mt-2 flex flex-col gap-1">
+            {item.parts.map((p) => (
+              <div key={p.agent} className="flex items-center gap-1.5 text-[12px]">
+                <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: AGENTS[p.agent]!.color }} />
+                <span className="font-semibold text-foreground">{AGENTS[p.agent]!.name}</span>
+                <span className="truncate text-muted-foreground">{p.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
     case "step":
       return <StepCard step={item} />;
     case "text":
