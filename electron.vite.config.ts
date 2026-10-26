@@ -55,7 +55,11 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react(), tailwindcss(), devFonts()],
-    build: { target: "esnext" },
+    // Two pages: the editor (index.html) and the Dashboard.
+    build: {
+      target: "esnext",
+      rollupOptions: { input: { index: join(import.meta.dirname, "src/renderer/index.html"), dashboard: join(import.meta.dirname, "src/renderer/dashboard.html") } },
+    },
     server: { fs: { allow: [import.meta.dirname] } },
   },
 });

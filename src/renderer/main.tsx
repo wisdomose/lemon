@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { PRODUCT } from "../product.js";
 import type { AgentEvent } from "../agent/agent.js";
 import { App } from "./App.js";
-import { handleAgentEvent, loadHistory } from "./agent/chat.js";
+import { handleAgentEvent, loadHistory, sendPrompt } from "./agent/chat.js";
 import { setView } from "./canvas/canvas.js";
 import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
@@ -27,6 +27,12 @@ bridge.onAgentEvent(handleAgentEvent);
 const q = new URLSearchParams(location.search);
 const initial = q.get("initial") ?? "Y";
 createRoot(document.getElementById("root")!).render(<App initial={initial} />);
+// A file started from the Dashboard's prompt: the agent starts on it here, so the chat shows it.
+const start = await bridge.startPrompt();
+if (start) {
+  if (start.model) store.set({ model: start.model });
+  sendPrompt(start.text, start.forAgent);
+}
 if (q.get("view")) {
   const [x, y, zoom] = q.get("view")!.split(",").map(Number);
   setView(x!, y!, zoom!);

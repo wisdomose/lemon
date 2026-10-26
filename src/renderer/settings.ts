@@ -18,6 +18,8 @@ export interface Settings {
   cursorSize: "small" | "medium" | "large";
   cursorLabel: boolean;
   notifyWhenDone: boolean;
+  /** The prompt starter at the top of the Dashboard. */
+  dashboardPrompt: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cursorSize: "medium",
   cursorLabel: true,
   notifyWhenDone: true,
+  dashboardPrompt: true,
 };
 
 const KEY = "settings";
@@ -52,6 +55,14 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
   listeners.forEach((l) => l());
 }
 
+// Another window (the Dashboard, or another file) changed a setting.
+addEventListener("storage", (e) => {
+  if (e.key !== KEY) return;
+  current = { ...DEFAULT_SETTINGS, ...(JSON.parse(e.newValue ?? "{}") as Partial<Settings>) };
+  applyTheme();
+  listeners.forEach((l) => l());
+});
+
 export function useSettings(): Settings {
   return useSyncExternalStore(
     (l) => (listeners.add(l), () => listeners.delete(l)),
@@ -59,7 +70,11 @@ export function useSettings(): Settings {
   );
 }
 
-/** Puts the chosen theme on the document root (the tokens in theme.css switch on `.dark`). */
+/**
+ * Puts the chosen theme on the document root (the tokens in theme.css switch on `.dark`). A page marked
+ * `data-always-dark` (the Dashboard) stays dark.
+ */
 export function applyTheme(): void {
-  document.documentElement.classList.toggle("dark", current.theme === "dark");
+  const root = document.documentElement;
+  root.classList.toggle("dark", current.theme === "dark" || "alwaysDark" in root.dataset);
 }

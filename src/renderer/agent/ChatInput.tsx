@@ -2,13 +2,11 @@
 import { useRef, useState } from "react";
 import { PromptEditor, type PromptEditorHandle } from "./PromptEditor.js";
 import { ParallelAgents, Variants } from "./RunOptions.js";
-import { DropdownMenu as M } from "radix-ui";
-import { ArrowUp, ChevronDown, ChevronRight, Image as ImageIcon, Plus, Search, Square } from "lucide-react";
-import { MODELS, modelLabel } from "../../agent/models.js";
+import { ArrowUp, Plus, Square } from "lucide-react";
+import { ModelPicker } from "./ModelPicker.js";
 import { bridge, currentScene } from "../scene.js";
 import { store, useEditor } from "../store.js";
 import { Island } from "../ui/kit.js";
-import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
 import { findNode } from "../../render/screenshot.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { ChipRef } from "./prompt-doc.js";
@@ -17,7 +15,6 @@ import { sendPrompt } from "./chat.js";
 export function ChatInput() {
   const footer = useRef<HTMLDivElement>(null);
   const status = useEditor((s) => s.agentStatus);
-  const model = useEditor((s) => s.model);
   const selection = useEditor((s) => s.selection);
   useEditor((s) => s.docVersion);
   const tree = currentScene()?.tree;
@@ -49,14 +46,7 @@ export function ChatInput() {
         </button>
         <ParallelAgents anchor={footer} />
         <Variants anchor={footer} />
-        <M.Root>
-          <M.Trigger asChild>
-            <button type="button" className="ml-[7px] flex items-center gap-1 rounded-md hover:text-foreground">
-              {modelLabel(model)} <ChevronDown size={12} strokeWidth={1.5} />
-            </button>
-          </M.Trigger>
-          <ModelMenu model={model} />
-        </M.Root>
+        <ModelPicker />
         <button
           type="button"
           aria-label={status ? "Stop" : "Send"}
@@ -69,44 +59,5 @@ export function ChatInput() {
         </button>
       </div>
     </Island>
-  );
-}
-
-/** The model picker: search, models grouped by provider, then image model and providers. */
-function ModelMenu({ model }: { model: string }) {
-  const [query, setQuery] = useState("");
-  const shown = MODELS.filter((m) => m.label.toLowerCase().includes(query.toLowerCase()));
-  return (
-    <MenuContent side="top" align="end" sideOffset={8} className="w-[228px] text-[12px]">
-      <div className="flex h-7 items-center gap-2 px-2 text-muted-foreground">
-        <Search size={13} strokeWidth={1.5} />
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          placeholder="Search models..."
-          className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-        />
-      </div>
-      <MenuSeparator />
-      <MenuLabel>Anthropic</MenuLabel>
-      {shown.map((m) => (
-        <MenuItem
-          key={m.id}
-          label={<span className="font-medium">{m.label}</span>}
-          current={m.id === model}
-          onSelect={() => store.set({ model: m.id })}
-        />
-      ))}
-      <MenuSeparator />
-      <MenuItem
-        icon={<ImageIcon size={13} strokeWidth={1.5} />}
-        label="Image model"
-        hint={<>Not set <ChevronRight size={12} strokeWidth={1.5} /></>}
-        disabled
-      />
-      <MenuItem icon={<Plus size={13} strokeWidth={1.5} />} label="Add more providers" />
-    </MenuContent>
   );
 }

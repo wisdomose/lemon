@@ -1,7 +1,8 @@
 // One editor window and the design file it shows (Pen opens one window per file). The window shows
 // the document and sends its changes back as Yjs updates; the agent works on the same document here.
 // The file is saved about a second after a change (at most once a second while changes keep coming),
-// and when the window closes. A new file goes to the Drafts folder on its first change.
+// and when the window closes. A new file goes to the Drafts folder on its first change. The file's
+// picture for the Dashboard is redrawn a little after the saves stop, and on close.
 import { BrowserWindow, app, dialog } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,10 +15,22 @@ import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import { AGENT_NAME } from "../agent/models.js";
 import { runAgent } from "../agent/agent.js";
-import { EXT, addRecent, displayName, isDraft, newDraftPath, withoutExt, writeWhole } from "./files.js";
+import { thumbnail } from "../render/thumbnail.js";
+import { EXT, addRecent, displayName, isDraft, newDraftPath, withoutExt, writeThumb, writeWhole } from "./files.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
+/** How long after the last save the file's picture is redrawn. */
+const THUMB_AFTER_MS = 3000;
+
+/** A prompt to start the agent with once the window is ready (sent from the Dashboard). */
+export interface StartPrompt {
+  /** What the chat shows. */
+  text: string;
+  /** What the agent is sent. */
+  forAgent: string;
+  model?: string;
+}
 
 export type SaveState = "saved" | "saving" | "error";
 export interface FileInfo {
@@ -31,12 +44,13 @@ export interface FileInfo {
 export interface Shared {
   engine: Engine;
   sandbox: Sandbox;
-  uiUrl: string;
+  /** The address of one of the window's pages ("index" is the editor, "dashboard" the Dashboard). */
+  pageUrl: (page: "index" | "dashboard") => string;
   preload: string;
   log: (msg: string) => void;
   /** Developer runs (captures, scripted prompts) don't write files. */
   noSave: boolean;
-  /** Called when a window closes or its file changes (the menu's recent files follow). */
+  /** Called when a window closes, or a file is created, moved or redrawn (the menu and Dashboard follow). */
   changed: () => void;
 }
 
@@ -51,6 +65,7 @@ export class Editor {
   private dirty = false;
   private timer: NodeJS.Timeout | undefined;
   private running: AbortController | undefined;
+  private thumbTimer: NodeJS.Timeout | undefined;
   /** Nothing has been changed since the window opened on a new file. */
   pristine: boolean;
 
@@ -58,6 +73,7 @@ export class Editor {
   constructor(
     private readonly shared: Shared,
     path?: string,
+    private startPrompt?: StartPrompt,
   ) {
     // Agents write to this copy directly, statement by statement: it loses same-moment ties to people (doc/live.ts).
     this.doc.clientID = agentClientId();
@@ -77,6 +93,8 @@ export class Editor {
       backgroundColor: "#1e1e1e",
       webPreferences: { preload: shared.preload, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
+    // The window's title is the file's name, not the page's.
+    this.win.on("page-title-updated", (e) => e.preventDefault());
     const { log } = shared;
     if (process.env.LEMON_LOG) {
       const wc = this.win.webContents;
@@ -99,9 +117,10 @@ export class Editor {
     this.win.on("close", () => {
       this.running?.abort();
       this.flush();
+      if (this.thumbTimer) void this.redrawThumb();
     });
     this.win.on("closed", () => shared.changed());
-    void this.win.loadURL(shared.uiUrl);
+    void this.win.loadURL(shared.pageUrl("index"));
   }
 
   /** Applies a change made in the window. */
@@ -148,6 +167,8 @@ export class Editor {
       this.dirty = false;
       this.state = "saved";
       this.error = undefined;
+      clearTimeout(this.thumbTimer);
+      this.thumbTimer = setTimeout(() => void this.redrawThumb(), THUMB_AFTER_MS);
     } catch (e) {
       // Keep trying on the next change; the window shows the problem.
       this.state = "error";
@@ -155,6 +176,27 @@ export class Editor {
       this.shared.log(`save failed: ${this.error}`);
     }
     this.tell();
+  }
+
+  /** Redraws the file's picture for the Dashboard. */
+  private async redrawThumb(): Promise<void> {
+    clearTimeout(this.thumbTimer);
+    this.thumbTimer = undefined;
+    const path = this.path;
+    if (!path) return;
+    try {
+      writeThumb(path, await thumbnail(this.shared.engine, this.doc));
+      this.shared.changed();
+    } catch (e) {
+      this.shared.log(`picture failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** The prompt to start with, once (the window asks when it is ready). */
+  takeStartPrompt(): StartPrompt | undefined {
+    const p = this.startPrompt;
+    this.startPrompt = undefined;
+    return p;
   }
 
   /** Ctrl+S: a file somewhere of the person's choosing is written now; a draft asks where to keep it. */
@@ -186,7 +228,11 @@ export class Editor {
     this.timer = undefined;
     this.state = "saved";
     this.error = undefined;
-    if (old && old !== target && isDraft(old) && existsSync(old)) unlinkSync(old);
+    if (old && old !== target && isDraft(old)) {
+      if (existsSync(old)) unlinkSync(old);
+      writeThumb(old, undefined);
+    }
+    void this.redrawThumb();
     addRecent(target);
     this.shared.changed();
     this.tell();

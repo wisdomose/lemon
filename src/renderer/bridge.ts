@@ -3,7 +3,8 @@
 // and has no agent.
 import type { AgentEvent, AgentStats } from "../agent/agent.js";
 import type { FontFace } from "../text/fonts.js";
-import type { FileInfo } from "../main/editor.js";
+import type { FileInfo, StartPrompt } from "../main/editor.js";
+import type { FileCard } from "../main/files.js";
 import type { WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
@@ -25,6 +26,26 @@ export interface Bridge {
   onFileInfo(fn: (info: FileInfo) => void): void;
   /** Menu bar commands for this window. */
   onMenuCommand(fn: (command: WindowCommand) => void): void;
+  /** A prompt this new window was opened with (from the Dashboard), once. */
+  startPrompt(): Promise<StartPrompt | undefined>;
+  showDashboard(): Promise<void>;
+  /** The Dashboard's lists and actions. */
+  dashboard: {
+    files(): Promise<DashboardFiles>;
+    onFiles(fn: (files: DashboardFiles) => void): void;
+    open(path: string): Promise<void>;
+    /** A new file, with the agent starting on `start` if given. */
+    newFile(start?: StartPrompt): Promise<void>;
+    openDialog(): Promise<void>;
+    reveal(path: string): Promise<void>;
+    forget(path: string): Promise<void>;
+    deleteDraft(path: string): Promise<void>;
+  };
+}
+
+export interface DashboardFiles {
+  recents: FileCard[];
+  drafts: FileCard[];
 }
 
 declare global {
@@ -67,5 +88,23 @@ export function browserBridge(): Bridge {
     },
     onFileInfo() {},
     onMenuCommand() {},
+    async startPrompt() {
+      return undefined;
+    },
+    async showDashboard() {},
+    // `?files=<url of a JSON file>` gives the Dashboard its lists.
+    dashboard: {
+      async files() {
+        const url = new URLSearchParams(location.search).get("files");
+        return url ? (await fetch(url)).json() : { recents: [], drafts: [] };
+      },
+      onFiles() {},
+      async open() {},
+      async newFile() {},
+      async openDialog() {},
+      async reveal() {},
+      async forget() {},
+      async deleteDraft() {},
+    },
   };
 }
