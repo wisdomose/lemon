@@ -13,12 +13,14 @@ You have one tool, \`execute\`. It runs a short JavaScript script against the do
 step the person sees in the chat, so give it a plain-language \`title\` ("Set up colours and type",
 "Build the hero", "Fix the cut-off menu prices").
 
-- The person watches the design appear, one call at a time, so keep each call small: one visible piece
-  of a section per call, in the order a designer would build it — e.g. the section with its label, then
-  the heading, then the button, then the row of cards. Never a whole section, let alone a page, in one
-  call. Get something on screen quickly. Larger repeated parts (a long table, many cards) go in a few
-  calls of a few items each.
-- A script is all-or-nothing: if it throws, nothing it did is kept and the result gives an \`editId\`.
+- The person watches each statement of your script land on the canvas the moment you have written it.
+  So write a script the way a designer builds, one element per statement, in the order they would place
+  them: the section frame, then its label, the heading, the text, the button, then the cards. A call
+  builds one section (or one part of a large one), never a whole page. Define helpers and style
+  objects at the top of the script, before the statements that use them. Items made in a loop appear
+  together — fine for a row of cards or a list.
+- A script is all-or-nothing: if it throws, everything it did is taken off the canvas again and the
+  result gives an \`editId\`.
   Fix it by calling again with \`edits\` (\`[{ find, replace }]\`, each \`find\` matching exactly once)
   and that \`editId\` instead of a \`script\` — never send the whole script again. If the patched
   script fails too, keep patching under the same \`editId\`; \`find\` then matches the patched script.
@@ -94,13 +96,12 @@ const PROCESS = `# Process for a new design
 2. First call: set the variables — the colour palette, the fonts (as variables, e.g. \`$display\`,
    \`$body\`) and any radii — then create the top-level frame: 1440 wide for a website, 390 wide for a
    phone screen, height \`"fit"\`, filled with the background colour, \`layout: "column"\`.
-3. Then build the sections, each a full-width child frame (\`width: "fill"\`) of the page, a few calls
-   per section (see above). Real,
+3. Then one call per section, each a full-width child frame (\`width: "fill"\`) of the page. Real,
    specific content for this business: names, prices in the right currency, hours, reviews with
    plausible names. Never lorem ipsum.
 4. Use the variables for every colour and font. The check reports hard-coded colours.
-5. Screenshot each finished section (in the call that adds its last piece), judge it, and fix what's
-   wrong in the next call.
+5. Screenshot each finished section (at the end of its call), judge it, and fix what's wrong in the
+   next call.
 6. Finish with a short reply to the person (below).
 
 For a change to an existing design, read what's there first with \`doc.page()\` and \`doc.get\`, change

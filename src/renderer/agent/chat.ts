@@ -22,6 +22,13 @@ function updateStep(index: number, patch: Partial<Extract<ChatItem, { kind: "ste
 /** Top-level frames before this run; cleared once the view has been fitted to a new one. */
 let framesBefore: Set<string> | undefined;
 
+/** The first time the agent adds a top-level frame, fits the view to it once it can be laid out (its fonts may still be loading). */
+function fitNewFrame(): void {
+  if (!framesBefore || childIds(doc, ROOT_ID).every((id) => framesBefore!.has(id))) return;
+  framesBefore = undefined;
+  void laidOut().then(() => zoomToFit());
+}
+
 export function handleAgentEvent(e: AgentEvent): void {
   switch (e.type) {
     case "started":
@@ -47,6 +54,11 @@ export function handleAgentEvent(e: AgentEvent): void {
       if (at) moveCursor(at.x, at.y);
       break;
     }
+    // A statement of the step being written has landed.
+    case "step-progress":
+      moveCursor(e.focus.x, e.focus.y);
+      fitNewFrame();
+      break;
     case "step-end":
       updateStep(e.step.index, {
         state: e.step.ok ? "ok" : "failed",
@@ -56,12 +68,7 @@ export function handleAgentEvent(e: AgentEvent): void {
       });
       store.set({ agentStatus: "thinking" });
       if (e.focus) moveCursor(e.focus.x, e.focus.y);
-      // The first time a step adds a top-level frame, fit the view to it once it can be laid out
-      // (its fonts may still be loading).
-      if (framesBefore && e.frames.some((id) => !framesBefore!.has(id))) {
-        framesBefore = undefined;
-        void laidOut().then(() => zoomToFit());
-      }
+      fitNewFrame();
       schedule();
       break;
     case "text":

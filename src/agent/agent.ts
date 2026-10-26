@@ -9,7 +9,7 @@ import { z } from "zod";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
-import { execute, type ExecuteResult } from "./execute.js";
+import { execute, LiveRun, type ExecuteResult, type Focus } from "./execute.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { pickStartingPoints } from "./directions.js";
@@ -52,6 +52,8 @@ export type AgentEvent =
   | { type: "step-writing"; index: number; title: string }
   /** Where the script being written will work next, read from the unfinished script. */
   | { type: "step-target"; index: number; target: Target }
+  /** A statement of the script being written has landed on the document; `focus` is where it worked. */
+  | { type: "step-progress"; index: number; focus: Focus }
   | { type: "step-start"; index: number; title: string }
   | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
   | { type: "text"; text: string }
@@ -163,11 +165,19 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   /** Values the agent's scripts left on the global object, carried into its next script. */
   let globals: Globals = {};
   const failed = new FailedScripts();
+  /** Each step's origin (its changes' label in the document), made when the step is first seen. */
+  const origins = new Map<number, AgentChange>();
+  const originOf = (index: number) => origins.get(index) ?? origins.set(index, new AgentChange(o.name ?? "agent", index)).get(index)!;
+  /** Steps whose statements are landing while the model writes them, until their call arrives. */
+  const live = new Map<number, LiveRun>();
   const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
     if (ev.type === "message_start") blocksInMessage = 0;
     else if (ev.type === "content_block_start") {
       if (ev.content_block.type === "tool_use" && ev.content_block.name === TOOL_NAME) {
         writing = { block: ev.index, index: steps.length + 1 + blocksInMessage++, json: "", titled: false, target: "", readAt: 0 };
+        // The same step written again (the model's reply was restarted): drop what the first try landed.
+        void live.get(writing.index)?.cancel();
+        live.delete(writing.index);
       }
     } else if (ev.type === "content_block_delta") {
       if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
@@ -183,7 +193,21 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       if (!writing.titled || now - writing.readAt < READ_EVERY_MS) return;
       writing.readAt = now;
       const script = partialField(writing.json, "script")?.value;
-      const target = script ? scriptTarget(script, (id) => exists(o.doc, id), globals) : undefined;
+      if (script === undefined) return;
+      // Statements land as they are written: only for the step the agent is on (a second call in the
+      // same message runs once it arrives, after the first).
+      let run = live.get(writing.index);
+      if (!run && writing.index === steps.length + 1) {
+        const index = writing.index;
+        run = new LiveRun(o.doc, o.engine, o.sandbox, originOf(index), personEdits.peek(), globals, (focus) =>
+          emit({ type: "step-progress", index, focus }),
+        );
+        live.set(index, run);
+      }
+      run?.feed(script);
+      // Until its first statement lands, the cursor goes where the script is about to work.
+      if (run?.started) return;
+      const target = scriptTarget(script, (id) => exists(o.doc, id), globals);
       const key = JSON.stringify(target ?? null);
       if (target && key !== writing.target) {
         writing.target = key;
@@ -194,7 +218,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
 
   const executeTool = tool(
     "execute",
-    "Run a JavaScript script against the design document (global `doc`). All-or-nothing: if it throws, nothing is kept and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
+    "Run a JavaScript script against the design document (global `doc`). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
     {
       title: z.string().describe("A short plain-language name for this step, shown to the person."),
       script: z.string().optional().describe("The script: a function body; `return` a value to get it back. Leave out when sending edits."),
@@ -217,9 +241,15 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       } catch (e) {
         problem = (e as Error).message;
       }
-      const r = problem
-        ? notRun(problem, globals)
-        : await execute(o.doc, o.engine, o.sandbox, script, new AgentChange(o.name ?? "agent", index), personEdits.peek(), globals);
+      const run = live.get(index);
+      live.delete(index);
+      let r: ExecuteResult;
+      if (problem) r = notRun(problem, globals);
+      else if (run && !editId && run.writes(script)) r = await run.finish(script);
+      else {
+        await run?.cancel();
+        r = await execute(o.doc, o.engine, o.sandbox, script, originOf(index), personEdits.peek(), globals);
+      }
       let failedId: string | undefined;
       if (r.ok) {
         globals = r.globals;
@@ -339,6 +369,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     emit({ type: "error", message: e instanceof Error ? e.message : String(e) });
     stats.reply = stats.reply || `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
+  // Steps whose call never came (the run stopped while the agent was writing): remove what landed.
+  for (const run of live.values()) await run.cancel();
   // A frame the agent left marked as being built (it stopped, or forgot) is no longer being built.
   const marked = [...nodesOf(o.doc).entries()].filter(([, rec]) => rec.get("generating")).map(([id]) => id);
   if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("generating")), new AgentChange(o.name ?? "agent", steps.length));

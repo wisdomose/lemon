@@ -60,6 +60,7 @@ const stats = await runAgent({
     appendFileSync(events, JSON.stringify({ at: Number(at), ...e }) + "\n");
     if (e.type === "step-writing") console.log(`[${at}s] writing step ${e.index}: ${e.title}`);
     if (e.type === "step-target") console.log(`[${at}s]   target ${JSON.stringify(e.target)}`);
+    if (e.type === "step-progress") console.log(`[${at}s]   lands ${e.focus.id}`);
     if (e.type === "step-start") console.log(`[${at}s] step ${e.index} runs`);
     if (e.type === "step-end") {
       const s = e.step;

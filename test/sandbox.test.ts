@@ -98,7 +98,7 @@ describe("execute (the agent's tool)", () => {
   it("rolls back everything when the script fails part-way", async () => {
     const doc = new Y.Doc();
     await run(doc, `doc.insert(null, { type: "frame", name: "Existing" });`);
-    const before = Y.encodeStateAsUpdate(doc);
+    const before = JSON.stringify(store.toTree(doc));
     const r = await run(doc, `
       const f = doc.insert(null, { type: "frame", name: "Half-built" });
       doc.insert(f, { type: "text", text: "one" });
@@ -107,7 +107,7 @@ describe("execute (the agent's tool)", () => {
     expect(r.ok).toBe(false);
     expect(r.error?.message).toMatch(/No node with id "no-such-id"/);
     expect(r.error?.line).toBe(4);
-    expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
+    expect(JSON.stringify(store.toTree(doc))).toBe(before);
   });
 
   it("inserts one node at a time: children are refused", async () => {

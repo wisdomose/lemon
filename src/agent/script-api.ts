@@ -46,13 +46,15 @@ function round(b: Box) {
   return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) };
 }
 
-/** One script run's view of the document (a private copy until the run succeeds). */
+/** One script's view of the document, while its statements land on it. */
 export class ScriptSession {
   readonly refs: Record<string, string> = {};
   readonly logs: string[] = [];
   readonly screenshots: string[] = [];
   /** Nodes this run created or changed, for the automatic check afterwards. */
   readonly touched = new Set<string>();
+  /** The node the script last created or changed, where the agent's cursor goes. */
+  lastTouched?: string;
   layoutMs = 0;
   private logSize = 0;
   private cache?: { tree: TreeNode; boxes: Boxes; vars: Vars };
@@ -67,8 +69,14 @@ export class ScriptSession {
     private protect: Touched = new Map(),
   ) {}
 
-  private write(): void {
+  /** Forgets the measured layout (the document changed, or fonts it needed have loaded). */
+  write(): void {
     this.cache = undefined;
+  }
+
+  private touch(id: string): void {
+    this.touched.add(id);
+    this.lastTouched = id;
   }
 
   /** The page tree and its layout, recomputed after any change. */
@@ -148,7 +156,7 @@ export class ScriptSession {
           Object.assign(spec, this.findSpace());
         }
         const id = store.insert(doc, parent, spec, position(args[2]), this.refs);
-        this.touched.add(id);
+        this.touch(id);
         this.write();
         return id;
       }
@@ -162,7 +170,7 @@ export class ScriptSession {
           if (skipped.length) this.leftAlone.push(`${id}: ${skipped.join(", ")}`);
         }
         store.update(doc, id, props);
-        this.touched.add(id);
+        this.touch(id);
         this.write();
         return null;
       }
@@ -174,7 +182,7 @@ export class ScriptSession {
         }
         const parent = store.parentOf(doc, id);
         store.remove(doc, id);
-        if (parent && parent !== ROOT_ID) this.touched.add(parent);
+        if (parent && parent !== ROOT_ID) this.touch(parent);
         this.touched.delete(id);
         this.write();
         return null;
@@ -182,7 +190,7 @@ export class ScriptSession {
       case "move": {
         const id = str(args[0], "id");
         store.move(doc, id, args[1] == null ? ROOT_ID : str(args[1], "parent"), position(args[2]));
-        this.touched.add(id);
+        this.touch(id);
         this.write();
         return null;
       }
