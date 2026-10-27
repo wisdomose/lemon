@@ -31,8 +31,12 @@ export function edit(fn: () => void): void {
   doc.transact(fn, PERSON_EDIT);
 }
 
+/** Every font family the window can use (Google Fonts and the icon fonts), for the font picker. */
+export let fontFamilies: string[] = [];
+
 export async function boot(): Promise<void> {
   const catalogue = await bridge.fontCatalogue();
+  fontFamilies = Object.keys(catalogue).sort((a, b) => a.localeCompare(b));
   engine = await createEngine({ styles: (f) => catalogue[f], load: (face) => bridge.loadFont(face) }, () => wasmUrl);
   const [regular, semibold] = await Promise.all([selawik400, selawik600].map((u) => fetch(u).then((r) => r.arrayBuffer())));
   engine.fonts.addLocal({ family: CANVAS_UI_FONT, weight: 400, italic: false }, regular!);

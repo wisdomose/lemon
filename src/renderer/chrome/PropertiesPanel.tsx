@@ -1,174 +1,84 @@
-// The properties panel (right island): shown when something is selected. Sections and their order
-// follow the reference captures; fields edit the document.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Popover } from "radix-ui";
-import { ColourPicker, type PictureSource } from "../ui/ColourPicker.js";
-import { pictures } from "../pictures.js";
+// The properties panel (right island): shown when something is selected. Sections, their order and
+// what each shows for each kind of node follow Pen's (captured 27 Oct 2026): text and icons have no
+// stroke, groups no fill; fills, strokes and effects are lists, top item first. Fields edit the document.
+import { useState } from "react";
 import {
-  Copy,
+  AlignCenter,
   AlignCenterHorizontal,
   AlignCenterVertical,
   AlignEndHorizontal,
   AlignEndVertical,
   AlignHorizontalJustifyStart,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   AlignJustify,
+  AlignLeft,
+  AlignRight,
   AlignStartHorizontal,
   AlignStartVertical,
   ArrowDownFromLine,
   ArrowDownToLine,
   ArrowRightFromLine,
   ArrowUpToLine,
-  SquareSlash,
-  Check,
   ChevronDown,
   Circle,
+  CircleDashed,
   Component,
+  Copy,
   Diamond,
   DiamondMinus,
   DiamondPlus,
-  Focus,
-  Frame,
   Eye,
   EyeOff,
   FlipHorizontal2,
   FlipVertical2,
+  Focus,
+  Frame,
   Image as ImageIcon,
   LayoutGrid,
   LayoutPanelLeft,
-  Minus,
+  MoveHorizontal,
   PanelRight,
   Plus,
   RotateCw,
+  RotateCcw,
   Scan,
   Settings,
   Smile,
   Square,
   SquareDashed,
+  SquareSlash,
   Type,
+  WrapText,
   type LucideIcon,
 } from "lucide-react";
 import * as store from "../../doc/store.js";
-import { ROOT_ID, type Effect, type Fill, type GradientFill, type NodeProps, type Size, type TreeNode } from "../../doc/schema.js";
+import { ROOT_ID, type Effect, type Fill, type NodeProps, type Padding, type Size, type TreeNode } from "../../doc/schema.js";
 import { kindOf as layoutKind } from "../../layout/layout.js";
 import { weightOf } from "../../text/paragraph.js";
 import { findNode } from "../../render/screenshot.js";
-import { currentScene, doc, edit } from "../scene.js";
+import { pictures } from "../pictures.js";
+import { currentScene, doc, edit, engine } from "../scene.js";
 import { useEditor } from "../store.js";
 import { Island, Tip, cx } from "../ui/kit.js";
 import { COPY_COLOUR, detachSelected, goToMain, kindOf, makeComponents, unmakeComponent } from "../components.js";
-
-// Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
-const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
-
-/** Changes every selected node (edits made with several selected apply to all of them). */
-function set(ids: string[], props: Partial<NodeProps>) {
-  edit(() => ids.forEach((id) => store.exists(doc, id) && store.update(doc, id, props)));
-}
-
-/** The value shared by all of `ids`, or "Mixed" (as in the reference, capture 34). */
-function shared(ids: string[], value: (id: string) => number | string): number | string {
-  const values = ids.map(value);
-  return values.every((v) => v === values[0]) ? values[0]! : "Mixed";
-}
-
-/** A number field with a leading letter or icon; commits on Enter or when it loses focus. */
-function NumberField({
-  lead,
-  value,
-  onCommit,
-  suffix,
-  disabled,
-  className,
-}: {
-  lead: ReactNode;
-  value: number | string;
-  onCommit?: (n: number) => void;
-  suffix?: string;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
-  const commit = () => {
-    const n = parseFloat(text);
-    if (Number.isFinite(n) && onCommit) onCommit(n);
-    else setText(String(value));
-  };
-  return (
-    <label className={cx(FIELD, disabled && "opacity-50", className)}>
-      <span className="flex w-3 shrink-0 justify-center text-[11px] font-semibold text-muted-foreground">{lead}</span>
-      <input
-        value={text}
-        disabled={disabled || !onCommit}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
-        className="w-full min-w-0 bg-transparent outline-none"
-      />
-      {suffix && <span className="text-muted-foreground">{suffix}</span>}
-    </label>
-  );
-}
-
-function Section({ title, action, children, last }: { title: ReactNode; action?: ReactNode; children?: ReactNode; last?: boolean }) {
-  return (
-    <section className={cx("pr-[13px] pl-[15px]", children ? "pt-[10px] pb-[15px]" : "py-[9px]", !last && "border-b border-line")}>
-      <div className="flex h-5 items-center text-[11px] font-semibold text-foreground">
-        {title}
-        <span className="ml-auto flex items-center text-muted-foreground">{action}</span>
-      </div>
-      {children && <div className="mt-[6px] space-y-[6px]">{children}</div>}
-    </section>
-  );
-}
-
-const Label = ({ children }: { children: ReactNode }) => <div className="h-4 text-[9px] leading-4 text-muted-foreground">{children}</div>;
-
-function Check2({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex h-4 cursor-default items-center gap-1 text-[10px] text-foreground">
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={cx("flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border", checked ? "border-foreground bg-foreground text-background" : "border-input")}
-      >
-        {checked && <Check size={12} strokeWidth={2.5} />}
-      </button>
-      {label}
-    </label>
-  );
-}
-
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; icon: LucideIcon; label: string }[]; onChange: (v: T) => void }) {
-  return (
-    <div className="flex h-6 rounded-md bg-field p-px">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-label={o.label}
-          onClick={() => onChange(o.value)}
-          className={cx("flex flex-1 items-center justify-center rounded-[5px] text-foreground", o.value === value && "bg-seg-active")}
-        >
-          <o.icon size={14} strokeWidth={1.5} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
-  return (
-    <div className="flex h-6 flex-1 items-center justify-around rounded-md bg-field text-muted-foreground">
-      {icons.map((I, i) => (
-        <I key={i} size={14} strokeWidth={1.5} />
-      ))}
-    </div>
-  );
-}
+import { placedFreely } from "../canvas/place.js";
+import {
+  ButtonGroup,
+  Check2,
+  Dropdown,
+  EffectsSection,
+  FIELD,
+  FontPicker,
+  Label,
+  NumberField,
+  PaintList,
+  Section,
+  Segmented,
+  SideToggle,
+  fromList,
+  listOf,
+  set,
+  shared,
+} from "./panel-parts.js";
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
@@ -184,11 +94,32 @@ function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
 const sizeNum = (v: Size | undefined, measured: number) => (typeof v === "number" ? v : Math.round(measured * 10) / 10);
 /** Whether a size is "fill_container" / "fit_content" (with or without a fallback). */
 const sizeIs = (v: Size | undefined, rule: "fill_container" | "fit_content") => typeof v === "string" && v.startsWith(rule);
-/** A node's fills as a list (Pen allows one fill or several). */
-const fillList = (v: NodeProps["fill"]): Fill[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]);
-const EFFECT_NAMES: Record<string, string> = { shadow: "Drop Shadow", blur: "Layer Blur", background_blur: "Background Blur", shader: "Shader" };
-const effectName = (e: Effect) => (e.type === "shadow" && e.shadowType === "inner" ? "Inner Shadow" : (EFFECT_NAMES[e.type] ?? e.type));
-const hex = (c: unknown) => (typeof c === "string" ? c.replace(/^#/, "").toUpperCase() : "");
+/** A number property as a field shows it (a variable shows its name). */
+const shown = (v: unknown, fallback: number | string = 0): number | string => (typeof v === "number" ? Math.round(v * 100) / 100 : typeof v === "string" ? v : fallback);
+
+/** A number with its unit right after it ("0°", "50%"), as Pen shows them; a variable as its name. */
+const unit = (v: number | string, u: string) => (typeof v === "number" ? `${v}${u}` : v);
+
+/** Padding as [top, right, bottom, left]. */
+function sides(p: Padding | undefined): [unknown, unknown, unknown, unknown] {
+  if (p === undefined) return [0, 0, 0, 0];
+  if (!Array.isArray(p)) return [p, p, p, p];
+  if (p.length === 2) return [p[0], p[1], p[0], p[1]];
+  return [p[0], p[1], p[2], p[3]];
+}
+
+const ICON_LIBRARIES = ["lucide", "feather", "Material Symbols Outlined", "Material Symbols Rounded", "Material Symbols Sharp", "phosphor"];
+const WEIGHT_NAMES: Record<number, string> = {
+  100: "Thin",
+  200: "Extra Light",
+  300: "Light",
+  400: "Regular",
+  500: "Medium",
+  600: "Semi Bold",
+  700: "Bold",
+  800: "Extra Bold",
+  900: "Black",
+};
 
 export function PropertiesPanel() {
   const selection = useEditor((s) => s.selection);
@@ -211,19 +142,68 @@ export function PropertiesPanel() {
   const parentFrame = parent && parent !== ROOT_ID ? findNode(scene.tree, parent) : undefined;
   const parentBox = parentFrame ? scene.boxes.get(parentFrame.id) : undefined;
   const isFrame = node.type === "frame";
+  const isText = node.type === "text";
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
   const kind = kindOf(node);
   const free = topLevel || p.layoutPosition === "absolute" || (parentFrame ? layoutKind(parentFrame) === "free" : false);
-  // Text and icons are painted with their fill too (Pen's); pictures go only on shapes and frames.
-  const inked = node.type === "text" || node.type === "icon";
-  const fills = fillList(p.fill);
-  const colour: Fill | undefined = fills[0];
-  /** Sets the first fill, keeping the others. */
-  const setFirstFill = (f: Fill) => set(ids, { fill: Array.isArray(p.fill) ? [f, ...p.fill.slice(1)] : f });
-  const strokes = fillList(p.stroke);
-  const strokeWidth = p.strokeWidth;
-  const effects = Array.isArray(p.effect) ? p.effect : p.effect ? [p.effect] : [];
+  // What each kind of node has, as in Pen.
+  const hasFill = node.type !== "group";
+  const hasStroke = !["text", "icon", "group", "note", "prompt", "context"].includes(node.type);
+  const rounded = ["frame", "rectangle", "polygon"].includes(node.type);
+  const growth = p.textGrowth ?? "auto";
+
+  /** Aligns the selection: several to their bounds, one to its parent; only nodes placed by x/y move. */
+  const align = (edge: "left" | "centerX" | "right" | "top" | "centerY" | "bottom") => {
+    const boxes = ids.map((id) => ({ id, b: boxOf(id) }));
+    const target = many
+      ? (() => {
+          const x = Math.min(...boxes.map(({ b }) => b.x));
+          const y = Math.min(...boxes.map(({ b }) => b.y));
+          return { x, y, w: Math.max(...boxes.map(({ b }) => b.x + b.w)) - x, h: Math.max(...boxes.map(({ b }) => b.y + b.h)) - y };
+        })()
+      : parentBox;
+    if (!target) return;
+    edit(() => {
+      for (const { id, b } of boxes) {
+        const n = findNode(scene.tree, id);
+        const pid = store.parentOf(doc, id);
+        const pn = pid ? findNode(scene.tree, pid) : undefined;
+        if (!n || !pn || !placedFreely(n, pn) || store.isPart(id)) continue;
+        const pb = parentBoxOf(id);
+        if (edge === "left" || edge === "centerX" || edge === "right") {
+          const x = edge === "left" ? target.x : edge === "right" ? target.x + target.w - b.w : target.x + (target.w - b.w) / 2;
+          store.update(doc, id, { x: Math.round(x - pb.x) });
+        } else {
+          const y = edge === "top" ? target.y : edge === "bottom" ? target.y + target.h - b.h : target.y + (target.h - b.h) / 2;
+          store.update(doc, id, { y: Math.round(y - pb.y) });
+        }
+      }
+    });
+  };
+
+  /** Turns each selected node a quarter turn clockwise (rotation counts counter-clockwise). */
+  const rotate90 = () =>
+    edit(() =>
+      ids.forEach((id) => {
+        const r = Number(store.propsOf(doc, id).rotation ?? 0) - 90;
+        const norm = ((((r + 180) % 360) + 360) % 360) - 180;
+        store.update(doc, id, { rotation: norm === 0 ? null : norm } as never);
+      }),
+    );
+  const flip = (key: "flipX" | "flipY") =>
+    edit(() => ids.forEach((id) => store.update(doc, id, { [key]: store.propsOf(doc, id)[key] === true ? null : true } as never)));
+
+  /** Text's resizing: auto (its own size), fixed width (wraps), or a fixed box. */
+  const resize = (g: "auto" | "fixed-width" | "fixed-width-height") =>
+    set(
+      ids,
+      g === "auto"
+        ? ({ textGrowth: null, width: null, height: null } as never)
+        : g === "fixed-width"
+          ? ({ textGrowth: g, width: typeof p.width === "string" && p.width.startsWith("fill_container") ? p.width : Math.round(box.w), height: null } as never)
+          : { textGrowth: g, width: Math.round(box.w), height: Math.round(box.h) },
+    );
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
@@ -238,7 +218,7 @@ export function PropertiesPanel() {
               <span
                 className={cx(
                   "flex h-6 min-w-0 flex-1 items-center gap-2 rounded-md pl-1",
-                  // A main component's name sits on a violet tint; a copy's in a dashed violet outline (captures 38, 39).
+                  // A main component's name sits on a violet tint; a copy's in a dashed violet outline.
                   kind === "main" && "bg-[#3d3955] pl-[5px]",
                   (kind === "instance" || kind === "part") && "border border-dashed pl-1",
                 )}
@@ -252,7 +232,7 @@ export function PropertiesPanel() {
           {!many && (
             <div className="mt-[11px] flex h-6 items-center gap-1">
               {kind === "main" ? (
-                <button type="button" onClick={() => unmakeComponent(node.id)} className="flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground">
+                <button type="button" onClick={() => unmakeComponent(node.id)} className="flex h-6 w-full items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground hover:bg-foreground/10">
                   <DiamondMinus size={14} strokeWidth={1.5} /> Detach Component
                 </button>
               ) : (
@@ -275,7 +255,7 @@ export function PropertiesPanel() {
                     type="button"
                     disabled={store.isPart(node.id)}
                     onClick={makeComponents}
-                    className="ml-auto flex h-6 flex-1 items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground disabled:opacity-50"
+                    className="ml-auto flex h-6 flex-1 items-center justify-center gap-2 rounded-md bg-field text-[11px] text-foreground hover:bg-foreground/10 disabled:opacity-50"
                   >
                     <DiamondPlus size={14} strokeWidth={1.5} /> Create Component
                   </button>
@@ -289,30 +269,40 @@ export function PropertiesPanel() {
 
         <Section title="Alignment">
           <div className="flex gap-[6px]">
-            <ButtonGroup icons={[AlignStartVertical, AlignCenterVertical, AlignEndVertical]} />
-            <ButtonGroup icons={[AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal]} />
+            <ButtonGroup
+              buttons={[
+                { icon: AlignStartVertical, label: "Align left", onClick: () => align("left") },
+                { icon: AlignCenterVertical, label: "Align horizontal centres", onClick: () => align("centerX") },
+                { icon: AlignEndVertical, label: "Align right", onClick: () => align("right") },
+              ]}
+            />
+            <ButtonGroup
+              buttons={[
+                { icon: AlignStartHorizontal, label: "Align top", onClick: () => align("top") },
+                { icon: AlignCenterHorizontal, label: "Align vertical centres", onClick: () => align("centerY") },
+                { icon: AlignEndHorizontal, label: "Align bottom", onClick: () => align("bottom") },
+              ]}
+            />
           </div>
         </Section>
 
         <Section title="Position">
           <div className="grid grid-cols-2 gap-[6px]">
+            <NumberField lead="X" value={shared(ids, (id) => Math.round((boxOf(id).x - parentBoxOf(id).x) * 10) / 10)} onCommit={free ? (x) => set(ids, { x }) : undefined} />
+            <NumberField lead="Y" value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)} onCommit={free ? (y) => set(ids, { y }) : undefined} />
             <NumberField
-              lead="X"
-              value={shared(ids, (id) => Math.round((boxOf(id).x - parentBoxOf(id).x) * 10) / 10)}
-              onCommit={free ? (x) => set(ids, { x }) : undefined}
-            />
-            <NumberField
-              lead="Y"
-              value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)}
-              onCommit={free ? (y) => set(ids, { y }) : undefined}
-            />
-            <NumberField
-              lead={<RotateCw size={12} strokeWidth={1.5} />}
-              value={shared(ids, (id) => Number(findNode(scene.tree, id)?.props.rotation ?? 0))}
-              suffix="°"
+              lead="∟"
+              title="Rotation"
+              value={((v) => (typeof v === "number" ? `${v}°` : v))(shared(ids, (id) => Number(findNode(scene.tree, id)?.props.rotation ?? 0)))}
               onCommit={(rotation) => set(ids, { rotation: rotation || null } as never)}
             />
-            <ButtonGroup icons={[RotateCw, FlipVertical2, FlipHorizontal2]} />
+            <ButtonGroup
+              buttons={[
+                { icon: RotateCw, label: "Rotate 90°", onClick: rotate90 },
+                { icon: FlipVertical2, label: "Flip vertical", onClick: () => flip("flipY"), on: p.flipY === true },
+                { icon: FlipHorizontal2, label: "Flip horizontal", onClick: () => flip("flipX"), on: p.flipX === true },
+              ]}
+            />
           </div>
           {parentFrame && layoutKind(parentFrame) !== "free" && (
             <Check2
@@ -338,12 +328,24 @@ export function PropertiesPanel() {
               ]}
             />
           )}
-          {flex && <FlexControls node={node} ids={ids} />}
-          {/* Without layout buttons the label sits right under the title, as in the reference. */}
-          <div className={cx(!isFrame && "-mt-[6px]")}><Label>Dimensions</Label></div>
+          {flex && <FlexControls key={node.id} node={node} ids={ids} />}
+          {/* Without layout buttons the label sits right under the title, as in Pen. */}
+          <div className={cx(!isFrame && "-mt-[6px]")}>
+            <Label>Dimensions</Label>
+          </div>
           <div className="grid grid-cols-2 gap-[6px]">
-            <NumberField lead="W" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).width, boxOf(id).w))} onCommit={(width) => set(ids, { width })} />
-            <NumberField lead="H" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).height, boxOf(id).h))} onCommit={(height) => set(ids, { height })} />
+            <NumberField
+              lead="W"
+              disabled={isText && growth === "auto"}
+              value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).width, boxOf(id).w))}
+              onCommit={(width) => set(ids, isText && growth === "auto" ? { width, textGrowth: "fixed-width" } : { width })}
+            />
+            <NumberField
+              lead="H"
+              disabled={isText && growth !== "fixed-width-height"}
+              value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).height, boxOf(id).h))}
+              onCommit={(height) => set(ids, { height })}
+            />
             <Check2 label="Fill Width" checked={sizeIs(p.width, "fill_container")} onChange={(v) => set(ids, { width: v ? "fill_container" : Math.round(box.w) })} />
             <Check2 label="Fill Height" checked={sizeIs(p.height, "fill_container")} onChange={(v) => set(ids, { height: v ? "fill_container" : Math.round(box.h) })} />
             {flex && (
@@ -353,119 +355,78 @@ export function PropertiesPanel() {
               </>
             )}
           </div>
+          {isText && (
+            <>
+              <Label>Resizing</Label>
+              <Segmented
+                value={growth}
+                onChange={resize}
+                options={[
+                  { value: "auto", icon: MoveHorizontal, label: "Auto width" },
+                  { value: "fixed-width", icon: WrapText, label: "Fixed width" },
+                  { value: "fixed-width-height", icon: Scan, label: "Fixed size" },
+                ]}
+              />
+            </>
+          )}
         </Section>
 
         <Section
           title="Appearance"
           action={
-            <button type="button" aria-label="Visibility" onClick={() => set(ids, { enabled: p.enabled === false ? null : false } as never)}>
+            <button type="button" aria-label="Visibility" className="hover:text-foreground" onClick={() => set(ids, { enabled: p.enabled === false ? null : false } as never)}>
               {p.enabled === false ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}
             </button>
           }
         >
-          <div className="flex gap-[6px]">
-            <NumberField
-              className="flex-1"
-              lead={<SquareSlash size={12} strokeWidth={1.5} />}
-              value={typeof p.opacity === "number" ? Math.round(p.opacity * 100) : 100}
-              onCommit={(v) => set(ids, { opacity: Math.max(0, Math.min(100, v)) / 100 })}
-            />
-            <NumberField
-              className="flex-1"
-              lead={<SquareDashed size={12} strokeWidth={1.5} />}
-              value={typeof p.cornerRadius === "number" ? p.cornerRadius : Array.isArray(p.cornerRadius) ? "Mixed" : 0}
-              disabled={!["frame", "rectangle", "polygon"].includes(node.type)}
-              onCommit={(cornerRadius) => set(ids, { cornerRadius })}
-            />
-            <Scan size={16} strokeWidth={1.5} className="mt-1 shrink-0 text-muted-foreground" />
-          </div>
+          <Appearance key={node.id} node={node} ids={ids} rounded={rounded} />
           {isFrame && <Check2 label="Clip Content" checked={p.clip === true} onChange={(clip) => set(ids, { clip })} />}
-        </Section>
-
-        <Section
-          title="Fill"
-          action={
-            !colour && (
-              <button type="button" aria-label="Add fill" onClick={() => set(ids, { fill: "#D9D9D9" })}>
-                <Plus size={16} strokeWidth={1.5} />
-              </button>
-            )
-          }
-        >
-          {colour && (
-            <ColourRow
-              value={colour}
-              allowGradient
-              pictures={inked ? undefined : pictures}
-              onChange={setFirstFill}
-              onRemove={() => set(ids, { fill: Array.isArray(p.fill) && p.fill.length > 1 ? p.fill.slice(1) : (null as never) })}
-            />
-          )}
-        </Section>
-
-        {node.type === "text" && <Typography node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "text")} />}
-
-        <Section
-          title="Stroke"
-          action={
-            !strokes.length && (
-              <button type="button" aria-label="Add stroke" onClick={() => set(ids, { stroke: "#000000", strokeWidth: 1 })}>
-                <Plus size={16} strokeWidth={1.5} />
-              </button>
-            )
-          }
-        >
-          {strokes[0] !== undefined && (
+          {node.type === "ellipse" && (
             <>
-              <ColourRow
-                value={strokes[0]}
-                allowGradient
-                onChange={(f) => set(ids, { stroke: Array.isArray(p.stroke) ? [f, ...p.stroke.slice(1)] : f })}
-                onRemove={() => set(ids, { stroke: null, strokeWidth: null, strokeAlignment: null } as never)}
-              />
+              <Label>Ellipse</Label>
               <div className="grid grid-cols-2 gap-[6px]">
-                <Label>Position</Label>
-                <Label>Weight</Label>
-                <button
-                  type="button"
-                  className={FIELD}
-                  onClick={() => set(ids, { strokeAlignment: p.strokeAlignment === "center" ? "outer" : p.strokeAlignment === "outer" ? "inner" : "center" })}
-                >
-                  {p.strokeAlignment === "center" ? "Center" : p.strokeAlignment === "outer" ? "Outside" : "Inside"} <ChevronDown size={12} className="ml-auto" />
-                </button>
+                <NumberField lead={<RotateCcw size={12} strokeWidth={1.5} />} title="Start angle" value={unit(shown(p.startAngle), "°")} onCommit={(startAngle) => set(ids, { startAngle })} />
+                <NumberField lead={<CircleDashed size={12} strokeWidth={1.5} />} title="Sweep" value={unit(shown(p.sweepAngle, 360), "°")} onCommit={(sweepAngle) => set(ids, { sweepAngle: Math.max(-360, Math.min(360, sweepAngle)) })} />
                 <NumberField
-                  lead="W"
-                  value={typeof strokeWidth === "number" ? strokeWidth : strokeWidth === undefined ? 1 : "Mixed"}
-                  onCommit={(w) => set(ids, { strokeWidth: w })}
+                  lead={<Circle size={12} strokeWidth={1.5} />}
+                  title="Inner radius"
+                  value={unit(typeof p.innerRadius === "number" ? Math.round(p.innerRadius * 100) : shown(p.innerRadius), "%")}
+                  onCommit={(v) => set(ids, { innerRadius: Math.max(0, Math.min(100, v)) / 100 })}
                 />
               </div>
             </>
           )}
         </Section>
 
-        <Section title="Effects" action={<Plus size={16} strokeWidth={1.5} />}>
-          {effects.map((e, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={cx(FIELD, "flex-1")}>
-                <SquareDashed size={12} strokeWidth={1.5} /> {effectName(e)}
-              </div>
-              <Eye size={16} strokeWidth={1.5} className="text-muted-foreground" />
-              <button type="button" aria-label="Remove effect" onClick={() => set(ids, { effect: effects.length > 1 ? effects.filter((_, j) => j !== i) : (null as never) })}>
-                <Minus size={16} strokeWidth={1.5} className="text-muted-foreground" />
+        {hasFill && (
+          <Section
+            title="Fill"
+            action={
+              <button type="button" aria-label="Add fill" className="hover:text-foreground" onClick={() => set(ids, { fill: fromList([...listOf(p.fill), "#00000033"]) } as never)}>
+                <Plus size={16} strokeWidth={1.5} />
               </button>
-            </div>
-          ))}
-        </Section>
+            }
+          >
+            {listOf(p.fill).length > 0 && <PaintList paints={listOf(p.fill)} pictures={node.type === "text" || node.type === "icon" ? undefined : pictures} onChange={(list) => set(ids, { fill: fromList(list) } as never)} />}
+          </Section>
+        )}
+
+        {isText && <Typography node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "text")} />}
+        {node.type === "icon" && <IconSection key={node.id} node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "icon")} />}
+
+        {hasStroke && <Stroke key={node.id} node={node} ids={ids} />}
+
+        <EffectsSection effects={listOf<Effect>(p.effect)} onChange={(list) => set(ids, { effect: fromList(list) } as never)} />
 
         <Section title="Code" action={<Settings size={16} strokeWidth={1.5} />}>
           <div className={FIELD}>
             HTML + Tailwind <ChevronDown size={12} className="ml-auto" />
           </div>
           <div className="grid grid-cols-2 gap-[6px]">
-            <button type="button" className={cx(FIELD, "justify-center")}>Copy HTML</button>
-            <button type="button" className={cx(FIELD, "justify-center")}>Export HTML</button>
+            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")}>Copy HTML</button>
+            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")}>Export HTML</button>
           </div>
-          <button type="button" className={cx(FIELD, "w-full justify-center")}>Import Web via Browser</button>
+          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")}>Import Web via Browser</button>
         </Section>
 
         <Section title="Export" last>
@@ -473,92 +434,49 @@ export function PropertiesPanel() {
             <div className={FIELD}>1x <ChevronDown size={12} className="ml-auto" /></div>
             <div className={FIELD}>PNG <ChevronDown size={12} className="ml-auto" /></div>
           </div>
-          <button type="button" className={cx(FIELD, "w-full justify-center")}>Export layer</button>
+          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")}>Export layer</button>
         </Section>
       </div>
     </Island>
   );
 }
 
-/**
- * A fill or stroke row: swatch (opens the colour picker), hex, opacity. While the picker is open the row
- * is tinted across the panel's full width, and the picker sits 4px left of the panel, centred on the row.
- */
-function ColourRow({
-  value,
-  onChange,
-  onRemove,
-  allowGradient = false,
-  pictures: source,
-}: {
-  value: Fill;
-  onChange: (c: Fill) => void;
-  onRemove?: () => void;
-  allowGradient?: boolean;
-  pictures?: PictureSource;
-}) {
-  const solid = typeof value === "string" ? value : value.type === "color" ? value.color : undefined;
-  const [text, setText] = useState(solid ? hex(solid) : "");
-  useEffect(() => setText(solid ? hex(solid) : ""), [solid]);
-  const [open, setOpen] = useState(false);
-  const row = useRef<HTMLDivElement>(null);
-  const isVar = !!solid?.startsWith("$");
-  const picture = typeof value === "object" && value.type === "image" ? value : undefined;
-  const pictureUrl = picture?.url ? source?.url(picture.url) : undefined;
-  const swatch = solid
-    ? isVar ? "transparent" : solid
-    : picture
-      ? pictureUrl ? `center / cover url(${pictureUrl})` : "#777"
-      : typeof value === "object" && value.type === "gradient"
-        ? `linear-gradient(to right, ${((value as GradientFill).colors ?? []).map((st) => `${st.color} ${Number(st.position) * 100}%`).join(", ")})`
-        : "#777";
-  // Anchor: the panel's left edge, at the row's height.
-  const anchor = {
-    current: {
-      getBoundingClientRect: () => {
-        const panel = document.querySelector("[data-props]")!.getBoundingClientRect();
-        const r = row.current!.getBoundingClientRect();
-        return DOMRect.fromRect({ x: panel.left, y: r.top, width: panel.width, height: r.height });
-      },
-    },
-  };
+/** Opacity and corner radius; the radius splits into four corners with the toggle beside it. */
+function Appearance({ node, ids, rounded }: { node: TreeNode; ids: string[]; rounded: boolean }) {
+  const p = node.props;
+  const r = p.cornerRadius;
+  // Pen shows mixed corners as "Mixed" until the toggle opens the four fields.
+  const [corners, setCorners] = useState(false);
+  const each: unknown[] = Array.isArray(r) ? r : [r ?? 0, r ?? 0, r ?? 0, r ?? 0];
+  const setCorner = (i: number, v: number) => set(ids, { cornerRadius: each.map((x, j) => (j === i ? v : typeof x === "number" ? x : 0)) as never });
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Anchor virtualRef={anchor as never} />
-    <div ref={row} className={cx("relative flex items-center gap-2", open && "before:absolute before:-inset-x-[15px] before:-inset-y-[2px] before:bg-[#3e4c69]")}>
-      <div className="relative flex h-6 min-w-0 flex-1 items-center rounded-md bg-field text-[11px] text-foreground">
-        <Popover.Trigger asChild>
-          <button type="button" aria-label="Edit colour" className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: swatch }} />
-        </Popover.Trigger>
-        <input
-          value={isVar ? solid : solid ? text : picture ? "Image" : typeof value === "object" && value.type === "gradient" ? (value.gradientType ?? "linear").replace(/^./, (c) => c.toUpperCase()) : "Fill"}
-          readOnly={isVar || !solid}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(typeof value === "object" && value.type === "color" ? { ...value, color: `#${text}` } : `#${text}`)}
-          onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
-          className="ml-2 w-full min-w-0 bg-transparent outline-none"
+    <>
+      <div className="flex gap-[6px]">
+        <NumberField
+          className="flex-1"
+          lead={<SquareSlash size={12} strokeWidth={1.5} />}
+          title="Opacity"
+          value={typeof p.opacity === "number" ? Math.round(p.opacity * 100) : shown(p.opacity, 100)}
+          onCommit={(v) => set(ids, { opacity: v >= 100 ? null : Math.max(0, v) / 100 } as never)}
         />
-        <span className="border-l border-black/30 px-2 whitespace-nowrap">100 %</span>
+        <NumberField
+          className="flex-1"
+          lead={<SquareDashed size={12} strokeWidth={1.5} />}
+          title="Corner radius"
+          value={Array.isArray(r) ? (r.every((v) => v === r[0]) ? shown(r[0]) : "Mixed") : shown(r)}
+          disabled={!rounded || corners}
+          onCommit={(cornerRadius) => set(ids, { cornerRadius })}
+        />
+        {rounded ? <SideToggle on={corners} onChange={setCorners} label="Independent corners" /> : <span className="w-6 shrink-0" />}
       </div>
-      <Eye size={16} strokeWidth={1.5} className="relative shrink-0 text-muted-foreground" />
-      {onRemove && (
-        <button type="button" aria-label="Remove" className="relative" onClick={onRemove}>
-          <Minus size={16} strokeWidth={1.5} className="text-muted-foreground" />
-        </button>
+      {rounded && corners && (
+        <div className="grid grid-cols-2 gap-[6px]">
+          {["Top left", "Top right", "Bottom right", "Bottom left"].map((label, i) => (
+            <NumberField key={label} title={label} lead={["┌", "┐", "┘", "└"][i]} value={shown(each[i])} onCommit={(v) => setCorner(i, Math.max(0, v))} />
+          ))}
+        </div>
       )}
-    </div>
-      <Popover.Portal>
-        <Popover.Content
-          side="left"
-          align="center"
-          sideOffset={4}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none"
-        >
-          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} pictures={source} />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    </>
   );
 }
 
@@ -569,13 +487,16 @@ function FlexControls({ node, ids }: { node: TreeNode; ids: string[] }) {
   const justify = p.justifyContent ?? "start";
   const align = p.alignItems ?? "start";
   const idx = (v: string) => (v === "center" ? 1 : v === "end" ? 2 : 0);
-  const at = (col: number, r: number) => (row ? idx(justify) === col && idx(align) === r : idx(align) === col && idx(justify) === r);
+  const spread = justify === "space_between" || justify === "space_around";
+  const at = (col: number, r: number) => (row ? (spread || idx(justify) === col) && idx(align) === r : idx(align) === col && (spread || idx(justify) === r));
   const pick = (col: number, r: number) => {
     const v = (i: number) => (["start", "center", "end"] as const)[i]!;
-    set(ids, row ? { justifyContent: v(col), alignItems: v(r) } : { alignItems: v(col), justifyContent: v(r) });
+    set(ids, row ? { justifyContent: spread ? justify : v(col), alignItems: v(r) } : { alignItems: v(col), justifyContent: spread ? justify : v(r) });
   };
-  const pad = Array.isArray(p.padding) ? p.padding : [p.padding ?? 0, p.padding ?? 0];
-  const [py, px] = pad.length === 4 ? [pad[0], pad[1]] : [pad[0], pad[1]];
+  const [t, rt, b, l] = sides(p.padding);
+  const [each, setEach] = useState(!(t === b && rt === l));
+  const pad = (v: unknown) => (typeof v === "number" ? v : 0);
+  const radio = (on: boolean) => <span className={cx("inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-input", on && "border-[4px] border-foreground")} />;
   return (
     <>
       <div className="grid grid-cols-2 gap-[6px]">
@@ -584,54 +505,171 @@ function FlexControls({ node, ids }: { node: TreeNode; ids: string[] }) {
         <div className="grid h-[68px] grid-cols-3 grid-rows-3 place-items-center rounded-md bg-field">
           {[0, 1, 2].map((r) =>
             [0, 1, 2].map((c) => (
-              <button key={`${r}${c}`} type="button" onClick={() => pick(c, r)} className="flex h-full w-full items-center justify-center">
-                <span className={at(c, r) ? "h-2 w-2 rounded-[2px] bg-[#3b82f6]" : "h-[3px] w-[3px] rounded-full bg-muted-foreground"} />
+              <button key={`${r}${c}`} type="button" onClick={() => pick(c, r)} className="group flex h-full w-full items-center justify-center">
+                <span className={at(c, r) ? "h-2 w-2 rounded-[2px] bg-[#3b82f6]" : "h-[3px] w-[3px] rounded-full bg-muted-foreground group-hover:h-2 group-hover:w-2 group-hover:rounded-[2px] group-hover:bg-[#3b82f6]/50"} />
               </button>
             )),
           )}
         </div>
         <div className="space-y-1.5 text-[10px] text-foreground">
-          <NumberField
-            lead={<AlignJustify size={12} strokeWidth={1.5} />}
-            value={typeof p.gap === "number" ? p.gap : (p.gap ?? 0)}
-            onCommit={(gap) => set(ids, { gap, justifyContent: p.justifyContent === "space_between" ? "start" : p.justifyContent })}
-          />
-          <button type="button" className="flex items-center gap-2" onClick={() => set(ids, { justifyContent: "space_between" })}>
-            <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justifyContent === "space_between" && "border-[4px] border-foreground")} /> Space Between
+          <div className="flex items-center gap-1.5">
+            <button type="button" aria-label="Gap" className="flex shrink-0" onClick={() => spread && set(ids, { justifyContent: "start" })}>
+              {radio(!spread)}
+            </button>
+            <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={shown(p.gap)} onCommit={(gap) => set(ids, { gap, ...(spread ? { justifyContent: "start" } : {}) })} />
+          </div>
+          <button type="button" className="flex items-center gap-1.5 whitespace-nowrap" onClick={() => set(ids, { justifyContent: "space_between" })}>
+            {radio(justify === "space_between")} Space Between
+          </button>
+          <button type="button" className="flex items-center gap-1.5 whitespace-nowrap" onClick={() => set(ids, { justifyContent: "space_around" })}>
+            {radio(justify === "space_around")} Space Around
           </button>
         </div>
       </div>
       <Label>Padding</Label>
-      <div className="grid grid-cols-2 gap-[6px]">
-        <NumberField lead="↔" value={Number(px)} onCommit={(v) => set(ids, { padding: [Number(py), v] })} />
-        <NumberField lead="↕" value={Number(py)} onCommit={(v) => set(ids, { padding: [v, Number(px)] })} />
-      </div>
+      {each ? (
+        <div className="flex gap-[6px]">
+          <div className="grid flex-1 grid-cols-2 gap-[6px]">
+            {(["Top", "Right", "Bottom", "Left"] as const).map((label, i) => (
+              <NumberField
+                key={label}
+                title={label}
+                lead={label[0]}
+                value={shown([t, rt, b, l][i])}
+                onCommit={(v) => set(ids, { padding: [t, rt, b, l].map((x, j) => (j === i ? v : pad(x))) as never })}
+              />
+            ))}
+          </div>
+          <SideToggle on onChange={setEach} label="Independent padding" />
+        </div>
+      ) : (
+        <div className="flex gap-[6px]">
+          <NumberField title="Vertical padding" lead="↕" value={shown(t)} onCommit={(v) => set(ids, { padding: v === pad(rt) ? v : [v, pad(rt)] })} />
+          <NumberField title="Horizontal padding" lead="↔" value={shown(rt)} onCommit={(v) => set(ids, { padding: v === pad(t) ? v : [pad(t), v] })} />
+          <SideToggle on={false} onChange={setEach} label="Independent padding" />
+        </div>
+      )}
     </>
+  );
+}
+
+/** Strokes: the paints (top first), where they sit, how wide (per side with the toggle), joins and caps. */
+function Stroke({ node, ids }: { node: TreeNode; ids: string[] }) {
+  const p = node.props;
+  const paints = listOf(p.stroke);
+  const w = p.strokeWidth;
+  const perSide = typeof w === "object" && w !== null;
+  const [each, setEach] = useState(perSide);
+  const uniform = typeof w === "number" ? w : perSide ? Number(w.top ?? 0) : typeof w === "string" ? w : 0;
+  const sideValue = (k: "top" | "right" | "bottom" | "left") => (perSide ? Number(w[k] ?? 0) : typeof w === "number" ? w : 0);
+  const setSide = (k: "top" | "right" | "bottom" | "left", v: number) =>
+    set(ids, { strokeWidth: { top: sideValue("top"), right: sideValue("right"), bottom: sideValue("bottom"), left: sideValue("left"), [k]: Math.max(0, v) } });
+  const toggleSides = (on: boolean) => {
+    setEach(on);
+    if (on && !perSide) set(ids, { strokeWidth: { top: Number(uniform) || 0, right: Number(uniform) || 0, bottom: Number(uniform) || 0, left: Number(uniform) || 0 } });
+    if (!on && perSide) set(ids, { strokeWidth: sideValue("top") });
+  };
+  const joinIcon = (j: string) => <span className={cx("inline-block h-3 w-3 border-t-2 border-l-2 border-current", j === "round" && "rounded-tl-[6px]", j === "bevel" && "[clip-path:polygon(0_40%,40%_0,100%_0,100%_100%,0_100%)]")} />;
+  const capIcon = (c: string) => <span className={cx("inline-block h-2 w-4 border-2 border-current", c === "round" && "rounded-full", c === "butt" && "border-r-0")} />;
+  return (
+    <Section
+      title="Stroke"
+      action={
+        <button
+          type="button"
+          aria-label="Add stroke"
+          className="hover:text-foreground"
+          // A first stroke is black, 1 wide, inside (as in Pen).
+          onClick={() => set(ids, paints.length ? ({ stroke: fromList([...paints, "#000000"]) } as never) : { stroke: "#000000", strokeWidth: 1, strokeAlignment: "inner" })}
+        >
+          <Plus size={16} strokeWidth={1.5} />
+        </button>
+      }
+    >
+      {paints.length > 0 && (
+        <>
+          <PaintList
+            paints={paints}
+            onChange={(list) => set(ids, list.length ? ({ stroke: fromList(list) } as never) : ({ stroke: null, strokeWidth: null, strokeAlignment: null, strokeLinejoin: null, strokeLinecap: null } as never))}
+          />
+          <div className="grid grid-cols-2 gap-[6px]">
+            <Label>Position</Label>
+            <Label>Weight</Label>
+            <Dropdown
+              value={p.strokeAlignment ?? "center"}
+              onChange={(a) => set(ids, { strokeAlignment: a === "center" ? null : a } as never)}
+              options={[
+                { value: "center", label: "Center" },
+                { value: "inner", label: "Inside" },
+                { value: "outer", label: "Outside" },
+              ]}
+            />
+            <div className="flex gap-[6px]">
+              <NumberField lead="W" disabled={each} value={each ? "Mixed" : shown(uniform)} onCommit={(v) => set(ids, { strokeWidth: Math.max(0, v) })} />
+              <SideToggle on={each} onChange={toggleSides} label="Independent sides" />
+            </div>
+          </div>
+          {each && (
+            <div className="grid grid-cols-2 gap-[6px]">
+              {(["top", "right", "bottom", "left"] as const).map((k) => (
+                <NumberField key={k} title={k[0]!.toUpperCase() + k.slice(1)} lead={k[0]!.toUpperCase()} value={sideValue(k)} onCommit={(v) => setSide(k, v)} />
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-[6px]">
+            <Label>Join</Label>
+            <Label>Cap</Label>
+            <Dropdown
+              iconOnly
+              value={p.strokeLinejoin ?? "miter"}
+              onChange={(j) => set(ids, { strokeLinejoin: j === "miter" ? null : j } as never)}
+              options={(["miter", "round", "bevel"] as const).map((j) => ({ value: j, label: j[0]!.toUpperCase() + j.slice(1), icon: joinIcon(j) }))}
+            />
+            <Dropdown
+              iconOnly
+              value={p.strokeLinecap ?? "butt"}
+              onChange={(c) => set(ids, { strokeLinecap: c === "butt" ? null : c } as never)}
+              options={[
+                { value: "butt" as const, label: "None", icon: capIcon("butt") },
+                { value: "round" as const, label: "Round", icon: capIcon("round") },
+                { value: "square" as const, label: "Square", icon: capIcon("square") },
+              ]}
+            />
+          </div>
+        </>
+      )}
+    </Section>
   );
 }
 
 function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
   const p = node.props;
-  const WEIGHTS: [number, string][] = [
-    [100, "Thin"], [200, "Extra Light"], [300, "Light"], [400, "Regular"], [500, "Medium"],
-    [600, "Semi Bold"], [700, "Bold"], [800, "Extra Bold"], [900, "Black"],
-  ];
+  const family = typeof p.fontFamily === "string" ? p.fontFamily : "Inter";
+  const italic = p.fontStyle === "italic";
   const weight = typeof p.fontWeight === "string" && p.fontWeight.startsWith("$") ? undefined : weightOf(p.fontWeight);
-  const weightName = weight === undefined ? String(p.fontWeight) : (WEIGHTS.find(([w]) => w === weight)?.[1] ?? String(weight));
+  // The family's styles ("400", "700i", …) as weight choices, upright then italic.
+  const styles = (engine.fonts.styles(family) ?? ["400"]).slice().sort((a, b) => Number(a.endsWith("i")) - Number(b.endsWith("i")) || parseInt(a) - parseInt(b));
+  const current = weight === undefined ? undefined : `${weight}${italic ? "i" : ""}`;
+  const options = styles.map((s) => {
+    const w = parseInt(s, 10);
+    return { value: s, label: `${WEIGHT_NAMES[w] ?? w}${s.endsWith("i") ? " Italic" : ""}` };
+  });
+  if (current && !styles.includes(current)) options.push({ value: current, label: `${WEIGHT_NAMES[weight!] ?? weight}${italic ? " Italic" : ""}` });
   return (
     <Section title="Typography">
-      <div className={FIELD}>
-        {typeof p.fontFamily === "string" ? p.fontFamily : "Inter"} <ChevronDown size={12} className="ml-auto" />
-      </div>
+      <FontPicker value={family} onChange={(fontFamily) => set(ids, { fontFamily })} />
       <div className="grid grid-cols-2 gap-[6px]">
-        <div className={FIELD}>
-          {weightName} <ChevronDown size={12} className="ml-auto" />
-        </div>
-        <NumberField lead="Aa" value={typeof p.fontSize === "number" ? p.fontSize : (p.fontSize ?? 14)} onCommit={(fontSize) => set(ids, { fontSize })} />
+        <Dropdown value={current} options={options} onChange={(s) => set(ids, { fontWeight: String(parseInt(s, 10)), fontStyle: s.endsWith("i") ? "italic" : null } as never)} />
+        <NumberField lead="Aa" title="Font size" value={shown(p.fontSize, 14)} onCommit={(fontSize) => set(ids, { fontSize: Math.max(1, fontSize) })} />
         <Label>Line height</Label>
         <Label>Letter spacing</Label>
-        <NumberField lead="↕" value={p.lineHeight ?? "Auto"} onCommit={(lineHeight) => set(ids, { lineHeight })} />
-        <NumberField lead="|A|" value={p.letterSpacing ?? 0} onCommit={(letterSpacing) => set(ids, { letterSpacing })} />
+        <NumberField
+          lead="↕"
+          title="Line height"
+          value={typeof p.lineHeight === "number" ? `${Math.round(p.lineHeight * 100)}%` : (p.lineHeight ?? "Auto")}
+          onCommit={(v) => set(ids, { lineHeight: Math.round(v) / 100 })}
+        />
+        <NumberField lead="|A|" title="Letter spacing" value={typeof p.letterSpacing === "number" ? `${p.letterSpacing}px` : (p.letterSpacing ?? "0px")} onCommit={(letterSpacing) => set(ids, { letterSpacing })} />
         <Label>Horizontal</Label>
         <Label>Vertical</Label>
         <Segmented
@@ -641,6 +679,7 @@ function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
             { value: "left", icon: AlignLeft, label: "Left" },
             { value: "center", icon: AlignCenter, label: "Centre" },
             { value: "right", icon: AlignRight, label: "Right" },
+            { value: "justify", icon: AlignJustify, label: "Justify" },
           ]}
         />
         <Segmented
@@ -656,3 +695,28 @@ function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
     </Section>
   );
 }
+
+/** An icon's name and library. */
+function IconSection({ node, ids }: { node: TreeNode; ids: string[] }) {
+  const p = node.props;
+  const [name, setName] = useState(String(p.icon ?? ""));
+  return (
+    <Section title="Icon">
+      <label className={cx(FIELD, "focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => (name.trim() ? set(ids, { icon: name.trim() }) : setName(String(p.icon ?? "")))}
+          onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+          className="w-full bg-transparent outline-none"
+        />
+      </label>
+      <Dropdown
+        value={ICON_LIBRARIES.find((l) => l.toLowerCase() === String(p.library ?? "lucide").toLowerCase())}
+        options={ICON_LIBRARIES.map((l) => ({ value: l, label: l }))}
+        onChange={(library) => set(ids, { library })}
+      />
+    </Section>
+  );
+}
+
