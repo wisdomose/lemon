@@ -56,6 +56,7 @@
   /* Not in the light captures; chosen to match their system (light blue selection, pale thumbnails). */
   --layer-active: #dbeafe;
   --layer-active-text: #1e40af;
+  --layer-inside: #eff6ff;
   --thumb: #f4f4f5;
   --send-off: #52525b;
   --send-off-icon: #ffffff;
@@ -106,6 +107,8 @@
   --switch-off: #323235;
   --layer-active: #283751;
   --layer-active-text: #bfdbfe;
+  /* Rows inside a selected layer (measured from the reference). */
+  --layer-inside: #272d3b;
   --thumb: #202023;
   --send-off: #3f3f46;
   --send-off-icon: #18181b;
@@ -155,6 +158,7 @@
   --color-chip-on-line: var(--chip-on-line);
   --color-layer-active: var(--layer-active);
   --color-layer-active-text: var(--layer-active-text);
+  --color-layer-inside: var(--layer-inside);
   --color-thumb: var(--thumb);
   --color-send-off: var(--send-off);
   --color-send-off-icon: var(--send-off-icon);
