@@ -16,6 +16,7 @@ import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
 import { Shell } from "./shell.js";
+import type { PageInput } from "./browser-pages.js";
 import { buildMenu } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
@@ -204,6 +205,10 @@ async function main() {
     if (editor) closeTab(editor);
   });
   ipcMain.handle("tabs:new", () => void openEditor());
+  // A tab's live browser pages.
+  ipcMain.on("browser:input", (e, id: string, ev: PageInput) => editorOf(e)?.pages.input(id, ev));
+  ipcMain.handle("browser:command", (e, id: string, what: "reload" | "back" | "forward") => editorOf(e)?.pages.command(id, what));
+  ipcMain.on("browser:repaint", (e) => editorOf(e)?.pages.repaint());
   // The Dashboard's own requests.
   ipcMain.handle("dashboard:files", () => dashboardFiles());
   ipcMain.handle("dashboard:open", (_e, path: string) => void openEditor(path));

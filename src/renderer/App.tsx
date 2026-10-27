@@ -18,7 +18,8 @@ import { selectAll, selectChildren, selectParents, unionBox, type Laid } from ".
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
 import { detachSelected, makeComponents } from "./components.js";
 import { CanvasMenu, deleteSelection, reorder } from "./chrome/CanvasMenu.js";
-import { BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
+import { BrowserLiveBar, BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
+import { pageKey } from "./canvas/live-pages.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,6 +33,15 @@ export function App({ initial }: { initial: string }) {
       const target = e.target as HTMLElement;
       // Keys typed into a text field (including the prompt editor) are not shortcuts.
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      // A browser page in use takes the keys; Escape stops using it.
+      const live = store.get().browserLive;
+      if (live) {
+        e.preventDefault();
+        if (e.key === "Escape") store.set({ browserLive: null });
+        else pageKey(live, e, "keyDown");
+        schedule();
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       if (canvasKey(e)) schedule();
@@ -57,7 +67,11 @@ export function App({ initial }: { initial: string }) {
       else if (e.key === "\\") setPanelOpen((o) => !o);
       schedule();
     };
-    const onKeyUp = (e: KeyboardEvent) => canvasKeyUp(e);
+    const onKeyUp = (e: KeyboardEvent) => {
+      const live = store.get().browserLive;
+      if (live) pageKey(live, e, "keyUp");
+      else canvasKeyUp(e);
+    };
     // The menu bar's editing commands: in a text field they act on its text, elsewhere on the design.
     bridge.onMenuCommand((command) => {
       const target = document.activeElement as HTMLElement | null;
@@ -99,6 +113,7 @@ export function App({ initial }: { initial: string }) {
           <PropertiesPanel />
           <CardKindMenu />
           <BrowserUrlField />
+          <BrowserLiveBar />
           <ZoomControl />
         </div>
         <SettingsHost />

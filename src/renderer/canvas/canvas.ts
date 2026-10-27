@@ -5,7 +5,8 @@ import { drawNode } from "../../render/draw.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, assets, currentScene, engine, type Scene } from "../scene.js";
+import { CANVAS_UI_FONT, assets, bridge, currentScene, engine, type Scene } from "../scene.js";
+import { pageImage, pagesVersion, startLivePages } from "./live-pages.js";
 import { store } from "../store.js";
 import { overlay } from "./overlay.js";
 import { index, unionBox } from "./pick.js";
@@ -344,17 +345,18 @@ function draw() {
 }
 
 /** The document drawn once per change and replayed for every frame of animation. */
-let recorded: { scene: Scene; picture: SkPicture } | undefined;
+let recorded: { scene: Scene; pages: number; picture: SkPicture } | undefined;
 function documentPicture(s: Scene): SkPicture {
-  if (recorded?.scene === s) return recorded.picture;
+  // Drawn again when the document or a live page changes.
+  if (recorded?.scene === s && recorded.pages === pagesVersion) return recorded.picture;
   const { ck } = engine;
   const recorder = new ck.PictureRecorder();
   const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, c, frame);
+  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage }, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
-  recorded = { scene: s, picture };
+  recorded = { scene: s, pages: pagesVersion, picture };
   return picture;
 }
 
@@ -600,6 +602,25 @@ function drawOverlay(canvas: Canvas, s: Scene) {
     }
   }
   if (overlay.draft) drawPill(canvas, overlay.draft);
+  // A browser page in use: a green outline with a soft glow (as in Pen).
+  const live = store.get().browserLive;
+  const liveBox = live ? s.boxes.get(live) : undefined;
+  if (liveBox) {
+    const [x, y] = toScreen(liveBox.x, liveBox.y);
+    const r = ck.XYWHRect(x, y, liveBox.w * view.zoom, liveBox.h * view.zoom);
+    const rr = ck.RRectXY(r, 16 * view.zoom, 16 * view.zoom);
+    paint.setStyle(ck.PaintStyle.Stroke);
+    const glow = ck.MaskFilter.MakeBlur(ck.BlurStyle.Outer, 8, true);
+    paint.setMaskFilter(glow);
+    paint.setStrokeWidth(4);
+    paint.setColor(ck.Color4f(0, 199 / 255, 135 / 255, 0.35));
+    canvas.drawRRect(rr, paint);
+    paint.setMaskFilter(null);
+    glow.delete();
+    paint.setStrokeWidth(1.5);
+    paint.setColor(ck.parseColorString(SCRIPT_GREEN));
+    canvas.drawRRect(rr, paint);
+  }
   // The path being drawn with the pen: its segments, a line on to the pointer, and its points.
   if (overlay.pen) {
     const pts = overlay.pen.points;
@@ -683,9 +704,20 @@ function drawCursor(canvas: Canvas, c: Cursor) {
 export function attach(canvasEl: HTMLCanvasElement): () => void {
   el = canvasEl;
   makeSurface();
+  startLivePages(schedule);
   const onResize = () => (makeSurface(), schedule());
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    // Over a page in use, the wheel scrolls the page.
+    const live = store.get().browserLive;
+    const box = live ? currentScene()?.boxes.get(live) : undefined;
+    if (live && box && !e.ctrlKey && !e.metaKey) {
+      const [px, py] = toPage(e.offsetX, e.offsetY);
+      if (px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + box.h) {
+        bridge.browser.input(live, { type: "mouseWheel", x: Math.round(px - box.x), y: Math.round(py - box.y), deltaX: -e.deltaX, deltaY: -e.deltaY });
+        return;
+      }
+    }
     const { wheelZooms, invertZoom } = getSettings();
     // Ctrl/⌘ + wheel always zooms; the plain wheel zooms only when that setting is on.
     if (e.ctrlKey || e.metaKey || wheelZooms) {

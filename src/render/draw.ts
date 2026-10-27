@@ -28,6 +28,8 @@ export interface DrawContext {
   boxes: Boxes;
   /** The document's pictures, by url. */
   assets: Assets;
+  /** A browser node's live page as it looks now (in the editor; elsewhere a browser shows its address bar). */
+  pages?: (id: string) => Image | undefined;
 }
 
 const list = <T>(v: T | T[] | undefined): T[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
@@ -815,6 +817,19 @@ function drawBrowser(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): 
   paint.setStrokeWidth(1);
   paint.setColor(ck.Color4f(...colorOf(BROWSER.outline, {})));
   const r = num(Array.isArray(node.props.cornerRadius) ? node.props.cornerRadius[0] : (node.props.cornerRadius ?? 16), vars, 16);
+  // A page that has loaded fills the node, inside its rounded corners.
+  const live = node.props.url ? c.pages?.(node.id) : undefined;
+  if (live) {
+    canvas.save();
+    canvas.clipRRect(ck.RRectXY(ck.XYWHRect(box.x, box.y, box.w, box.h), r, r), ck.ClipOp.Intersect, true);
+    const look = new ck.Paint();
+    look.setAntiAlias(true);
+    canvas.drawImageRectOptions(live, ck.XYWHRect(0, 0, live.width(), live.height()), ck.XYWHRect(box.x, box.y, box.w, box.h), ck.FilterMode.Linear, ck.MipmapMode.Linear, look);
+    look.delete();
+    canvas.restore();
+    paint.delete();
+    return;
+  }
   canvas.drawRRect(ck.RRectXY(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), r, r), paint);
   const bar = browserBar(box);
   const pill = ck.RRectXY(ck.XYWHRect(bar.x, bar.y, bar.w, bar.h), bar.h / 2, bar.h / 2);
@@ -842,7 +857,8 @@ function drawBrowser(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): 
   icon("globe", bar.x + 28 * unit, 36 * unit);
   icon("corner-down-left", bar.x + bar.w - 64 * unit, 32 * unit);
   try {
-    const url = node.props.url ? String(node.props.url) : "";
+    // Shown without "https://" and a closing "/", as in Pen.
+    const url = node.props.url ? String(node.props.url).replace(/^https?:\/\//i, "").replace(/\/$/, "") : "";
     const para = c.text.paragraph({ content: url || "Enter a URL", fontSize: 32 * unit, fill: url ? BROWSER.ink : BROWSER.hint }, {});
     para.layout(Math.max(1, bar.w - 180 * unit));
     canvas.drawParagraph(para, bar.x + 88 * unit, bar.y + (bar.h - para.getHeight()) / 2);

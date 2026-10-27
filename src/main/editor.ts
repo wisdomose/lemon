@@ -18,6 +18,7 @@ import { runTeam, type TaggedEvent } from "../agent/team.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 import { page, type FileTab, type TabInfo } from "./shell.js";
+import { BrowserPages } from "./browser-pages.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
@@ -79,6 +80,8 @@ export interface Shared {
 export class Editor implements FileTab {
   readonly doc = new Y.Doc();
   readonly view: WebContentsView;
+  /** The live pages of the file's browser nodes. */
+  readonly pages: BrowserPages;
   /** The origin of the window's changes in this document. */
   readonly fromWindow: PersonChange;
   path: string | null;
@@ -135,10 +138,14 @@ export class Editor implements FileTab {
       if (origin !== fromWindow && !this.page.isDestroyed()) this.page.send("doc:update", update);
       // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
       if (origin !== REPAIR) repairTree(this.doc);
+      this.pages.sync();
       this.changed();
     });
     this.fromWindow = fromWindow;
+    this.pages = new BrowserPages(this.doc, () => (this.page.isDestroyed() ? undefined : this.page));
     void this.page.loadURL(shared.pageUrl("index"));
+    // The tab draws the pages once it has loaded.
+    this.page.on("did-finish-load", () => (this.pages.sync(), this.pages.repaint()));
     // An imported document is written to its draft now.
     if (seed && this.path) {
       this.dirty = true;
@@ -158,6 +165,7 @@ export class Editor implements FileTab {
   /** The tab is closing (or the window): stop the agent, write the file and its picture. */
   closing(): void {
     this.running?.abort();
+    this.pages.dispose();
     this.flush();
     if (this.thumbTimer) void this.redrawThumb();
     this.shared.changed();

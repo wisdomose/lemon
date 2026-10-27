@@ -12,6 +12,8 @@ import { labelAt, radiusHandles, schedule, toPage, toScreen, view, zoomToFit } f
 import { overlay, type PenPoint } from "./overlay.js";
 import { browserBar, cardHeader, isCard, runButton } from "../../render/draw.js";
 import { sendPrompt } from "../agent/chat.js";
+import { bridge } from "../scene.js";
+import { pageCursor } from "./live-pages.js";
 import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from "./pick.js";
 import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
@@ -51,6 +53,7 @@ type Gesture =
   | { kind: "draw"; tool: Tool; from: Point; container: TreeNode }
   | { kind: "place"; tool: Tool; at: Point; container: TreeNode }
   | { kind: "pen"; from: Point; screen: Point }
+  | { kind: "page"; id: string }
   | { kind: "pan"; screen: Point };
 
 let gesture: Gesture | null = null;
@@ -135,12 +138,33 @@ function idleCursor(s: Scene | undefined, sx: number, sy: number) {
 }
 
 // ---- Pointer ---------------------------------------------------------------------------------------
+/** Where a page point falls in the browser node in use, if it does (node pixels from its corner). */
+function inLivePage(s: Scene, px: number, py: number): { id: string; x: number; y: number } | null {
+  const id = store.get().browserLive;
+  const box = id ? s.boxes.get(id) : undefined;
+  if (!id || !box || px < box.x || px > box.x + box.w || py < box.y || py > box.y + box.h) return null;
+  return { id, x: Math.round(px - box.x), y: Math.round(py - box.y) };
+}
+
+const BUTTONS = ["left", "middle", "right"] as const;
+
 function onDown(e: PointerEvent) {
   const s = currentScene();
   if (!s) return;
   const screen = { x: e.offsetX, y: e.offsetY };
   const [px, py] = toPage(screen.x, screen.y);
   const at = { x: px, y: py };
+  // A page in use takes presses inside it; a press anywhere else stops using it.
+  if (store.get().browserLive) {
+    const hit = inLivePage(s, px, py);
+    if (hit && e.button <= 2) {
+      bridge.browser.input(hit.id, { type: "mouseDown", x: hit.x, y: hit.y, button: BUTTONS[e.button]!, clickCount: e.detail || 1 });
+      gesture = { kind: "page", id: hit.id };
+      el.setPointerCapture(e.pointerId);
+      return;
+    }
+    store.set({ browserLive: null });
+  }
   if (e.button === 1 || (e.button === 0 && (space || store.get().tool === "hand"))) {
     gesture = { kind: "pan", screen };
     setCursor("grabbing");
@@ -189,6 +213,14 @@ function onMove(e: PointerEvent) {
   const s = currentScene();
   const screen = { x: e.offsetX, y: e.offsetY };
   const [px, py] = toPage(screen.x, screen.y);
+  if (gesture?.kind === "page" || (!gesture && s && inLivePage(s, px, py))) {
+    const live = s && inLivePage(s, px, py);
+    const id = gesture?.kind === "page" ? gesture.id : live!.id;
+    const box = s?.boxes.get(id);
+    if (box) bridge.browser.input(id, { type: "mouseMove", x: Math.round(px - box.x), y: Math.round(py - box.y) });
+    setCursor(pageCursor(id));
+    return;
+  }
   if (!gesture) {
     if (!s) return;
     idleCursor(s, screen.x, screen.y);
@@ -234,6 +266,11 @@ function onUp(e: PointerEvent) {
   const s = currentScene();
   if (!g || !s) return;
   const [px, py] = toPage(e.offsetX, e.offsetY);
+  if (g.kind === "page") {
+    const box = s.boxes.get(g.id);
+    if (box) bridge.browser.input(g.id, { type: "mouseUp", x: Math.round(px - box.x), y: Math.round(py - box.y), button: BUTTONS[e.button] ?? "left", clickCount: e.detail || 1 });
+    return;
+  }
   if (g.kind === "press") {
     // A click (no drag) on something already selected narrows the selection to it; with Shift it
     // takes it out. A click on nothing clears the selection.
@@ -259,6 +296,14 @@ function onDoubleClick(e: MouseEvent) {
   const s = currentScene();
   if (!s || store.get().tool !== "move" || overlay.editing) return;
   const [px, py] = toPage(e.offsetX, e.offsetY);
+  // A double-click on a browser showing a page starts using the page (Escape stops), as in Pen.
+  const under = clickPick(s, px, py, store.get().selection, false);
+  const node = under ? index(s.tree).get(under) : undefined;
+  if (node?.type === "browser" && node.props.url) {
+    store.set({ browserLive: node.id, selection: [node.id], hover: null });
+    schedule();
+    return;
+  }
   const r = doubleClickPick(s, px, py, store.get().selection);
   if (r.edit && r.id) startTextEdit(r.id, { x: px, y: py });
   else if (r.id) store.set({ selection: [r.id] });

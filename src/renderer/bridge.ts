@@ -9,6 +9,7 @@ import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
+import type { PageFrame, PageInput } from "../main/browser-pages.js";
 import type { WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
@@ -43,6 +44,17 @@ export interface Bridge {
   /** Something to tell the person as the window opens (what an import brought over), once. */
   notice(): Promise<Notice | undefined>;
   showDashboard(): Promise<void>;
+  /** The live pages of this file's browser nodes. */
+  browser: {
+    onFrame(fn: (id: string, frame: PageFrame) => void): void;
+    onCursor(fn: (id: string, cursor: string) => void): void;
+    onClosed(fn: (id: string) => void): void;
+    /** Pointer, wheel and keys for a page in use. */
+    input(id: string, ev: PageInput): void;
+    command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
+    /** Every page sends its whole picture again. */
+    repaint(): void;
+  };
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
     get(): Promise<Tabs>;
@@ -133,6 +145,14 @@ export function browserBridge(): Bridge {
       return undefined;
     },
     async showDashboard() {},
+    browser: {
+      onFrame() {},
+      onCursor() {},
+      onClosed() {},
+      input() {},
+      async command() {},
+      repaint() {},
+    },
     tabs: {
       async get() {
         return { tabs: [], active: "home" };

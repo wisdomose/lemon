@@ -68,6 +68,8 @@ export interface EditorState {
   cardMenu: { id: string; x: number; y: number } | null;
   /** The browser node whose address is being typed. */
   urlEdit: string | null;
+  /** The browser node whose page is in use (a double-click): the pointer, wheel and keys go to the page. */
+  browserLive: string | null;
 }
 
 export interface Session {
@@ -96,6 +98,7 @@ const initial: EditorState = {
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
   cardMenu: null,
   urlEdit: null,
+  browserLive: null,
 };
 
 let state = initial;

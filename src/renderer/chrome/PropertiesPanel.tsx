@@ -83,6 +83,7 @@ import {
   set,
   shared,
 } from "./panel-parts.js";
+import { shownUrl } from "./CanvasFields.js";
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
@@ -768,7 +769,7 @@ function BrowserSection({ node, ids }: { node: TreeNode; ids: string[] }) {
       {row(
         "URL",
         <label className={cx(FIELD, "focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
-          <TextProp key={String(p.url ?? "")} value={String(p.url ?? "")} placeholder="Enter a URL" onSet={(v) => set(ids, { url: v || null } as never)} />
+          <TextProp key={String(p.url ?? "")} value={shownUrl(String(p.url ?? ""))} placeholder="Enter a URL" onSet={(v) => set(ids, { url: v || null } as never)} />
         </label>,
       )}
       {row("Device", <Dropdown value="responsive" options={[{ value: "responsive", label: "Desktop (Responsive)" }]} onChange={() => {}} />)}

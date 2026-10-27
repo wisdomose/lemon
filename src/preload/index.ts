@@ -30,6 +30,20 @@ const bridge: Bridge = {
   startPrompt: () => ipcRenderer.invoke("agent:start-prompt"),
   notice: () => ipcRenderer.invoke("editor:notice"),
   showDashboard: () => ipcRenderer.invoke("dashboard:show"),
+  browser: {
+    onFrame: (fn) => {
+      ipcRenderer.on("browser:frame", (_e, id, frame) => fn(id, frame));
+    },
+    onCursor: (fn) => {
+      ipcRenderer.on("browser:cursor", (_e, id, cursor) => fn(id, cursor));
+    },
+    onClosed: (fn) => {
+      ipcRenderer.on("browser:closed", (_e, id) => fn(id));
+    },
+    input: (id, ev) => ipcRenderer.send("browser:input", id, ev),
+    command: (id, what) => ipcRenderer.invoke("browser:command", id, what),
+    repaint: () => ipcRenderer.send("browser:repaint"),
+  },
   tabs: {
     get: () => ipcRenderer.invoke("tabs:get"),
     onChange: (fn) => {
