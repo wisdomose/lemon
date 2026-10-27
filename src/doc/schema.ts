@@ -13,6 +13,7 @@ export type NodeType =
   | "ellipse"
   | "polygon"
   | "path"
+  | "line"
   | "text"
   | "note"
   | "prompt"
@@ -28,6 +29,7 @@ export const NODE_TYPES: readonly NodeType[] = [
   "ellipse",
   "polygon",
   "path",
+  "line",
   "text",
   "note",
   "prompt",

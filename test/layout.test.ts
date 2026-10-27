@@ -82,9 +82,10 @@ describe("layout", () => {
     ] });
     put(doc, { type: "frame", id: "empty", width: "fit_content(120)", height: "fit_content(80)" });
     const { boxes } = await laidOut(doc);
-    expect(boxes.get("g")).toMatchObject({ y: 0, w: 30, h: 35 });
+    // A group is exactly as big as its children, which start at its corner (as in Pen).
+    expect(boxes.get("g")).toMatchObject({ x: 0, y: 0, w: 20, h: 30 });
     expect(boxes.get("abs")).toMatchObject({ x: 40, y: 40 });
-    expect(boxes.get("f")).toMatchObject({ w: 30, h: 35 });
+    expect(boxes.get("f")).toMatchObject({ w: 20, h: 30 });
     expect(boxes.get("empty")).toMatchObject({ w: 120, h: 80 });
   });
 

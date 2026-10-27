@@ -86,7 +86,7 @@ export function check(root: TreeNode, boxes: Boxes, vars: Vars, text: TextEngine
       const parent = ancestors[ancestors.length - 1];
       const pbox = parent ? boxes.get(parent.id) : undefined;
 
-      const line = n.type === "path" && (box.w < 1 || box.h < 1);
+      const line = (n.type === "path" || n.type === "line") && (box.w < 1 || box.h < 1);
       if ((box.w < 1 || box.h < 1) && !line && ((n.type !== "frame" && n.type !== "group") || n.children.length > 0)) {
         add(n, "collapsed", `is ${Math.round(box.w)}×${Math.round(box.h)}px, so it can't be seen.`);
       }

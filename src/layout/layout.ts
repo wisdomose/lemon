@@ -27,6 +27,7 @@ import type { NodeProps, TreeNode, Vars } from "../doc/schema.js";
 import { resolveOr, withTheme } from "../doc/values.js";
 import { FontsNeeded, type FontFace } from "../text/fonts.js";
 import { faceOf, type TextEngine } from "../text/paragraph.js";
+import { iconFace } from "../text/icon-fonts.js";
 
 /** A node's box in page coordinates. */
 export interface Box {
@@ -85,7 +86,10 @@ export function kindOf(node: TreeNode): ParentKind {
   return l === "none" ? "free" : l === "vertical" ? "column" : "row";
 }
 
-const TEXTS = new Set(["text", "note", "prompt", "context"]);
+const TEXTS = new Set(["note", "prompt", "context"]);
+/** A note card's size in Pen, whatever the file says (measured from Pen). */
+const CARD_MIN_WIDTH = 250;
+const CARD_HEIGHT = 219;
 
 /** A free container fitting its content by an axis: set once the children are placed (see `fitFree`). */
 interface FreeFit {
@@ -163,6 +167,13 @@ function build(
     return yn;
   }
 
+  // Notes, prompts and contexts are cards Pen sizes itself: at least 250 wide, 219 high.
+  if (TEXTS.has(node.type)) {
+    const w = sizeRule(p.width, vars);
+    yn.setWidth(Math.max(CARD_MIN_WIDTH, w?.kind === "px" ? w.px : 0));
+    yn.setHeight(CARD_HEIGHT);
+    return yn;
+  }
   const fit: SizeRule = { kind: "fit" };
   const fw = axis("w", p.width, container ? fit : undefined);
   const fh = axis("h", p.height, container ? fit : undefined);
@@ -197,11 +208,22 @@ function fitFree(root: YogaNode, freeFits: FreeFit[], nodes: Map<string, YogaNod
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
     for (const f of [...freeFits].reverse()) {
+      const shown = f.tree.children.filter((c) => !isOff(c.props, vars)).map((c) => nodes.get(c.id)!);
+      // A group is exactly as big as its children: they start at its top-left corner (as in Pen).
+      if (f.tree.type === "group" && shown.length) {
+        const minX = Math.min(...shown.map((cn) => cn.getComputedLeft()));
+        const minY = Math.min(...shown.map((cn) => cn.getComputedTop()));
+        if (Math.abs(minX) > 0.01 || Math.abs(minY) > 0.01) {
+          for (const cn of shown) {
+            cn.setPosition(Edge.Left, cn.getComputedLeft() - minX);
+            cn.setPosition(Edge.Top, cn.getComputedTop() - minY);
+          }
+          changed = true;
+        }
+      }
       let w = 0;
       let h = 0;
-      for (const c of f.tree.children) {
-        const cn = nodes.get(c.id)!;
-        if (isOff(c.props, vars)) continue;
+      for (const cn of shown) {
         w = Math.max(w, cn.getComputedLeft() + cn.getComputedWidth());
         h = Math.max(h, cn.getComputedTop() + cn.getComputedHeight());
       }
@@ -219,7 +241,12 @@ export function facesUsed(root: TreeNode, vars: Vars): FontFace[] {
   const walk = (n: TreeNode, v: Vars) => {
     v = withTheme(v, n.props.theme);
     if (isOff(n.props, v)) return;
-    if (TEXTS.has(n.type)) out.push(faceOf(n.props, v));
+    if (n.type === "text") out.push(faceOf(n.props, v));
+    if (TEXTS.has(n.type)) out.push({ family: "JetBrains Mono", weight: 400, italic: false }, { family: "JetBrains Mono", weight: 500, italic: false });
+    if (n.type === "icon") {
+      const face = iconFace(resolveOr(n.props.library, v, ""), resolveOr(n.props.weight, v, undefined));
+      if (face) out.push(face);
+    }
     n.children.forEach((c) => walk(c, v));
   };
   walk(root, vars);

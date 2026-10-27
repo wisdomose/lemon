@@ -45,9 +45,9 @@ const __visit = (tree, visit) => {
   go(tree, undefined, 0, 0);
   return out;
 };
-const __strip = (n, depth) => {
+const __strip = (n) => {
   const { __bounds, __problems, ...node } = n;
-  if (Array.isArray(node.children)) node.children = depth <= 0 ? "..." : node.children.map((c) => __strip(c, depth - 1));
+  if (Array.isArray(node.children)) node.children = node.children.map(__strip);
   return node;
 };
 globalThis.document = "document";
@@ -67,7 +67,7 @@ globalThis.Get = (...args) => {
   if (!visit && args.every((a) => typeof a !== "string")) throw new Error("Get needs a node id, a visitor, or both: Get(id), Get(id, visit), Get(visit).");
   const tree = __call("read", [path, options, !!visit]);
   if (visit) return __visit(tree, visit);
-  return __strip(tree, typeof options.depth === "number" ? options.depth : 3);
+  return __strip(tree);
 };
 globalThis.SetVariables = (variables, replace) => { __call("setVariables", [variables, !!replace]); };
 globalThis.GetVariables = () => __call("getVariables", []);
@@ -79,12 +79,13 @@ globalThis.Print = (...a) => { __call("print", [a.map(__fmt).join(" ")]); };
 globalThis.console = Object.freeze({ log: Print, info: Print, warn: Print, error: Print });
 `;
 
-/** Refuses an icon name Lucide doesn't have, so the agent picks another rather than leaving a blank. */
+/** Refuses an icon name Lucide or Feather doesn't have, so the agent picks another rather than leaving a blank. */
 function requireIcon(props: Partial<NodeProps> | undefined): void {
   const name = props?.icon;
   const library = String(props?.library ?? "lucide").toLowerCase();
-  if (typeof name === "string" && !name.startsWith("$") && (library === "lucide" || library === "feather") && !hasIcon(name)) {
-    throw new Error(`There is no Lucide icon "${name}". Use a Lucide name in kebab case, such as "arrow-right", "circle-check" or "house".`);
+  if (typeof name === "string" && !name.startsWith("$") && (library === "lucide" || library === "feather") && !hasIcon(name, library)) {
+    const which = library === "feather" ? "Feather" : "Lucide";
+    throw new Error(`There is no ${which} icon "${name}". Use a ${which} name in kebab case, such as "arrow-right" or "home".`);
   }
 }
 
@@ -227,7 +228,9 @@ export class ScriptSession {
   }
 
   /** Reads a node (and its subtree) as Pen nodes for Get, with each node's bounds and problems. */
-  private read(path: string, o: { resolveVariables?: boolean; resolveInstances?: boolean; includePathGeometry?: boolean }): unknown {
+  private read(path: string, o: { depth?: number; resolveVariables?: boolean; resolveInstances?: boolean; includePathGeometry?: boolean }, visiting: boolean): unknown {
+    // Without a visitor only `depth` levels are wanted (deeper children read as "..."): don't read past them.
+    const maxDepth = visiting ? Infinity : typeof o.depth === "number" ? o.depth : 3;
     const { tree, boxes, vars } = this.measured();
     const doc = this.doc;
     const start = findNode(tree, path);
@@ -254,7 +257,7 @@ export class ScriptSession {
       return b.x < p.x - e || b.y < p.y - e || b.x + b.w > p.x + p.w + e || b.y + b.h > p.y + p.h + e ? "partially clipped" : undefined;
     };
     /** A node as Pen data: a ref as a ref (unless instances are resolved), with its subtree. */
-    const asPen = (n: TreeNode, parent: string | undefined, vs: Vars): Record<string, unknown> => {
+    const asPen = (n: TreeNode, parent: string | undefined, vs: Vars, depth = 0): Record<string, unknown> => {
       vs = withTheme(vs, n.props.theme);
       let node: Record<string, unknown>;
       if (n.instance && !o.resolveInstances) {
@@ -264,7 +267,7 @@ export class ScriptSession {
       } else {
         node = { type: n.type, id: n.id, ...n.props };
         if (n.instance) node.instanceOf = n.instance;
-        if (n.children.length) node.children = n.children.map((c) => asPen(c, n.id, vs));
+        if (n.children.length) node.children = depth >= maxDepth ? "..." : n.children.map((c) => asPen(c, n.id, vs, depth + 1));
       }
       if (o.resolveVariables) for (const [k, v] of Object.entries(node)) if (k !== "children" && k !== "id" && k !== "type") node[k] = resolveIn(v, vs);
       if (!o.includePathGeometry && node.type === "path" && typeof node.geometry === "string" && node.geometry.length > 80) node.geometry = "…";
@@ -477,7 +480,7 @@ export class ScriptSession {
         return null;
       }
       case "read":
-        return this.read(args[0] == null ? ROOT_ID : str(args[0], "Get's path"), (args[1] ?? {}) as never);
+        return this.read(args[0] == null ? ROOT_ID : str(args[0], "Get's path"), (args[1] ?? {}) as never, args[2] === true);
       case "check": {
         const id = args[0] == null ? undefined : str(args[0], "Check's id");
         const { tree, boxes, vars } = this.measured();

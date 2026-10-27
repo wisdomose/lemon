@@ -1,7 +1,8 @@
 // Text as CanvasKit paragraphs, shared by layout (measuring) and drawing. Text styles are Pen's:
 // fontFamily, fontSize, fontWeight ("normal", "bold", "600"), fontStyle, letterSpacing, lineHeight (a
-// multiple of the size; the font's own when left out), textAlign, underline, strikethrough. Text is
-// painted with its fill; text without one is invisible, as in Pen.
+// multiple of the size; the font's own when left out), textAlign. Text is painted with its fill;
+// text without one is invisible, as in Pen. Pen doesn't draw `underline` or `strikethrough`, so they
+// aren't drawn here either (they stay in the file).
 import type { CanvasKit, Paragraph } from "canvaskit-wasm";
 import type { Fills, NodeProps, Vars } from "../doc/schema.js";
 import { colorOf, resolveOr, type RGBA } from "../doc/values.js";
@@ -91,9 +92,7 @@ export class TextEngine {
     const paint = color ?? textColor(props.fill, vars);
     const text = String(resolveOr(props.content ?? "", vars, props.content ?? ""));
     const align = props.textAlign ?? "left";
-    const underline = resolveOr(props.underline, vars, false) === true;
-    const strike = resolveOr(props.strikethrough, vars, false) === true;
-    const k = JSON.stringify([text, used, size, lh, letterSpacing, paint, align, underline, strike]);
+    const k = JSON.stringify([text, used, size, lh, letterSpacing, paint, align]);
     const hit = this.cache.get(k);
     if (hit) {
       // Refresh its place so the most recently used paragraphs stay cached.
@@ -115,8 +114,6 @@ export class TextEngine {
         },
         letterSpacing,
         ...(lh !== undefined ? { heightMultiplier: lh, halfLeading: true } : {}),
-        decoration: (underline ? ck.UnderlineDecoration : 0) | (strike ? ck.LineThroughDecoration : 0),
-        decorationColor: ck.Color4f(...paint),
       },
     });
     const builder = ck.ParagraphBuilder.MakeFromFontCollection(style, this.fonts.collection);

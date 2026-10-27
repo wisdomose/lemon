@@ -7,10 +7,11 @@
 // document they are kept by that url (doc/assets.ts); saving writes the ones not on disk yet.
 //
 // Older files (2.x before 2.21, such as the ones Pen ships) are brought up to 2.21 as they are read:
-//   icon_font { iconFontFamily, iconFontName } → icon { library, icon }
-//   line → a path from its top-left corner to its bottom-right
-//   stroke { align, thickness, join, cap, fill } → stroke, strokeWidth, strokeAlignment, strokeLinejoin, strokeLinecap
+//   icon_font { iconFontFamily, iconFontName } → icon { icon, library }
+//   stroke { align, thickness, join, cap, fill } → stroke, strokeWidth, strokeAlignment, strokeLinejoin,
+//     strokeLinecap ("inside" → "inner", "outside" → "outer"; "center" is the default, so it's left out)
 //   image fill mode "fill" / "fit" → "cover" / "contain"
+// (checked against Pen saving an older file; Pen keeps `line` nodes as they are.)
 //
 // Only the document is saved; the undo history and the live-editing state start afresh when a file
 // is opened.
@@ -89,13 +90,13 @@ function migrateFills(v: unknown): unknown {
 function migrateProps(n: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(n)) {
-    if (k === "iconFontFamily") out.library = v;
-    else if (k === "iconFontName") out.icon = v;
+    if (k === "iconFontName") out.icon = v;
+    else if (k === "iconFontFamily") out.library = v;
     else if (k === "stroke" && isObject(v) && typeof v.type !== "string") {
       // The old stroke: one object with its paint under `fill`.
       if (v.fill !== undefined) out.stroke = migrateFills(v.fill);
       if (v.thickness !== undefined) out.strokeWidth = v.thickness;
-      if (typeof v.align === "string") out.strokeAlignment = STROKE_ALIGN[v.align] ?? v.align;
+      if (typeof v.align === "string" && v.align !== "center") out.strokeAlignment = STROKE_ALIGN[v.align] ?? v.align;
       if (v.join !== undefined) out.strokeLinejoin = v.join;
       if (v.cap !== undefined) out.strokeLinecap = v.cap;
     } else if (k === "fill" || k === "stroke") out[k] = migrateFills(v);
@@ -109,11 +110,6 @@ function migrateNode(n: unknown): PenNode {
   if (!isObject(n)) return n as PenNode;
   const out = migrateProps(n);
   if (out.type === "icon_font") out.type = "icon";
-  if (out.type === "line") {
-    out.type = "path";
-    out.geometry ??= "M0 0L1 1";
-    out.viewBox ??= [0, 0, 1, 1];
-  }
   if (Array.isArray(out.children)) out.children = out.children.map(migrateNode);
   if (isObject(out.descendants)) {
     out.descendants = Object.fromEntries(Object.entries(out.descendants).map(([path, d]) => [path, typeof (d as { type?: unknown })?.type === "string" ? migrateNode(d) : migrateChange(d)]));

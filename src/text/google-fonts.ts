@@ -1,8 +1,11 @@
-// Font files from Google Fonts, cached on disk. Node only (the app's main process and scripts).
+// Font files from Google Fonts, cached on disk, and the icon fonts Pen's icon libraries are drawn with
+// (text/icon-fonts.ts). Node only (the app's main process and scripts).
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { FontFace, FontSource } from "./fonts.js";
+import { ICON_FONT_STYLES, phosphorFile } from "./icon-fonts.js";
 
 const METADATA_URL = "https://fonts.google.com/metadata/fonts";
 // Google serves TrueType (which CanvasKit reads) instead of WOFF2 to clients that don't ask for WOFF2.
@@ -41,6 +44,8 @@ export class GoogleFonts implements FontSource {
       }
       await writeFile(path, JSON.stringify(catalogue));
     }
+    // Icon fonts: Material Symbols is served by Google Fonts but not listed; Phosphor comes with the app.
+    Object.assign(catalogue.families, ICON_FONT_STYLES);
     return new GoogleFonts(dir, catalogue);
   }
 
@@ -49,6 +54,11 @@ export class GoogleFonts implements FontSource {
   }
 
   async load(face: FontFace): Promise<ArrayBuffer> {
+    const name = phosphorFile(face.family);
+    if (name) {
+      // The package exposes its files under "@phosphor-icons/web/<path in src>".
+      return toArrayBuffer(await readFile(createRequire(import.meta.url).resolve(`@phosphor-icons/web/${name}`)));
+    }
     const file = join(this.dir, "files", `${face.family.replace(/[^\w-]/g, "_")}-${face.weight}${face.italic ? "i" : ""}.ttf`);
     if (existsSync(file)) return toArrayBuffer(await readFile(file));
     const axis = `ital,wght@${face.italic ? 1 : 0},${face.weight}`;

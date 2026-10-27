@@ -167,9 +167,11 @@ describe(".pen files", () => {
     });
     const pen = toPen(doc);
     expect(pen.version).toBe("2.21");
+    // As Pen writes the same file after opening it.
     expect(pen.children[0]).toMatchObject({ stroke: "#e5e5e5", strokeWidth: 1, strokeAlignment: "inner", fill: { mode: "cover" } });
-    expect(pen.children[0]!.children![0]).toEqual({ type: "icon", id: "i", library: "lucide", icon: "info", width: 16, height: 16, fill: "#000000" });
-    expect(pen.children[0]!.children![1]).toMatchObject({ type: "path", geometry: "M0 0L1 1", stroke: "$border", strokeAlignment: "center" });
+    expect(pen.children[0]!.children![0]).toEqual({ type: "icon", id: "i", icon: "info", library: "lucide", width: 16, height: 16, fill: "#000000" });
+    // Pen keeps `line` nodes; a centred stroke leaves out `strokeAlignment` (centre is the default).
+    expect(pen.children[0]!.children![1]).toEqual({ type: "line", id: "l", width: "fill_container", height: 0, stroke: "$border", strokeWidth: 1 });
   });
 
   it("refuses what isn't a .pen file", () => {

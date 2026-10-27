@@ -6,9 +6,9 @@
 // when `clip` is set), then its strokes. `opacity`, `rotation` (counter-clockwise around the top-left
 // corner), `flipX`/`flipY` and a layer blur apply to all of it.
 //
-// Not drawn yet (kept in the file as they are): shader fills and effects, mesh gradients, rounded
-// polygon corners, script output, live browser pages, and icon libraries other than Lucide (Feather
-// is drawn with Lucide's icons of the same name).
+// Not drawn yet (kept in the file as they are): shader fills and effects, mesh gradients, script
+// output and live browser pages. Underline, strikethrough and a shadow's spread aren't drawn, as in
+// Pen.
 import type { Canvas, CanvasKit, Image, Paint as CKPaint, Path, Shader } from "canvaskit-wasm";
 import type { BlendMode, Effect, Fill, Fills, ImageFill, NodeProps, TreeNode, Vars } from "../doc/schema.js";
 import { isLocalUrl, type Assets } from "../doc/assets.js";
@@ -16,6 +16,7 @@ import { ICON_GRID, ICON_LINE, iconPath } from "./icons.js";
 import { colorOf, resolveOr, withTheme } from "../doc/values.js";
 import { isOff, num, type Box, type Boxes } from "../layout/layout.js";
 import { isEnabled, textColor, type TextEngine } from "../text/paragraph.js";
+import { iconFace, iconLigature } from "../text/icon-fonts.js";
 
 const PLACEHOLDER = "#d8d4cc";
 const PLACEHOLDER_INK = "#8a857b";
@@ -116,17 +117,37 @@ function outline(ck: CanvasKit, node: TreeNode, vars: Vars, box: Box): { path: P
         break;
       }
       case "polygon": {
-        const n = Math.max(3, Math.round(num(p.polygonCount, vars, 3)));
+        // Without a count Pen draws nothing.
+        const count = Math.round(num(p.polygonCount, vars, 0));
+        if (count < 3) return null;
         const cx = box.x + box.w / 2;
         const cy = box.y + box.h / 2;
-        const points: number[] = [];
-        for (let i = 0; i < n; i++) {
-          const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-          points.push(cx + (Math.cos(a) * box.w) / 2, cy + (Math.sin(a) * box.h) / 2);
+        const pts: [number, number][] = [];
+        for (let i = 0; i < count; i++) {
+          const a = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+          pts.push([cx + (Math.cos(a) * box.w) / 2, cy + (Math.sin(a) * box.h) / 2]);
         }
-        b.addPolygon(points, true);
+        const r = Math.max(0, num(p.cornerRadius, vars, 0));
+        if (!r) b.addPolygon(pts.flat(), true);
+        else {
+          // Rounded corners: start halfway along the last side, then round each corner towards the next.
+          const [lx, ly] = pts[count - 1]!;
+          b.moveTo((lx + pts[0]![0]) / 2, (ly + pts[0]![1]) / 2);
+          for (let i = 0; i < count; i++) {
+            const [x1, y1] = pts[i]!;
+            const [x2, y2] = pts[(i + 1) % count]!;
+            const side = Math.hypot(x2 - x1, y2 - y1);
+            b.arcToTangent(x1, y1, x2, y2, Math.min(r, side / 2));
+          }
+          b.close();
+        }
         break;
       }
+      case "line":
+        // A line runs from its box's top-left corner to its bottom-right.
+        b.moveTo(box.x, box.y);
+        b.lineTo(box.x + box.w, box.y + box.h);
+        break;
       case "path": {
         const src = typeof p.geometry === "string" ? svgPath(ck, p.geometry) : null;
         if (!src) return null;
@@ -150,8 +171,9 @@ function outline(ck: CanvasKit, node: TreeNode, vars: Vars, box: Box): { path: P
   }
 }
 
-/** Whether a path node is open (a line or a curve without its end joined back): stroked along, not around. */
-const isOpenPath = (node: TreeNode) => node.type === "path" && typeof node.props.geometry === "string" && !/z\s*$/i.test(node.props.geometry.trim());
+/** Whether a node is an open line (a line, or a path without its end joined back): stroked along, not around. */
+const isOpenPath = (node: TreeNode) =>
+  node.type === "line" || (node.type === "path" && typeof node.props.geometry === "string" && !/z\s*$/i.test(node.props.geometry.trim()));
 
 /** Decoded pictures by url (a url's bytes never change in a document, so each is decoded once). Null: not a picture. */
 const pictures = new WeakMap<CanvasKit, Map<string, Image | null>>();
@@ -308,7 +330,8 @@ export function strokeSides(width: unknown, vars: Vars): [number, number, number
     return [one(w.top), one(w.right), one(w.bottom), one(w.left)];
   }
   if (Array.isArray(width)) return [one(width[0]), one(width[1]), one(width[2]), one(width[3])];
-  const w = width === undefined ? 1 : one(width);
+  // No width, no stroke (as in Pen).
+  const w = one(width);
   return [w, w, w, w];
 }
 
@@ -342,6 +365,8 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
     return;
   }
   const saved = canvas.getSaveCount();
+  // Everything this node changes (rotation, flips, clips) is undone when it is drawn.
+  canvas.save();
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
   const geo = outline(ck, node, vars, box);
@@ -363,17 +388,18 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
     if (turn) canvas.rotate(-turn, box.x, box.y);
     const flipX = resolveOr(p.flipX, vars, false) === true;
     const flipY = resolveOr(p.flipY, vars, false) === true;
+    // Flips mirror the node about its top-left corner, the point it also turns around (as in Pen).
     if (flipX || flipY) {
-      canvas.translate(box.x + box.w / 2, box.y + box.h / 2);
+      canvas.translate(box.x, box.y);
       canvas.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-      canvas.translate(-(box.x + box.w / 2), -(box.y + box.h / 2));
+      canvas.translate(-box.x, -box.y);
     }
 
     const graphic = node.type !== "text" && node.type !== "icon" && node.type !== "group";
     const shape = geo?.path;
     const open = isOpenPath(node);
 
-    // Outer shadows: the shape, moved, grown and blurred.
+    // Outer shadows: the shape, moved and blurred (Pen ignores a shadow's `spread`).
     if (shape && graphic && !open) {
       for (const s of shadows(p, vars, "outer")) {
         try {
@@ -382,16 +408,11 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
           continue;
         }
         const blur = num(s.blur, vars, 0);
-        const spread = num(s.spread, vars, 0);
         const mask = blur > 0 ? ck.MaskFilter.MakeBlur(ck.BlurStyle.Normal, blur / 2, true) : null;
         paint.setMaskFilter(mask);
         canvas.save();
         canvas.translate(num(s.offset?.x, vars), num(s.offset?.y, vars));
-        if (spread && node.type !== "path") {
-          const grown = { x: box.x - spread, y: box.y - spread, w: Math.max(0, box.w + 2 * spread), h: Math.max(0, box.h + 2 * spread) };
-          const g = outline(ck, node, vars, grown);
-          if (g) (canvas.drawPath(g.path, paint), g.path.delete());
-        } else canvas.drawPath(shape, paint);
+        canvas.drawPath(shape, paint);
         canvas.restore();
         paint.setMaskFilter(null);
         mask?.delete();
@@ -488,7 +509,8 @@ function drawStrokes(c: DrawContext, canvas: Canvas, node: TreeNode, shape: Path
   if (sides.every((v) => v <= 0)) return;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
-  const align = open ? "center" : (p.strokeAlignment ?? "inner");
+  // Centred on the outline unless the node says otherwise (Pen's default).
+  const align = open ? "center" : (p.strokeAlignment ?? "center");
   try {
     for (const f of fills) {
       if (setFill(c, paint, f, vars, box) !== true) continue;
@@ -540,14 +562,19 @@ function drawText(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box): void 
   canvas.drawParagraph(para, box.x, box.y + dy);
 }
 
-/** An icon: Lucide's lines in the icon's fill colour, scaled to fit its box and centred; a dashed square when unknown. */
+/**
+ * An icon in its fill colour, scaled to fit its box and centred: Lucide's and Feather's lines, or a
+ * glyph of an icon font (Material Symbols, Phosphor); a dashed square when the library has no such icon.
+ */
 function drawIcon(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box): void {
   const { ck, vars } = c;
   const scale = Math.min(box.w, box.h) / ICON_GRID;
   if (scale <= 0) return;
   const library = String(resolveOr(p.library ?? "lucide", vars, "lucide")).toLowerCase();
   const name = String(resolveOr(p.icon ?? "", vars, ""));
-  const path = library === "lucide" || library === "feather" ? iconPath(ck, name) : null;
+  const face = iconFace(library, resolveOr(p.weight, vars, undefined));
+  if (face && name && drawGlyph(c, canvas, p, box, face.family, face.weight, iconLigature(face, name))) return;
+  const path = library === "lucide" || library === "feather" ? iconPath(ck, name, library) : null;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
   paint.setStyle(ck.PaintStyle.Stroke);
@@ -571,26 +598,90 @@ function drawIcon(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box): void 
   paint.delete();
 }
 
-const CARD: Record<string, string> = { note: "#fff4b8", prompt: "#ece6ff", context: "#e3f0ff" };
+/** An icon font's glyph for `name` (by ligature), one em the size of the box's shorter side. False when it can't be drawn. */
+function drawGlyph(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box, family: string, weight: number, name: string): boolean {
+  const size = Math.min(box.w, box.h);
+  let para;
+  try {
+    para = c.text.paragraph({ content: name, fontFamily: family, fontWeight: String(weight), fontSize: size, lineHeight: 1, fill: p.fill }, c.vars);
+  } catch {
+    return false; // its font is still loading
+  }
+  para.layout(1e7);
+  const w = para.getMaxIntrinsicWidth();
+  // A name the font has no icon for comes out as letters, wider than the icon's square.
+  if (w > size * 1.5) return false;
+  canvas.drawParagraph(para, box.x + (box.w - w) / 2, box.y + (box.h - para.getHeight()) / 2);
+  return true;
+}
 
-/** A note, prompt or context: a coloured card with its text. */
+/** Note, prompt and context cards, as Pen draws them (measured from Pen at 358%). */
+const CARD = {
+  note: { label: "Note", header: "#fdefd5", body: "#fef6e4", border: "#8a6a1e", ink: "#6e4c0b" },
+  prompt: { label: "Prompt", header: "#c2e6fc", body: "#e1f3fd", border: "#1a99e8", ink: "#0e76c2" },
+  context: { label: "Context", header: "#ffffff", body: "#efefef", border: "#7a7a7a", ink: "#2b2b2b" },
+} as const;
+/** The cards' font, header height, padding and corner radius. */
+export const CARD_FONT = "JetBrains Mono";
+const CARD_HEADER = 44;
+const CARD_PAD = 12;
+const CARD_RADIUS = 8;
+
+/** A note, prompt or context: a card with a header ("Note ⌄") over a dashed line, then its text. */
 function drawCard(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
   const { ck, vars } = c;
+  const look = CARD[node.type as keyof typeof CARD];
+  const card = ck.RRectXY(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), CARD_RADIUS, CARD_RADIUS);
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
-  paint.setColor(ck.Color4f(...colorOf(CARD[node.type]!, {})));
-  canvas.drawRRect(ck.RRectXY(ck.XYWHRect(box.x, box.y, box.w, box.h), 8, 8), paint);
-  paint.delete();
+  canvas.save();
+  canvas.clipRRect(card, ck.ClipOp.Intersect, true);
+  paint.setColor(ck.Color4f(...colorOf(look.body, {})));
+  canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+  paint.setColor(ck.Color4f(...colorOf(look.header, {})));
+  canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, CARD_HEADER), paint);
+  canvas.restore();
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  paint.setColor(ck.Color4f(...colorOf(look.border, {})));
+  canvas.drawRRect(card, paint);
+  const dash = ck.PathEffect.MakeDash([6, 4], 0);
+  paint.setPathEffect(dash);
+  canvas.drawLine(box.x + 1, box.y + CARD_HEADER, box.x + box.w - 1, box.y + CARD_HEADER, paint);
+  paint.setPathEffect(null);
+  dash.delete();
   try {
-    const para = c.text.paragraph({ ...node.props, fill: node.props.fill ?? "#1f1f1f" }, vars);
-    para.layout(Math.max(1, box.w - 24));
+    const text = (content: string, weight: string) =>
+      c.text.paragraph({ content, fontFamily: CARD_FONT, fontSize: 14, fontWeight: weight, lineHeight: 1.5, fill: look.ink }, {});
+    const head = text(look.label, "500");
+    head.layout(1e7);
+    const hy = box.y + (CARD_HEADER - head.getHeight()) / 2;
+    canvas.drawParagraph(head, box.x + CARD_PAD, hy);
+    // The chevron after the label.
+    const cx = box.x + CARD_PAD + head.getMaxIntrinsicWidth() + 8;
+    const cy = box.y + CARD_HEADER / 2;
+    const chevron = iconPath(ck, "chevron-down");
+    if (chevron) {
+      paint.setStrokeWidth(ICON_LINE);
+      paint.setStrokeCap(ck.StrokeCap.Round);
+      paint.setStrokeJoin(ck.StrokeJoin.Round);
+      paint.setColor(ck.Color4f(...colorOf(look.ink, {})));
+      canvas.save();
+      canvas.translate(cx, cy - 6);
+      canvas.scale(12 / ICON_GRID, 12 / ICON_GRID);
+      canvas.drawPath(chevron, paint);
+      canvas.restore();
+    }
+    const body = text(String(resolveOr(node.props.content ?? "", vars, node.props.content ?? "")), "400");
+    body.layout(Math.max(1, box.w - 2 * CARD_PAD));
     canvas.save();
-    canvas.clipRect(ck.XYWHRect(box.x, box.y, box.w, box.h), ck.ClipOp.Intersect, true);
-    canvas.drawParagraph(para, box.x + 12, box.y + 12);
+    canvas.clipRect(ck.XYWHRect(box.x, box.y + CARD_HEADER, box.w, Math.max(0, box.h - CARD_HEADER)), ck.ClipOp.Intersect, true);
+    canvas.drawParagraph(body, box.x + CARD_PAD, box.y + CARD_HEADER + CARD_PAD);
     canvas.restore();
   } catch {
     /* its font isn't loaded yet */
   }
+  paint.delete();
 }
 
 /** A script or browser node, whose content isn't drawn yet: a dashed box saying what it is. */
