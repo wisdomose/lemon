@@ -596,6 +596,33 @@ function drawOverlay(canvas: Canvas, s: Scene) {
     }
   }
   if (overlay.draft) drawPill(canvas, overlay.draft);
+  // The path being drawn with the pen: its segments, a line on to the pointer, and its points.
+  if (overlay.pen) {
+    const pts = overlay.pen.points;
+    paint.setStyle(ck.PaintStyle.Stroke);
+    paint.setStrokeWidth(1);
+    paint.setColor(ck.parseColorString(SELECT));
+    const at = (q: { x: number; y: number }) => toScreen(q.x, q.y);
+    for (let i = 1; i < pts.length; i++) {
+      const [a, b] = [pts[i - 1]!, pts[i]!];
+      const b0 = new ck.PathBuilder();
+      b0.moveTo(...at(a)).cubicTo(...at(a.out ?? a), ...at(b.in ?? b), ...at(b));
+      const seg = b0.detachAndDelete();
+      canvas.drawPath(seg, paint);
+      seg.delete();
+    }
+    const last = pts.at(-1);
+    if (last && overlay.pen.cursor) canvas.drawLine(...at(last), ...at(overlay.pen.cursor), paint);
+    for (const q of pts) {
+      const [x, y] = at(q);
+      paint.setStyle(ck.PaintStyle.Fill);
+      paint.setColor(ck.parseColorString("#ffffff"));
+      canvas.drawCircle(x, y, 3.5, paint);
+      paint.setStyle(ck.PaintStyle.Stroke);
+      paint.setColor(ck.parseColorString(SELECT));
+      canvas.drawCircle(x, y, 3.5, paint);
+    }
+  }
   paint.delete();
   if (overlay.editing) drawTextEditing(canvas, s);
 }

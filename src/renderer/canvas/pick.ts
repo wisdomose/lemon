@@ -60,14 +60,15 @@ export function clickPick(s: Laid, x: number, y: number, selection: string[], de
 
 /**
  * What a double-click selects: one level into the selected node under the pointer. `edit` says the
- * double-click was on a selected text, which then opens for typing.
+ * double-click was on a selected text or card, which then opens for typing.
  */
 export function doubleClickPick(s: Laid, x: number, y: number, selection: string[]): { id: string | null; edit?: boolean } {
   const path = pathAt(s, x, y);
   const selected = new Set(selection);
   for (let i = path.length - 1; i >= 0; i--) {
     if (!selected.has(path[i]!.id)) continue;
-    if (path[i]!.type === "text") return { id: path[i]!.id, edit: true };
+    // A text, or a note, prompt or context card, opens for typing.
+    if (["text", "note", "prompt", "context"].includes(path[i]!.type)) return { id: path[i]!.id, edit: true };
     const next = path[i + 1];
     if (next) return { id: next.id };
   }

@@ -52,13 +52,13 @@ const MOVES: Item[] = [
   { icon: Scaling, label: "Scale", keys: "K" },
 ];
 
-/** Under the shape tool's arrow (05-shape-variants); only Rectangle and Ellipse draw yet. */
+/** Under the shape tool's arrow (05-shape-variants); the imports don't work yet. */
 const SHAPES: Item[] = [
   { tool: "rect", icon: Square, label: "Rectangle", keys: "R" },
   { tool: "ellipse", icon: Circle, label: "Ellipse", keys: "O" },
-  { icon: Triangle, label: "Polygon" },
-  { icon: IconShape, label: "Icon" },
-  { icon: Code, label: "Script" },
+  { tool: "polygon", icon: Triangle, label: "Polygon" },
+  { tool: "icon", icon: IconShape, label: "Icon" },
+  { tool: "script", icon: Code, label: "Script" },
   { icon: FileImage, label: "Import Image or SVG..." },
   { icon: FileInput, label: "Import Figma" },
 ];
@@ -82,7 +82,7 @@ export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onT
   const active = useEditor((s) => s.tool);
   // The shape button shows the shape last chosen.
   const [shape, setShape] = useState<Tool>("rect");
-  const shapeTool = active === "rect" || active === "ellipse" ? active : shape;
+  const shapeTool = SHAPES.some((x) => x.tool === active) ? active : shape;
   return (
     <div data-rail className="absolute top-[58px] flex w-9 flex-col gap-2" style={{ left: panelOpen ? 394 : 8 }}>
       {/* Pen shows no tooltip on the sidebar toggle. */}

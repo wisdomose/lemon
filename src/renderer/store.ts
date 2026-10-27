@@ -6,7 +6,7 @@ import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
-export type Tool = "move" | "rect" | "ellipse" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
+export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
 
 /**
  * One thing in the chat. Items from one of several agents carry `agent` (its place in the team), and
@@ -64,6 +64,10 @@ export interface EditorState {
   history: Session[];
   /** The file this window shows. */
   file: FileInfo;
+  /** A card's kind menu, open at a screen point (a click on a selected card's header). */
+  cardMenu: { id: string; x: number; y: number } | null;
+  /** The browser node whose address is being typed. */
+  urlEdit: string | null;
 }
 
 export interface Session {
@@ -90,6 +94,8 @@ const initial: EditorState = {
   settingsOpen: false,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
+  cardMenu: null,
+  urlEdit: null,
 };
 
 let state = initial;

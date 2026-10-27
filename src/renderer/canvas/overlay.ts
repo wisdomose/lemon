@@ -4,6 +4,14 @@ import type { Box } from "../../layout/layout.js";
 
 export type Line = { x1: number; y1: number; x2: number; y2: number };
 
+/** A point of a path being drawn; `in` and `out` are its curve handles, if dragged out. */
+export interface PenPoint {
+  x: number;
+  y: number;
+  in?: { x: number; y: number };
+  out?: { x: number; y: number };
+}
+
 export const overlay = {
   /** The selection box being dragged out. */
   marquee: null as Box | null,
@@ -19,6 +27,8 @@ export const overlay = {
   moving: false,
   /** A resize is under way: handles are hidden, the size pill stays. */
   resizing: false,
+  /** The path being drawn with the pen: its points (with curve handles) and the pointer. */
+  pen: null as { points: PenPoint[]; cursor: { x: number; y: number } | null } | null,
   /** The text being typed into, with its caret and selected range (UTF-16 offsets). */
   editing: null as { id: string; start: number; end: number; since: number } | null,
 };

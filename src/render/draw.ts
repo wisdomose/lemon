@@ -616,7 +616,7 @@ function drawGlyph(c: DrawContext, canvas: Canvas, p: NodeProps, box: Box, famil
 }
 
 /** Note, prompt and context cards, as Pen draws them (measured from Pen at 358%). */
-const CARD = {
+export const CARD = {
   note: { label: "Note", header: "#fdefd5", body: "#fef6e4", border: "#8a6a1e", ink: "#6e4c0b" },
   prompt: { label: "Prompt", header: "#c2e6fc", body: "#e1f3fd", border: "#1a99e8", ink: "#0e76c2" },
   context: { label: "Context", header: "#ffffff", body: "#efefef", border: "#7a7a7a", ink: "#2b2b2b" },
@@ -626,6 +626,37 @@ export const CARD_FONT = "JetBrains Mono";
 const CARD_HEADER = 44;
 const CARD_PAD = 12;
 const CARD_RADIUS = 8;
+/** A prompt card's footer: the model's name and the Run button (as in Pen). */
+const RUN = { w: 76, h: 34, pad: 12, radius: 6, fill: "#7ab8de", ink: "#ffffff" };
+/** The model a prompt card shows when it names none. */
+export const CARD_MODEL = "claude-opus-5-5";
+
+export const isCard = (type: string) => type === "note" || type === "prompt" || type === "context";
+
+/** A card's text as drawn: its style and where it sits (page coordinates), for drawing and typing into. */
+export function cardBody(node: TreeNode, box: Box): { props: NodeProps; box: Box } {
+  const look = CARD[node.type as keyof typeof CARD];
+  return {
+    props: { content: node.props.content ?? "", fontFamily: CARD_FONT, fontSize: 14, fontWeight: "400", lineHeight: 1.5, fill: look.ink },
+    box: { x: box.x + CARD_PAD, y: box.y + CARD_HEADER + CARD_PAD, w: Math.max(1, box.w - 2 * CARD_PAD), h: Math.max(1, box.h - CARD_HEADER - CARD_PAD) },
+  };
+}
+
+/** Where a prompt card's Run button is (page coordinates). */
+export function runButton(box: Box): Box {
+  return { x: box.x + box.w - RUN.pad - RUN.w, y: box.y + box.h - RUN.pad - RUN.h, w: RUN.w, h: RUN.h };
+}
+
+/** A card's header (its kind and the arrow that changes it), page coordinates. */
+export function cardHeader(box: Box): Box {
+  return { x: box.x, y: box.y, w: box.w, h: CARD_HEADER };
+}
+
+/** "Opus 5.5" for claude-opus-5-5, as Pen names models on a prompt card. */
+function shortModel(id: string): string {
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)$/.exec(id);
+  return m ? `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}.${m[3]}` : id;
+}
 
 /** A note, prompt or context: a card with a header ("Note ⌄") over a dashed line, then its text. */
 function drawCard(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
@@ -672,39 +703,153 @@ function drawCard(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): voi
       canvas.drawPath(chevron, paint);
       canvas.restore();
     }
+    const inner = cardBody(node, box);
     const body = text(String(resolveOr(node.props.content ?? "", vars, node.props.content ?? "")), "400");
-    body.layout(Math.max(1, box.w - 2 * CARD_PAD));
+    body.layout(inner.box.w);
     canvas.save();
     canvas.clipRect(ck.XYWHRect(box.x, box.y + CARD_HEADER, box.w, Math.max(0, box.h - CARD_HEADER)), ck.ClipOp.Intersect, true);
-    canvas.drawParagraph(body, box.x + CARD_PAD, box.y + CARD_HEADER + CARD_PAD);
+    canvas.drawParagraph(body, inner.box.x, inner.box.y);
     canvas.restore();
+    if (node.type === "prompt") drawRunFooter(c, canvas, node, box, look.ink, paint);
   } catch {
     /* its font isn't loaded yet */
   }
   paint.delete();
 }
 
-/** A script or browser node, whose content isn't drawn yet: a dashed box saying what it is. */
-function drawStandIn(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
+/** A prompt card's footer: the model ("Opus 5.5 ⌄") and a Run button, at the bottom right. */
+function drawRunFooter(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box, ink: string, paint: CKPaint): void {
   const { ck } = c;
+  const run = runButton(box);
+  paint.setStyle(ck.PaintStyle.Fill);
+  paint.setPathEffect(null);
+  paint.setColor(ck.Color4f(...colorOf(RUN.fill, {})));
+  canvas.drawRRect(ck.RRectXY(ck.XYWHRect(run.x, run.y, run.w, run.h), RUN.radius, RUN.radius), paint);
+  // The play triangle, then "Run".
+  const tx = run.x + 14;
+  const ty = run.y + run.h / 2;
+  paint.setColor(ck.Color4f(...colorOf(RUN.ink, {})));
+  const tb = new ck.PathBuilder();
+  tb.moveTo(tx, ty - 5).lineTo(tx + 8, ty).lineTo(tx, ty + 5).close();
+  const tri = tb.detachAndDelete();
+  canvas.drawPath(tri, paint);
+  tri.delete();
+  const label = c.text.paragraph({ content: "Run", fontFamily: CARD_FONT, fontSize: 14, fontWeight: "500", lineHeight: 1.5, fill: RUN.ink }, {});
+  label.layout(1e7);
+  canvas.drawParagraph(label, tx + 14, ty - label.getHeight() / 2);
+  const model = c.text.paragraph(
+    { content: shortModel(String(resolveOr(node.props.model ?? CARD_MODEL, c.vars, CARD_MODEL))), fontFamily: CARD_FONT, fontSize: 14, fontWeight: "500", lineHeight: 1.5, fill: ink },
+    {},
+  );
+  model.layout(1e7);
+  const mw = model.getMaxIntrinsicWidth();
+  const mx = run.x - 12 - 18 - mw;
+  canvas.drawParagraph(model, mx, ty - model.getHeight() / 2);
+  const chevron = iconPath(ck, "chevron-down");
+  if (chevron) {
+    paint.setStyle(ck.PaintStyle.Stroke);
+    paint.setStrokeWidth(ICON_LINE);
+    paint.setStrokeCap(ck.StrokeCap.Round);
+    paint.setStrokeJoin(ck.StrokeJoin.Round);
+    paint.setColor(ck.Color4f(...colorOf(ink, {})));
+    canvas.save();
+    canvas.translate(mx + mw + 4, ty - 6);
+    canvas.scale(12 / ICON_GRID, 12 / ICON_GRID);
+    canvas.drawPath(chevron, paint);
+    canvas.restore();
+  }
+}
+
+/** Script nodes in Pen's green; a script with no file says so under a "</>". */
+const SCRIPT = { fill: "#51CA721A", ink: "#00C787" };
+/** An empty browser node: no fill, a rounded outline and Pen's "Enter a URL" bar in the middle. */
+const BROWSER = { outline: "#3a3b3e", bar: "#232426", barEdge: "#333436", hint: "#656668", icon: "#9a9a9a", ink: "#d4d4d8" };
+
+/** A script or browser node. Their content (a script's output, a live page) isn't drawn yet. */
+function drawStandIn(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
+  if (node.type === "browser") return drawBrowser(c, canvas, node, box);
+  const { ck } = c;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setColor(ck.Color4f(...colorOf(SCRIPT.fill, {})));
+  canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  paint.setColor(ck.Color4f(...colorOf(SCRIPT.ink, {})));
+  canvas.drawRect(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), paint);
+  try {
+    const uri = node.props.scriptUri;
+    const para = c.text.paragraph({ content: uri ? String(uri) : "No script file selected", fontSize: 14, fill: SCRIPT.ink, textAlign: "center" }, {});
+    para.layout(Math.max(1, box.w - 16));
+    const cy = box.y + box.h / 2;
+    canvas.drawParagraph(para, box.x + 8, cy - para.getHeight() / 2 + 6);
+    const code = iconPath(ck, "code");
+    if (code) {
+      paint.setStrokeWidth(ICON_LINE);
+      paint.setStrokeCap(ck.StrokeCap.Round);
+      paint.setStrokeJoin(ck.StrokeJoin.Round);
+      canvas.save();
+      canvas.translate(box.x + box.w / 2 - 8, cy - para.getHeight() / 2 - 18);
+      canvas.scale(16 / ICON_GRID, 16 / ICON_GRID);
+      canvas.drawPath(code, paint);
+      canvas.restore();
+    }
+  } catch {
+    /* its font isn't loaded yet */
+  }
+  paint.delete();
+}
+
+/** Where a browser node's address bar is (page coordinates): most of its width, in the middle. */
+export function browserBar(box: Box): Box {
+  const w = Math.min(box.w * 0.81, 972);
+  const h = Math.min(86, box.h * 0.5);
+  return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+}
+
+function drawBrowser(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
+  const { ck, vars } = c;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
   paint.setStyle(ck.PaintStyle.Stroke);
   paint.setStrokeWidth(1);
-  paint.setColor(ck.Color4f(...colorOf(PLACEHOLDER_INK, {})));
-  const dash = ck.PathEffect.MakeDash([4, 4], 0);
-  paint.setPathEffect(dash);
-  canvas.drawRect(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), paint);
-  dash.delete();
-  paint.delete();
+  paint.setColor(ck.Color4f(...colorOf(BROWSER.outline, {})));
+  const r = num(Array.isArray(node.props.cornerRadius) ? node.props.cornerRadius[0] : (node.props.cornerRadius ?? 16), vars, 16);
+  canvas.drawRRect(ck.RRectXY(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), r, r), paint);
+  const bar = browserBar(box);
+  const pill = ck.RRectXY(ck.XYWHRect(bar.x, bar.y, bar.w, bar.h), bar.h / 2, bar.h / 2);
+  paint.setStyle(ck.PaintStyle.Fill);
+  paint.setColor(ck.Color4f(...colorOf(BROWSER.bar, {})));
+  canvas.drawRRect(pill, paint);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(2);
+  paint.setColor(ck.Color4f(...colorOf(BROWSER.barEdge, {})));
+  canvas.drawRRect(pill, paint);
+  const unit = bar.h / 86;
+  const icon = (name: string, x: number, size: number) => {
+    const path = iconPath(ck, name);
+    if (!path) return;
+    paint.setStrokeWidth(ICON_LINE);
+    paint.setStrokeCap(ck.StrokeCap.Round);
+    paint.setStrokeJoin(ck.StrokeJoin.Round);
+    paint.setColor(ck.Color4f(...colorOf(BROWSER.icon, {})));
+    canvas.save();
+    canvas.translate(x, bar.y + (bar.h - size) / 2);
+    canvas.scale(size / ICON_GRID, size / ICON_GRID);
+    canvas.drawPath(path, paint);
+    canvas.restore();
+  };
+  icon("globe", bar.x + 28 * unit, 36 * unit);
+  icon("corner-down-left", bar.x + bar.w - 64 * unit, 32 * unit);
   try {
-    const label = node.type === "browser" ? `Browser: ${node.props.url || "no address"}` : `Script: ${node.props.scriptUri ?? ""}`;
-    const para = c.text.paragraph({ content: label, fontSize: 12, fill: PLACEHOLDER_INK }, {});
-    para.layout(Math.max(1, box.w - 16));
-    canvas.drawParagraph(para, box.x + 8, box.y + 8);
+    const url = node.props.url ? String(node.props.url) : "";
+    const para = c.text.paragraph({ content: url || "Enter a URL", fontSize: 32 * unit, fill: url ? BROWSER.ink : BROWSER.hint }, {});
+    para.layout(Math.max(1, bar.w - 180 * unit));
+    canvas.drawParagraph(para, bar.x + 88 * unit, bar.y + (bar.h - para.getHeight()) / 2);
   } catch {
     /* its font isn't loaded yet */
   }
+  paint.delete();
 }
 
 /** The fills a node paints (a list either way). */

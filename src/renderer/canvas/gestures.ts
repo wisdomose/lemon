@@ -1,14 +1,17 @@
 // What the pointer and keys do on the canvas: select (click, Shift/Ctrl/⌘, box), move with snapping
 // guides, resize from the handles, round a rectangle's corners, draw shapes, frames and text, pan with
-// the hand (H, Space or the middle button), nudge with the arrows. The rules for what gets picked are
+// the hand (H, Space or the middle button), nudge with the arrows. Icons, scripts, prompt cards and
+// browsers are placed with a click; the pen draws paths point by point. The rules for what gets picked are
 // in pick.ts, where moved or drawn nodes go in place.ts, snapping in snap.ts.
 import * as docStore from "../../doc/store.js";
 import { ROOT_ID, type NodeProps, type PenNode, type TreeNode } from "../../doc/schema.js";
 import { kindOf, type Box } from "../../layout/layout.js";
-import { currentScene, doc, edit, history, type Scene } from "../scene.js";
+import { currentScene, doc, edit, engine, history, type Scene } from "../scene.js";
 import { store, type Tool } from "../store.js";
-import { labelAt, radiusHandles, schedule, toPage, toScreen, view } from "./canvas.js";
-import { overlay } from "./overlay.js";
+import { labelAt, radiusHandles, schedule, toPage, toScreen, view, zoomToFit } from "./canvas.js";
+import { overlay, type PenPoint } from "./overlay.js";
+import { cardHeader, isCard, runButton } from "../../render/draw.js";
+import { sendPrompt } from "../agent/chat.js";
 import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from "./pick.js";
 import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
@@ -46,6 +49,8 @@ type Gesture =
   | { kind: "resize"; from: Point; corner: Corner; held: Held[]; union: Box }
   | { kind: "radius"; id: string; box: Box; corner: number }
   | { kind: "draw"; tool: Tool; from: Point; container: TreeNode }
+  | { kind: "place"; tool: Tool; at: Point; container: TreeNode }
+  | { kind: "pen"; from: Point; screen: Point }
   | { kind: "pan"; screen: Point };
 
 let gesture: Gesture | null = null;
@@ -124,7 +129,7 @@ function idleCursor(s: Scene | undefined, sx: number, sy: number) {
   const tool = store.get().tool;
   if (space || tool === "hand") return setCursor("grab");
   if (tool === "text") return setCursor("text");
-  if (tool === "rect" || tool === "ellipse" || tool === "frame") return setCursor("crosshair");
+  if (DRAWN.has(tool) || PLACED.has(tool) || tool === "pen") return setCursor("crosshair");
   const h = s && handleAt(s, sx, sy);
   setCursor(h ? ("corner" in h ? CURSORS[h.corner] : "pointer") : "default");
 }
@@ -148,8 +153,15 @@ function onDown(e: PointerEvent) {
     if (editingPointer(e, at)) return;
     stopTextEdit();
     const tool = store.get().tool;
-    if (tool === "rect" || tool === "ellipse" || tool === "frame" || tool === "text") {
+    if (tool !== "pen" && overlay.pen) finishPath(false);
+    if (DRAWN.has(tool)) {
       gesture = { kind: "draw", tool, from: at, container: frameAt(s, px, py) };
+    } else if (PLACED.has(tool)) {
+      gesture = { kind: "place", tool, at, container: frameAt(s, px, py) };
+    } else if (tool === "pen") {
+      penDown(at, screen);
+    } else if (tool === "move" && cardPress(s, at, screen)) {
+      return;
     } else if (tool === "move") {
       const h = handleAt(s, screen.x, screen.y);
       if (h && "corner" in h) {
@@ -180,6 +192,7 @@ function onMove(e: PointerEvent) {
   if (!gesture) {
     if (!s) return;
     idleCursor(s, screen.x, screen.y);
+    if (overlay.pen) (overlay.pen.cursor = { x: px, y: py }), schedule();
     const tool = store.get().tool;
     const hover = tool === "move" && !space ? (labelAt(px, py) ?? clickPick(s, px, py, store.get().selection, e.ctrlKey || e.metaKey)) : null;
     if (hover !== store.get().hover) (store.set({ hover }), schedule());
@@ -210,7 +223,7 @@ function onMove(e: PointerEvent) {
   else if (g.kind === "radius") roundTo(g, px, py);
   else if (g.kind === "draw") {
     overlay.draft = drawnBox(g, { x: px, y: py }, e.shiftKey);
-  }
+  } else if (g.kind === "pen") penDrag(g, { x: px, y: py }, screen);
   schedule();
 }
 
@@ -236,6 +249,7 @@ function onUp(e: PointerEvent) {
     endChange();
   } else if (g.kind === "resize" || g.kind === "radius") endChange();
   else if (g.kind === "draw") draw(s, g, { x: px, y: py }, e.shiftKey);
+  else if (g.kind === "place") place(s, g);
   Object.assign(overlay, { marquee: null, guides: [], drop: null, ghosts: [], draft: null, moving: false, resizing: false });
   idleCursor(s, e.offsetX, e.offsetY);
   schedule();
@@ -407,6 +421,8 @@ function draw(s: Scene, g: Extract<Gesture, { kind: "draw" }>, to: Point, square
       ? { type: "rectangle", name: "Rectangle", ...size, fill: SHAPE_FILL }
       : g.tool === "ellipse"
         ? { type: "ellipse", name: "Ellipse", ...size, fill: SHAPE_FILL }
+        : g.tool === "polygon"
+          ? { type: "polygon", name: "Polygon", ...size, polygonCount: 3, fill: SHAPE_FILL }
         : g.tool === "frame"
           ? { type: "frame", name: "Frame", ...size, fill: "#FFFFFF", layout: "none" }
           : { type: "text", content: "", fontFamily: "Inter", fontSize: 14, fill: "#000000", ...(dragged ? { textGrowth: "fixed-width", width: size.width } : {}) };
@@ -423,8 +439,135 @@ function draw(s: Scene, g: Extract<Gesture, { kind: "draw" }>, to: Point, square
   if (g.tool === "text") startTextEdit(id);
 }
 
+/** Tools that draw a box with a drag (or a click, at their default size). */
+const DRAWN = new Set<Tool>(["rect", "ellipse", "polygon", "frame", "text"]);
+/**
+ * Tools that place a node of a fixed size centred on the click (measured in Pen): an icon (a heart,
+ * 24 × 24), a script (200 × 200), a prompt card (the Sticky Note tool, 250 × 219, on the page) and a
+ * browser (1200 × 1200, on the page). A drag doesn't size them.
+ */
+const PLACED = new Set<Tool>(["icon", "script", "note", "browser"]);
+
+function place(s: Scene, g: Extract<Gesture, { kind: "place" }>) {
+  const spec: PenNode =
+    g.tool === "icon"
+      ? { type: "icon", name: "Icon", icon: "heart", library: "lucide", fill: "#FFFFFF", width: 24, height: 24 }
+      : g.tool === "script"
+        ? { type: "script", name: "Script", width: 200, height: 200 }
+        : g.tool === "note"
+          ? { type: "prompt", content: "", width: 250, height: 219 }
+          : { type: "browser", name: "Browser", width: 1200, height: 1200, cornerRadius: 16 };
+  const w = Number(spec.width);
+  const h = Number(spec.height);
+  const box = { x: Math.round(g.at.x - w / 2), y: Math.round(g.at.y - h / 2), w, h };
+  // Cards and browsers go on the page; icons and scripts into the frame under the pointer.
+  const c = g.tool === "note" || g.tool === "browser" ? s.tree : g.container;
+  let id = "";
+  edit(() => {
+    if (flows(c)) id = docStore.insert(doc, c.id, spec, flowSlot(s, c, g.at.x, g.at.y).index);
+    else {
+      const cb = c.id === ROOT_ID ? PAGE : boxOf(s, c.id);
+      id = docStore.insert(doc, c.id, { ...spec, x: box.x - cb.x, y: box.y - cb.y });
+    }
+  });
+  store.set({ selection: [id], tool: "move" });
+  if (g.tool === "note") startTextEdit(id);
+  if (g.tool === "browser") {
+    zoomToFit(true, box, 1);
+    store.set({ urlEdit: id });
+  }
+}
+
+// ---- The pen -------------------------------------------------------------------------------------
+/** How close (screen pixels) a click must be to the first point to close the path. */
+const CLOSE_HIT = 8;
+
+/** A press with the pen: a new point (a drag pulls out its curve handles), or the first point again to close. */
+function penDown(at: Point, screen: Point) {
+  const pen = (overlay.pen ??= { points: [], cursor: at });
+  const first = pen.points[0];
+  if (first && pen.points.length > 1) {
+    const [fx, fy] = toScreen(first.x, first.y);
+    if (Math.hypot(fx - screen.x, fy - screen.y) <= CLOSE_HIT) return finishPath(true);
+  }
+  pen.points.push({ x: at.x, y: at.y });
+  gesture = { kind: "pen", from: at, screen };
+}
+
+/** Dragging after a press: the point's outgoing handle follows the pointer, the incoming one mirrors it. */
+function penDrag(g: Extract<Gesture, { kind: "pen" }>, to: Point, screen: Point) {
+  const p = overlay.pen?.points.at(-1);
+  if (!p || Math.hypot(screen.x - g.screen.x, screen.y - g.screen.y) < DRAG_START) return;
+  p.out = { x: to.x, y: to.y };
+  p.in = { x: 2 * p.x - to.x, y: 2 * p.y - to.y };
+}
+
+/** The path's SVG commands, offset by (dx, dy). */
+function pathData(points: PenPoint[], closed: boolean, dx = 0, dy = 0): string {
+  const f = (n: number) => String(Math.round(n * 100) / 100);
+  const pt = (q: Point) => `${f(q.x - dx)} ${f(q.y - dy)}`;
+  const seg = (a: PenPoint, b: PenPoint) => (a.out || b.in ? `C${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}` : `L${pt(b)}`);
+  let d = `M${pt(points[0]!)}`;
+  for (let i = 1; i < points.length; i++) d += seg(points[i - 1]!, points[i]!);
+  if (closed) d += `${seg(points.at(-1)!, points[0]!)}Z`;
+  return d;
+}
+
+/** Ends the path being drawn (Enter, Escape, the first point again, or another tool): it becomes a Path node, as in Pen (a 1px black stroke). */
+export function finishPath(closed: boolean): void {
+  const pen = overlay.pen;
+  overlay.pen = null;
+  const s = currentScene();
+  // The pen gives way to the move tool; a tool picked meanwhile stays.
+  const done = () => store.get().tool === "pen" && store.set({ tool: "move" });
+  if (!pen || !s || pen.points.length < 2) return void (done(), schedule());
+  const { ck } = engine;
+  const shape = ck.Path.MakeFromSVGString(pathData(pen.points, closed));
+  const [l, t, r, b] = shape ? Array.from(shape.computeTightBounds()) : [0, 0, 1, 1];
+  shape?.delete();
+  const spec: PenNode = {
+    type: "path",
+    name: "Path",
+    geometry: pathData(pen.points, closed, l!, t!),
+    width: Math.max(1, Math.round((r! - l!) * 100) / 100),
+    height: Math.max(1, Math.round((b! - t!) * 100) / 100),
+    stroke: "#000000",
+    strokeWidth: 1,
+  };
+  let id = "";
+  edit(() => (id = docStore.insert(doc, ROOT_ID, { ...spec, x: Math.round(l! * 100) / 100, y: Math.round(t! * 100) / 100 })));
+  store.set({ selection: [id] });
+  done();
+  schedule();
+}
+
+// ---- Cards ---------------------------------------------------------------------------------------
+/**
+ * A press on a prompt card's Run button sends its text to the agent; on a selected card's header it
+ * opens the menu that changes its kind (note, context, prompt). Returns whether it was either.
+ */
+function cardPress(s: Scene, at: Point, screen: Point): boolean {
+  const inside = (b: { x: number; y: number; w: number; h: number }) => at.x >= b.x && at.x <= b.x + b.w && at.y >= b.y && at.y <= b.y + b.h;
+  for (const n of index(s.tree).values()) {
+    if (!isCard(n.type) || n.props.enabled === false) continue;
+    const box = s.boxes.get(n.id);
+    if (!box) continue;
+    if (n.type === "prompt" && inside(runButton(box))) {
+      sendPrompt(String(n.props.content ?? ""));
+      return true;
+    }
+    const head = cardHeader(box);
+    if (store.get().selection.includes(n.id) && inside({ ...head, w: Math.min(head.w, 120) })) {
+      const [, sy] = toScreen(head.x, head.y + head.h);
+      store.set({ cardMenu: { id: n.id, x: screen.x, y: sy } });
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---- Keys ------------------------------------------------------------------------------------------
-const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "ellipse", f: "frame", a: "frame", t: "text" };
+const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "ellipse", f: "frame", a: "frame", t: "text", p: "pen", n: "note" };
 
 /** Handles a key meant for the canvas; returns whether it did. */
 export function canvasKey(e: KeyboardEvent): boolean {
@@ -435,7 +578,13 @@ export function canvasKey(e: KeyboardEvent): boolean {
     if (!space) (space = true), el && idleCursor(currentScene(), -1, -1);
     return true;
   }
+  if (overlay.pen && (e.key === "Enter" || e.key === "Escape")) {
+    e.preventDefault();
+    finishPath(false);
+    return true;
+  }
   if (!mod && !e.altKey && !e.shiftKey && TOOL_KEYS[key]) {
+    if (overlay.pen) finishPath(false);
     store.set({ tool: TOOL_KEYS[key]! });
     return true;
   }
