@@ -18,6 +18,7 @@ import { selectAll, selectChildren, selectParents, unionBox, type Laid } from ".
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
 import { detachSelected, makeComponents } from "./components.js";
 import { CanvasMenu, deleteSelection, reorder } from "./chrome/CanvasMenu.js";
+import { BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -96,6 +97,8 @@ export function App({ initial }: { initial: string }) {
             </div>
           )}
           <PropertiesPanel />
+          <CardKindMenu />
+          <BrowserUrlField />
           <ZoomControl />
         </div>
         <SettingsHost />

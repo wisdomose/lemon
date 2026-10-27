@@ -10,7 +10,7 @@ import { currentScene, doc, edit, engine, history, type Scene } from "../scene.j
 import { store, type Tool } from "../store.js";
 import { labelAt, radiusHandles, schedule, toPage, toScreen, view, zoomToFit } from "./canvas.js";
 import { overlay, type PenPoint } from "./overlay.js";
-import { cardHeader, isCard, runButton } from "../../render/draw.js";
+import { browserBar, cardHeader, isCard, runButton } from "../../render/draw.js";
 import { sendPrompt } from "../agent/chat.js";
 import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from "./pick.js";
 import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
@@ -544,14 +544,21 @@ export function finishPath(closed: boolean): void {
 // ---- Cards ---------------------------------------------------------------------------------------
 /**
  * A press on a prompt card's Run button sends its text to the agent; on a selected card's header it
- * opens the menu that changes its kind (note, context, prompt). Returns whether it was either.
+ * opens the menu that changes its kind (note, context, prompt); on a selected empty browser's address
+ * bar it opens the address field. Returns whether it was any of these.
  */
 function cardPress(s: Scene, at: Point, screen: Point): boolean {
   const inside = (b: { x: number; y: number; w: number; h: number }) => at.x >= b.x && at.x <= b.x + b.w && at.y >= b.y && at.y <= b.y + b.h;
   for (const n of index(s.tree).values()) {
-    if (!isCard(n.type) || n.props.enabled === false) continue;
+    if (n.props.enabled === false) continue;
     const box = s.boxes.get(n.id);
     if (!box) continue;
+    // A selected browser with no address: its bar takes the address.
+    if (n.type === "browser" && !n.props.url && store.get().selection.includes(n.id) && inside(browserBar(box))) {
+      store.set({ urlEdit: n.id });
+      return true;
+    }
+    if (!isCard(n.type)) continue;
     if (n.type === "prompt" && inside(runButton(box))) {
       sendPrompt(String(n.props.content ?? ""));
       return true;

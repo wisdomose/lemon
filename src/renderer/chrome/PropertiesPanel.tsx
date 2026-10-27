@@ -1,7 +1,7 @@
 // The properties panel (right island): shown when something is selected. Sections, their order and
 // what each shows for each kind of node follow Pen's (captured 27 Oct 2026): text and icons have no
 // stroke, groups no fill; fills, strokes and effects are lists, top item first. Fields edit the document.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlignCenter,
   AlignCenterHorizontal,
@@ -20,6 +20,10 @@ import {
   ArrowUpToLine,
   ChevronDown,
   Circle,
+  Code,
+  Globe,
+  Info,
+  Upload,
   CircleDashed,
   Component,
   Copy,
@@ -87,6 +91,8 @@ function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.type === "rectangle") return { icon: Array.isArray(n.props.fill) || typeof n.props.fill !== "object" || n.props.fill.type !== "image" ? Square : ImageIcon, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
   if (n.type === "icon") return { icon: Smile, label: "Icon" };
+  if (n.type === "script") return { icon: Code, label: "Script" };
+  if (n.type === "browser") return { icon: Globe, label: "Browser" };
   if (n.type !== "frame") return { icon: n.type === "group" ? Frame : Square, label: n.type[0]!.toUpperCase() + n.type.slice(1) };
   return { icon: n.props.layout === "none" ? Frame : AlignHorizontalJustifyStart, label: "Frame" };
 }
@@ -148,8 +154,9 @@ export function PropertiesPanel() {
   const kind = kindOf(node);
   const free = topLevel || p.layoutPosition === "absolute" || (parentFrame ? layoutKind(parentFrame) === "free" : false);
   // What each kind of node has, as in Pen.
-  const hasFill = node.type !== "group";
-  const hasStroke = !["text", "icon", "group", "note", "prompt", "context"].includes(node.type);
+  // As in Pen: groups, scripts, browsers and cards have no Fill; scripts and cards no Stroke either.
+  const hasFill = !["group", "script", "browser", "note", "prompt", "context"].includes(node.type);
+  const hasStroke = !["text", "icon", "group", "note", "prompt", "context", "script"].includes(node.type);
   const rounded = ["frame", "rectangle", "polygon"].includes(node.type);
   const growth = p.textGrowth ?? "auto";
 
@@ -412,9 +419,13 @@ export function PropertiesPanel() {
         )}
 
         {isText && <Typography node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "text")} />}
-        {node.type === "icon" && <IconSection key={node.id} node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "icon")} />}
+        {node.type === "icon" && <IconSection key={`icon-${node.id}`} node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "icon")} />}
 
-        {hasStroke && <Stroke key={node.id} node={node} ids={ids} />}
+        {node.type === "script" && <ScriptSection key={`script-${node.id}`} node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "script")} />}
+
+        {hasStroke && <Stroke key={`stroke-${node.id}`} node={node} ids={ids} />}
+
+        {node.type === "browser" && <BrowserSection key={`browser-${node.id}`} node={node} ids={ids.filter((id) => store.typeOf(doc, id) === "browser")} />}
 
         <EffectsSection effects={listOf<Effect>(p.effect)} onChange={(list) => set(ids, { effect: fromList(list) } as never)} />
 
@@ -692,6 +703,83 @@ function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
           ]}
         />
       </div>
+    </Section>
+  );
+}
+
+/** A text field that sets a property when it loses focus or Enter is pressed. */
+function TextProp({ value, placeholder, onSet }: { value: string; placeholder: string; onSet: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  return (
+    <input
+      value={text}
+      placeholder={placeholder}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => text !== value && onSet(text.trim())}
+      onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+      className="w-full min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
+    />
+  );
+}
+
+/**
+ * A script's file (a path relative to the design file), as Pen shows it. Lemon doesn't run scripts
+ * yet, so choosing a file, converting to layers and the gallery do nothing.
+ */
+function ScriptSection({ node, ids }: { node: TreeNode; ids: string[] }) {
+  return (
+    <Section title="Script">
+      <div className="flex gap-1.5">
+        <label className={cx(FIELD, "flex-1 focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
+          <TextProp value={String(node.props.scriptUri ?? "")} placeholder="path to .js file" onSet={(v) => set(ids, { scriptUri: v || null } as never)} />
+        </label>
+        <button type="button" disabled aria-label="Choose a script file" className={cx(FIELD, "w-7 justify-center px-0 opacity-60")}>
+          <Upload size={13} strokeWidth={1.5} />
+        </button>
+      </div>
+      <button type="button" disabled className={cx(FIELD, "justify-center opacity-60")}>
+        Convert to layers
+      </button>
+      <p className="flex gap-1.5 text-[11px] leading-4 text-muted-foreground">
+        <Info size={12} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+        Tip: You can ask agent to generate a script for you based on your description or find more scripts in Goodies.
+      </p>
+      <button type="button" disabled className={cx(FIELD, "justify-center opacity-60")}>
+        Script Gallery...
+      </button>
+    </Section>
+  );
+}
+
+/** Pen's page zoom choices for a browser node. */
+const BROWSER_ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/** A browser node's address, device and page zoom, as Pen shows them. Lemon has only the responsive desktop. */
+function BrowserSection({ node, ids }: { node: TreeNode; ids: string[] }) {
+  const p = node.props;
+  const row = (label: string, field: ReactNode) => (
+    <div className="flex items-center gap-2">
+      <span className="w-[42px] shrink-0 text-muted-foreground">{label}</span>
+      <div className="min-w-0 flex-1">{field}</div>
+    </div>
+  );
+  return (
+    <Section title="Browser">
+      {row(
+        "URL",
+        <label className={cx(FIELD, "focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
+          <TextProp key={String(p.url ?? "")} value={String(p.url ?? "")} placeholder="Enter a URL" onSet={(v) => set(ids, { url: v || null } as never)} />
+        </label>,
+      )}
+      {row("Device", <Dropdown value="responsive" options={[{ value: "responsive", label: "Desktop (Responsive)" }]} onChange={() => {}} />)}
+      {row(
+        "Zoom",
+        <Dropdown
+          value={String(p.zoom ?? 1)}
+          options={BROWSER_ZOOMS.map((z) => ({ value: String(z), label: `${Math.round(z * 100)}%` }))}
+          onChange={(z) => set(ids, { zoom: Number(z) === 1 ? null : Number(z) } as never)}
+        />,
+      )}
     </Section>
   );
 }

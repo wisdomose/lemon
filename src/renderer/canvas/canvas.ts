@@ -17,6 +17,8 @@ import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
 const SELECT = "#3d99ff";
+/** A selected script's outline and size pill (measured from Pen). */
+const SCRIPT_GREEN = "#00C787";
 /** Frame names use the theme's muted text colour. */
 const label = () => getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa";
 const LABEL_SIZE = 12;
@@ -240,6 +242,8 @@ function nodeIn(s: Scene, id: string): TreeNode | undefined {
 
 /** The outline colour for nodes: magenta for a main component, violet (dashed for the copy itself) inside a copy. */
 function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
+  // Scripts are outlined in their own green (as in Pen).
+  if (ids.length && ids.every((id) => nodeIn(s, id)?.type === "script")) return { color: SCRIPT_GREEN, dashed: false };
   const kinds = new Set(ids.map((id) => kindOf(nodeIn(s, id))));
   if (kinds.size !== 1) return { color: SELECT, dashed: false };
   const [k] = kinds;
@@ -612,7 +616,31 @@ function drawOverlay(canvas: Canvas, s: Scene) {
       seg.delete();
     }
     const last = pts.at(-1);
-    if (last && overlay.pen.cursor) canvas.drawLine(...at(last), ...at(overlay.pen.cursor), paint);
+    if (last && overlay.pen.cursor) {
+      // On to the pointer: curving away along the last point's handle, if it has one.
+      const b1 = new ck.PathBuilder();
+      b1.moveTo(...at(last)).cubicTo(...at(last.out ?? last), ...at(overlay.pen.cursor), ...at(overlay.pen.cursor));
+      const next = b1.detachAndDelete();
+      canvas.drawPath(next, paint);
+      next.delete();
+    }
+    // The last point's handles: lines out to small diamonds.
+    if (last?.in && last.out) {
+      for (const h of [last.in, last.out]) {
+        canvas.drawLine(...at(last), ...at(h), paint);
+        const [hx, hy] = at(h);
+        const d = new ck.PathBuilder();
+        d.moveTo(hx, hy - 3.5).lineTo(hx + 3.5, hy).lineTo(hx, hy + 3.5).lineTo(hx - 3.5, hy).close();
+        const diamond = d.detachAndDelete();
+        paint.setStyle(ck.PaintStyle.Fill);
+        paint.setColor(ck.parseColorString("#ffffff"));
+        canvas.drawPath(diamond, paint);
+        paint.setStyle(ck.PaintStyle.Stroke);
+        paint.setColor(ck.parseColorString(SELECT));
+        canvas.drawPath(diamond, paint);
+        diamond.delete();
+      }
+    }
     for (const q of pts) {
       const [x, y] = at(q);
       paint.setStyle(ck.PaintStyle.Fill);
