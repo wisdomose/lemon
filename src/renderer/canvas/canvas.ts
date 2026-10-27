@@ -2,6 +2,7 @@
 // hover and selection outlines, size pill, agent cursor), and handles panning, zooming and selecting.
 import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode } from "../../render/draw.js";
+import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
 import { CANVAS_UI_FONT, assets, currentScene, engine, type Scene } from "../scene.js";
@@ -19,6 +20,8 @@ const SELECT = "#3d99ff";
 /** Frame names use the theme's muted text colour. */
 const label = () => getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa";
 const LABEL_SIZE = 12;
+/** A frame label's top above the frame (measured from Pen at its corner). */
+const LABEL_LIFT = LABEL_SIZE + 10;
 const HANDLE = 8;
 const PILL_H = 20;
 const PILL_GAP = 6;
@@ -219,10 +222,11 @@ export function labelAt(x: number, y: number): string | null {
 }
 
 export function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
+  if (!hasLabel(f)) return false;
   const [sx, sy] = toScreen(b.x, b.y);
   const [px, py] = toScreen(x, y);
   const w = labelWidth(f, b);
-  return px >= sx && px <= sx + w && py >= sy - LABEL_SIZE - 10 && py <= sy - 2;
+  return px >= sx && px <= sx + w && py >= sy - LABEL_LIFT - 2 && py <= sy - 2;
 }
 
 // ---- Drawing --------------------------------------------------------------------------------------
@@ -247,20 +251,33 @@ function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
 function uiText(text: string, size: number, color: string, weight = 400) {
   return engine.text.paragraph({ content: text, fontFamily: CANVAS_UI_FONT, fontSize: size, fontWeight: String(weight), fill: color, lineHeight: 1.2 }, {});
 }
-/** A frame's label: its name, or "Generating: <name>" (after a sparkle) while it is a placeholder an agent builds. */
-const labelText = (f: TreeNode) => (f.props.placeholder ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
+/**
+ * As in Pen, only top-level frames are labelled: by name, a component or a copy of one after its icon
+ * (the icon alone when it has no name), and a plain frame without a name not at all. A placeholder an
+ * agent builds reads "Generating: <name>" after a sparkle.
+ */
+function hasLabel(f: TreeNode): boolean {
+  if (f.type !== "frame") return false;
+  return !!(f.props.placeholder || f.props.name || f.instance || f.props.reusable);
+}
+const labelText = (f: TreeNode) => (f.props.placeholder ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? ""));
+/** The space before the text taken by the sparkle, or a component's or copy's icon (12px, then 7px; measured in Pen). */
 const SPARKLE_W = 17;
+const KIND_ICON = 12;
+const KIND_W = 19;
+const leadOf = (f: TreeNode) => (f.props.placeholder ? SPARKLE_W : f.instance || f.props.reusable ? KIND_W : 0);
 /** The narrowest a label gets on a small frame: room for a letter or two and "…" (as Pen's "La…"). */
 const LABEL_MIN_W = 24;
 
 /** A frame's label as drawn: one line, cut with "…" to the frame's width on screen (as in Pen). */
 function labelParagraph(f: TreeNode, b: Box, color: string) {
-  const room = b.w * view.zoom - (f.props.placeholder ? SPARKLE_W : 0);
+  const room = b.w * view.zoom - leadOf(f);
   return fitLabel(labelText(f), color, Math.max(LABEL_MIN_W, room));
 }
 
 function labelWidth(f: TreeNode, b: Box) {
-  return labelParagraph(f, b, label()).getMaxIntrinsicWidth() + (f.props.placeholder ? SPARKLE_W : 0);
+  const text = labelText(f) ? labelParagraph(f, b, label()).getMaxIntrinsicWidth() : 0;
+  return leadOf(f) + text || KIND_ICON;
 }
 
 /** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
@@ -307,7 +324,9 @@ function draw() {
     for (const frame of s.tree.children) {
       if (frame.props.placeholder) drawGenerating(canvas, s.boxes.get(frame.id));
     }
-    for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id));
+    for (const frame of s.tree.children) {
+      if (hasLabel(frame)) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id) || st.hover === frame.id);
+    }
     if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover), accent(s, [st.hover]));
     drawSelection(canvas, s, st.selection);
     drawOverlay(canvas, s);
@@ -373,7 +392,8 @@ function drawGenerating(canvas: Canvas, b: Box | undefined) {
   paint.delete();
 }
 
-function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: boolean) {
+/** A frame's label above its top-left corner: blue while it is selected or pointed at, a component's or copy's in its own colour. */
+function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, lit: boolean) {
   if (!b) return;
   const [x, y] = toScreen(b.x, b.y);
   if (f.props.placeholder) {
@@ -382,8 +402,32 @@ function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: bo
     return;
   }
   const kind = kindOf(f);
-  const colour = kind === "main" ? MAIN_COLOUR : kind === "instance" ? COPY_COLOUR : selected ? SELECT : label();
-  canvas.drawParagraph(labelParagraph(f, b, colour), x, y - LABEL_SIZE - 8);
+  const colour = kind === "main" ? MAIN_COLOUR : kind === "instance" ? COPY_COLOUR : lit ? SELECT : label();
+  if (kind === "main" || kind === "instance") drawKindIcon(canvas, kind === "main" ? "component" : "diamond", colour, x, y - LABEL_LIFT + LABEL_SIZE / 2);
+  if (labelText(f)) canvas.drawParagraph(labelParagraph(f, b, colour), x + leadOf(f), y - LABEL_LIFT);
+}
+
+/** A component's icon (four diamonds) or a copy's (one diamond): the shape 12px across, its left edge at x, centred on cy. */
+function drawKindIcon(canvas: Canvas, name: string, colour: string, x: number, cy: number) {
+  const { ck } = engine;
+  const path = iconPath(ck, name);
+  if (!path) return;
+  // Lucide's shapes leave 2 of their 24 units clear on each side.
+  const box = (KIND_ICON * ICON_GRID) / (ICON_GRID - 4);
+  const k = box / ICON_GRID;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(ICON_LINE);
+  paint.setStrokeCap(ck.StrokeCap.Round);
+  paint.setStrokeJoin(ck.StrokeJoin.Round);
+  paint.setColor(ck.parseColorString(colour));
+  canvas.save();
+  canvas.translate(x + 2 - 2 * k, cy - box / 2 + 2);
+  canvas.scale(k, k);
+  canvas.drawPath(path, paint);
+  canvas.restore();
+  paint.delete();
 }
 
 /** The sparkle before "Generating": a four-point star with a small one above it. */
