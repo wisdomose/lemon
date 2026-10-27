@@ -245,22 +245,22 @@ function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
 }
 
 function uiText(text: string, size: number, color: string, weight = 400) {
-  return engine.text.paragraph({ text, font: CANVAS_UI_FONT, size, weight, color, lineHeight: 1.2 }, {});
+  return engine.text.paragraph({ content: text, fontFamily: CANVAS_UI_FONT, fontSize: size, fontWeight: String(weight), fill: color, lineHeight: 1.2 }, {});
 }
-/** A frame's label: its name, or "Generating: <name>" (after a sparkle) while an agent builds it. */
-const labelText = (f: TreeNode) => (f.props.generating ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
+/** A frame's label: its name, or "Generating: <name>" (after a sparkle) while it is a placeholder an agent builds. */
+const labelText = (f: TreeNode) => (f.props.placeholder ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
 const SPARKLE_W = 17;
 /** The narrowest a label gets on a small frame: room for a letter or two and "…" (as Pen's "La…"). */
 const LABEL_MIN_W = 24;
 
 /** A frame's label as drawn: one line, cut with "…" to the frame's width on screen (as in Pen). */
 function labelParagraph(f: TreeNode, b: Box, color: string) {
-  const room = b.w * view.zoom - (f.props.generating ? SPARKLE_W : 0);
+  const room = b.w * view.zoom - (f.props.placeholder ? SPARKLE_W : 0);
   return fitLabel(labelText(f), color, Math.max(LABEL_MIN_W, room));
 }
 
 function labelWidth(f: TreeNode, b: Box) {
-  return labelParagraph(f, b, label()).getMaxIntrinsicWidth() + (f.props.generating ? SPARKLE_W : 0);
+  return labelParagraph(f, b, label()).getMaxIntrinsicWidth() + (f.props.placeholder ? SPARKLE_W : 0);
 }
 
 /** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
@@ -305,7 +305,7 @@ function draw() {
     canvas.drawPicture(documentPicture(s));
     canvas.restore();
     for (const frame of s.tree.children) {
-      if (frame.props.generating) drawGenerating(canvas, s.boxes.get(frame.id));
+      if (frame.props.placeholder) drawGenerating(canvas, s.boxes.get(frame.id));
     }
     for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id));
     if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover), accent(s, [st.hover]));
@@ -317,7 +317,7 @@ function draw() {
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.generating)) schedule();
+  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder)) schedule();
 }
 
 /** The document drawn once per change and replayed for every frame of animation. */
@@ -376,7 +376,7 @@ function drawGenerating(canvas: Canvas, b: Box | undefined) {
 function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: boolean) {
   if (!b) return;
   const [x, y] = toScreen(b.x, b.y);
-  if (f.props.generating) {
+  if (f.props.placeholder) {
     drawSparkle(canvas, x + 6, y - LABEL_SIZE / 2 - 9);
     canvas.drawParagraph(labelParagraph(f, b, LIVE), x + SPARKLE_W, y - LABEL_SIZE - 8);
     return;
@@ -454,7 +454,7 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
       canvas.drawRect(r, stroke);
     }
     const node = id ? findNode(tree, id) : undefined;
-    if (node?.type === "rect") {
+    if (node?.type === "rectangle" || node?.type === "frame") {
       for (const [hx, hy] of radiusHandles({ x, y, w, h })) {
         canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, fill);
         canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, stroke);

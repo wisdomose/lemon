@@ -14,7 +14,7 @@
 import * as Y from "yjs";
 import { generateKeyBetween } from "fractional-indexing";
 import { ROOT_ID } from "./schema.js";
-import { childIds, exists, nodesOf } from "./store.js";
+import { allChildIds, childIds, exists, nodesOf } from "./store.js";
 
 const HALF = 2 ** 31;
 /** A client id for a person's copy of the document (wins ties). */
@@ -40,10 +40,10 @@ export class AgentChange {
 
 /** A person's undo history: only their own changes; quick successive edits (a drag) merge into one step. */
 export function personUndo(doc: Y.Doc): Y.UndoManager {
-  return new Y.UndoManager([nodesOf(doc), doc.getMap("vars")], { trackedOrigins: new Set([PERSON_EDIT]), captureTimeout: 500 });
+  return new Y.UndoManager([nodesOf(doc), doc.getMap("variables"), doc.getMap("meta")], { trackedOrigins: new Set([PERSON_EDIT]), captureTimeout: 500 });
 }
 
-const scope = (doc: Y.Doc) => [nodesOf(doc), doc.getMap("vars")];
+const scope = (doc: Y.Doc) => [nodesOf(doc), doc.getMap("variables"), doc.getMap("meta")];
 /** Agents' undo histories, by document, so a failed step can be taken out of them. */
 const histories = new WeakMap<Y.Doc, Set<Y.UndoManager>>();
 
@@ -129,7 +129,7 @@ export function repairTree(doc: Y.Doc): boolean {
     for (;;) {
       const reachable = new Set<string>([ROOT_ID]);
       const queue = [ROOT_ID];
-      while (queue.length) for (const c of childIds(doc, queue.pop()!)) if (!reachable.has(c)) (reachable.add(c), queue.push(c));
+      while (queue.length) for (const c of allChildIds(doc, queue.pop()!)) if (!reachable.has(c)) (reachable.add(c), queue.push(c));
       const stray = [...nodes.keys()].filter((id) => !reachable.has(id));
       if (!stray.length) return;
       changed = true;

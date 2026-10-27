@@ -4,7 +4,9 @@
 import { app } from "electron";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import type * as Y from "yjs";
+import { fileText, picturesOf, readFile, type ReadReport } from "../doc/file.js";
 import { PRODUCT } from "../product.js";
 
 export const EXT = `.${PRODUCT.fileExtension}`;
@@ -38,6 +40,28 @@ export function writeWhole(path: string, text: string | Uint8Array): void {
   const temp = `${path}.saving`;
   writeFileSync(temp, text);
   renameSync(temp, path);
+}
+
+/** Where a picture url in a .pen file points: relative to the file's folder. */
+const pictureFile = (penPath: string, url: string) => resolve(dirname(penPath), decodeURIComponent(url.replace(/^file:\/\//, "")));
+
+/** Reads a .pen file into an empty document, with its pictures from beside it. */
+export function readPen(path: string, into: Y.Doc): ReadReport {
+  return readFile(readFileSync(path, "utf8"), into, (url) => {
+    const file = pictureFile(path, url);
+    return existsSync(file) ? new Uint8Array(readFileSync(file)) : undefined;
+  });
+}
+
+/** Writes the document as a .pen file, and the pictures it uses that aren't beside it yet. */
+export function writePen(path: string, doc: Y.Doc): void {
+  for (const { url, bytes } of picturesOf(doc)) {
+    const file = pictureFile(path, url);
+    if (existsSync(file)) continue;
+    mkdirSync(dirname(file), { recursive: true });
+    writeWhole(file, bytes);
+  }
+  writeWhole(path, fileText(doc));
 }
 
 // ---- Recent files ----------------------------------------------------------------------------------

@@ -18,7 +18,7 @@ function app() {
   const win = new Y.Doc();
   win.clientID = personClientId();
   const frame = store.insert(main, ROOT_ID, { type: "frame", name: "Card", width: 300, height: 200, fill: "#ffffff" });
-  store.insert(main, frame, { type: "text", text: "Title", name: "Title" });
+  store.insert(main, frame, { type: "text", content: "Title", name: "Title" });
   Y.applyUpdate(win, Y.encodeStateAsUpdate(main));
   const undo = personUndo(win);
   const agentHistory = agentUndo(main);
@@ -74,9 +74,9 @@ describe("people and agents editing at once", () => {
     const t = app();
     t.hold();
     t.person(() => store.update(t.win, t.frame, { x: 40, y: 60 }));
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { fill: "#ffeedd", radius: 12 });`);
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { fill: "#ffeedd", cornerRadius: 12 });`);
     t.release();
-    for (const d of [t.main, t.win]) expect(t.get(d, t.frame)).toMatchObject({ x: 40, y: 60, fill: "#ffeedd", radius: 12 });
+    for (const d of [t.main, t.win]) expect(t.get(d, t.frame)).toMatchObject({ x: 40, y: 60, fill: "#ffeedd", cornerRadius: 12 });
   });
 
   it("the person wins a clash on the same property, whichever arrives first", async () => {
@@ -86,7 +86,7 @@ describe("people and agents editing at once", () => {
       t.hold();
       t.person(() => store.update(t.win, t.frame, { fill: "#ff0000" }));
       if (personFirst) t.release();
-      const r = await t.agent(`doc.update(${JSON.stringify(t.frame)}, { fill: "#0000ff" });`);
+      const r = await t.agent(`Update(${JSON.stringify(t.frame)}, { fill: "#0000ff" });`);
       if (!personFirst) t.release();
       if (personFirst) expect(r.leftAlone).toEqual([`${t.frame}: fill`]); // and the agent is told
       expect(t.get(t.main, t.frame).fill).toBe("#ff0000");
@@ -97,18 +97,18 @@ describe("people and agents editing at once", () => {
   it("undo undoes only the person's own changes, and redo puts them back", async () => {
     const t = app();
     t.person(() => store.update(t.win, t.frame, { fill: "#ff0000" }));
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { radius: 16 });`);
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { cornerRadius: 16 });`);
     t.undo.undo();
-    expect(t.get(t.main, t.frame)).toMatchObject({ fill: "#ffffff", radius: 16 });
+    expect(t.get(t.main, t.frame)).toMatchObject({ fill: "#ffffff", cornerRadius: 16 });
     t.undo.redo();
-    expect(t.get(t.main, t.frame)).toMatchObject({ fill: "#ff0000", radius: 16 });
+    expect(t.get(t.main, t.frame)).toMatchObject({ fill: "#ff0000", cornerRadius: 16 });
   });
 
   it("undo never overwrites newer agent work on the same property", async () => {
     const t = app();
     t.person(() => store.update(t.win, t.frame, { width: 320 }));
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { radius: 4 });`); // reports back: it has seen 320
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { width: 480 });`);
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { cornerRadius: 4 });`); // reports back: it has seen 320
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { width: 480 });`);
     t.undo.undo();
     expect(t.get(t.main, t.frame).width).toBe(480);
   });
@@ -123,15 +123,15 @@ describe("people and agents editing at once", () => {
   it("an agent step undoes as one unit and leaves the person's changes alone", async () => {
     const t = app();
     await t.agent(`
-      doc.update(${JSON.stringify(t.frame)}, { fill: "#112233", padding: 24 });
-      doc.insert(${JSON.stringify(t.frame)}, { type: "text", text: "Added by the agent" });
+      Update(${JSON.stringify(t.frame)}, { fill: "#112233", padding: 24 });
+      Insert(${JSON.stringify(t.frame)}, { type: "text", content: "Added by the agent" });
     `);
     t.person(() => store.update(t.win, t.frame, { x: 99 }));
     t.agentHistory.undo();
     const card = store.toTree(t.main, t.frame);
     expect(card.props).toMatchObject({ fill: "#ffffff", x: 99 });
     expect(card.props.padding).toBeUndefined();
-    expect(card.children.map((c) => c.props.text)).toEqual(["Title"]);
+    expect(card.children.map((c) => c.props.content)).toEqual(["Title"]);
     expect(store.toTree(t.win, t.frame).children).toHaveLength(1);
   });
 
@@ -139,7 +139,7 @@ describe("people and agents editing at once", () => {
     const t = app();
     t.hold();
     t.person(() => store.remove(t.win, t.frame));
-    await t.agent(`doc.insert(${JSON.stringify(t.frame)}, { type: "rect", width: 50, height: 50 });`);
+    await t.agent(`Insert(${JSON.stringify(t.frame)}, { type: "rectangle", width: 50, height: 50 });`);
     t.release();
     for (const d of [t.main, t.win]) {
       expect(store.toTree(d).children).toHaveLength(0);
@@ -164,9 +164,9 @@ describe("people and agents editing at once", () => {
   it("the selection is kept while the node exists and cleared when the agent deletes it", async () => {
     const t = app();
     const title = store.childIds(t.win, t.frame)[0]!;
-    await t.agent(`doc.update(${JSON.stringify(title)}, { text: "New title" });`);
+    await t.agent(`Update(${JSON.stringify(title)}, { content: "New title" });`);
     expect(reconcileSelection(t.win, title)).toBe(title);
-    await t.agent(`doc.remove(${JSON.stringify(title)});`);
+    await t.agent(`Delete(${JSON.stringify(title)});`);
     expect(reconcileSelection(t.win, title)).toBeNull();
   });
 });
@@ -175,8 +175,8 @@ describe("after the agent has reported back", () => {
   it("a later step may change a property the person set earlier, on purpose", async () => {
     const t = app();
     t.person(() => store.update(t.win, t.frame, { fill: "#ff0000" }));
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { radius: 4 });`); // reports back
-    await t.agent(`doc.update(${JSON.stringify(t.frame)}, { fill: "#00ff00" });`);
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { cornerRadius: 4 });`); // reports back
+    await t.agent(`Update(${JSON.stringify(t.frame)}, { fill: "#00ff00" });`);
     expect(t.get(t.main, t.frame).fill).toBe("#00ff00");
   });
 });
@@ -188,14 +188,14 @@ describe("a step that lands while it is written", () => {
   it("shows each statement as soon as it is complete, and undoes as one unit", async () => {
     const t = app();
     const f = JSON.stringify(t.frame);
-    const script = `doc.update(${f}, { fill: "#112233" });\ndoc.insert(${f}, { type: "text", text: "One" });\ndoc.insert(${f}, { type: "text", text: "Two" });`;
+    const script = `Update(${f}, { fill: "#112233" });\nInsert(${f}, { type: "text", content: "One" });\nInsert(${f}, { type: "text", content: "Two" });`;
     const run = await t.writing();
     const before = t.agentHistory.undoStack.length;
-    run.feed(script.slice(0, script.indexOf("doc.insert")));
+    run.feed(script.slice(0, script.indexOf("Insert(")));
     await settle();
     expect(t.get(t.win, t.frame).fill).toBe("#112233");
     expect(store.childIds(t.win, t.frame)).toHaveLength(1);
-    run.feed(script.slice(0, script.lastIndexOf("doc.insert") + 10));
+    run.feed(script.slice(0, script.lastIndexOf("Insert(") + 7));
     await settle();
     expect(store.childIds(t.win, t.frame)).toHaveLength(2);
     const r = await run.finish(script);
@@ -212,17 +212,17 @@ describe("a step that lands while it is written", () => {
     const f = JSON.stringify(t.frame);
     const run = await t.writing();
     const before = t.agentHistory.undoStack.length;
-    run.feed(`doc.update(${f}, { radius: 12 });\ndoc.insert(${f}, { type: "text", text: "One" });\n`);
+    run.feed(`Update(${f}, { cornerRadius: 12 });\nInsert(${f}, { type: "text", content: "One" });\n`);
     await settle();
     expect(store.childIds(t.win, t.frame)).toHaveLength(2);
     t.person(() => store.update(t.win, t.frame, { x: 99 }));
-    const r = await run.finish(`doc.update(${f}, { radius: 12 });\ndoc.insert(${f}, { type: "text", text: "One" });\ndoc.update("nope", {});`);
+    const r = await run.finish(`Update(${f}, { cornerRadius: 12 });\nInsert(${f}, { type: "text", content: "One" });\nUpdate("nope", {});`);
     expect(r.ok).toBe(false);
     expect(r.error?.line).toBe(3);
     for (const d of [t.main, t.win]) {
       expect(store.childIds(d, t.frame)).toHaveLength(1);
       expect(t.get(d, t.frame)).toMatchObject({ x: 99 });
-      expect(t.get(d, t.frame).radius).toBeUndefined();
+      expect(t.get(d, t.frame).cornerRadius).toBeUndefined();
     }
     expect(t.agentHistory.undoStack.length).toBe(before);
   });

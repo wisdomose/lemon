@@ -1,0 +1,121 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "card",
+      "name": "Card",
+      "reusable": true,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "layout": "vertical",
+      "gap": 8,
+      "padding": 20,
+      "cornerRadius": 12,
+      "fill": "$surface",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "offset": { "x": 0, "y": 4 },
+        "blur": 12,
+        "color": "#0000001a"
+      },
+      "children": [
+        {
+          "type": "text",
+          "id": "title",
+          "name": "Title",
+          "content": "Monthly",
+          "fontFamily": "Inter",
+          "fontSize": 18,
+          "fontWeight": "600",
+          "fill": "$ink"
+        },
+        {
+          "type": "text",
+          "id": "body",
+          "name": "Body",
+          "content": "Everything you need to get started, billed every month.",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "lineHeight": 1.5,
+          "fill": "$muted"
+        },
+        {
+          "type": "frame",
+          "id": "row",
+          "name": "Row",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "price",
+              "name": "Price",
+              "content": "€12",
+              "fontFamily": "Inter",
+              "fontSize": 28,
+              "fontWeight": "700",
+              "fill": "$ink"
+            },
+            {
+              "type": "icon",
+              "id": "go",
+              "name": "Go",
+              "library": "lucide",
+              "icon": "arrow-right",
+              "width": 20,
+              "height": 20,
+              "fill": "$accent"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "page",
+      "name": "Plans",
+      "x": 400,
+      "y": 0,
+      "width": 720,
+      "padding": 24,
+      "gap": 16,
+      "fill": "$page",
+      "theme": { "Mode": "Dark" },
+      "children": [
+        {
+          "type": "ref",
+          "id": "c1",
+          "ref": "card",
+          "width": "fill_container"
+        },
+        {
+          "type": "ref",
+          "id": "c2",
+          "ref": "card",
+          "width": "fill_container",
+          "descendants": {
+            "title": { "content": "Annual" },
+            "price": { "content": "€120" }
+          }
+        }
+      ]
+    }
+  ],
+  "themes": { "Mode": ["Light", "Dark"] },
+  "variables": {
+    "page": { "type": "color", "value": [{ "value": "#f4f2ee", "theme": { "Mode": "Light" } }, { "value": "#141414", "theme": { "Mode": "Dark" } }] },
+    "surface": { "type": "color", "value": [{ "value": "#ffffff", "theme": { "Mode": "Light" } }, { "value": "#1f1f1f", "theme": { "Mode": "Dark" } }] },
+    "ink": { "type": "color", "value": [{ "value": "#1a1a1a", "theme": { "Mode": "Light" } }, { "value": "#f2f2f2", "theme": { "Mode": "Dark" } }] },
+    "muted": { "type": "color", "value": [{ "value": "#6b6b6b", "theme": { "Mode": "Light" } }, { "value": "#a3a3a3", "theme": { "Mode": "Dark" } }] },
+    "border": { "type": "color", "value": [{ "value": "#e5e2dc", "theme": { "Mode": "Light" } }, { "value": "#333333", "theme": { "Mode": "Dark" } }] },
+    "accent": { "type": "color", "value": "#e8590c" }
+  }
+}

@@ -78,15 +78,15 @@ function allIds(n: TreeNode): string[] {
 
 function typeIcon(n: TreeNode): LucideIcon {
   if (n.instance) return Diamond;
-  if (n.props.component) return Component;
+  if (n.props.reusable) return Component;
   if (n.type === "text") return Type;
-  if (n.type === "rect") return Square;
+  if (n.type === "rectangle") return Array.isArray(n.props.fill) ? Square : typeof n.props.fill === "object" && n.props.fill?.type === "image" ? ImageIcon : Square;
   if (n.type === "ellipse") return Circle;
-  if (n.type === "image") return ImageIcon;
   if (n.type === "icon") return Smile;
-  if (n.props.layout === "row") return AlignStartHorizontal;
-  if (n.props.layout === "none") return Hash;
-  return AlignStartVertical;
+  if (n.type === "group" || n.props.layout === "none") return Hash;
+  if (n.type !== "frame") return Square;
+  if (n.props.layout === "vertical") return AlignStartVertical;
+  return AlignStartHorizontal;
 }
 
 /** A click on a layer row selects it; with Shift or Ctrl/⌘ it adds it to the selection, or takes it out. */
@@ -154,7 +154,7 @@ function LayersPanel() {
       {rows.map(({ node, depth }) => {
         const Icon = typeIcon(node);
         const kind = kindOf(node);
-        const label = node.props.name ?? (node.type === "text" ? node.props.text?.slice(0, 40) : node.type[0]!.toUpperCase() + node.type.slice(1));
+        const label = node.props.name ?? (node.type === "text" ? node.props.content?.slice(0, 40) : node.type[0]!.toUpperCase() + node.type.slice(1));
         return (
           <div
             key={node.id}

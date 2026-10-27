@@ -6,9 +6,9 @@ import { boxPick, clickPick, doubleClickPick, selectAll, selectChildren, selectP
 
 // A page "page" (0,0 400×400) with a card (20,20 200×100) holding a title and a button with a label,
 // and an empty frame "empty" to the right.
-const node = (id: string, type: TreeNode["type"], children: TreeNode[] = []): TreeNode => ({ id, type, props: {}, children });
-const tree = node("root", "frame", [
-  node("page", "frame", [node("card", "frame", [node("title", "text"), node("button", "frame", [node("label", "text")])]), node("note", "text")]),
+const node = (id: string, type: TreeNode["type"], children: TreeNode[] = [], props: TreeNode["props"] = {}): TreeNode => ({ id, type, props, children });
+const tree = node("document", "frame", [
+  node("page", "frame", [node("card", "frame", [node("title", "text"), node("button", "frame", [node("label", "text")])], { layout: "vertical" }), node("note", "text")]),
   node("empty", "frame"),
 ]);
 const boxes = new Map<string, Box>([
@@ -72,11 +72,11 @@ describe("keyboard selection", () => {
 
 describe("where dropped or drawn nodes go", async () => {
   const { frameAt, flowSlot } = await import("../src/renderer/canvas/place.js");
-  // The card is a column (frames lay out in a column unless told otherwise); the button is in it.
+  // The card is a column (layout: "vertical"; frames lay out in a row unless told otherwise); the button is in it.
   it("into the deepest frame under the pointer, not one being moved; the page outside every frame", () => {
     expect(frameAt(s, 45, 70).id).toBe("button");
     expect(frameAt(s, 45, 70, new Set(["button"])).id).toBe("card");
-    expect(frameAt(s, 450, 50).id).toBe("root");
+    expect(frameAt(s, 450, 50).id).toBe("document");
   });
   it("at the place in a column the pointer points to, with a line between the children", () => {
     const card = tree.children[0]!.children[0]!;

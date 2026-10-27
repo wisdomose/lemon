@@ -1,15 +1,15 @@
 // Where moved or newly drawn nodes go: into the deepest frame under the pointer (or onto the page),
 // and in a frame with a row or column layout, at the place in the row or column the pointer points to.
-import { DEFAULTS, ROOT_ID, type TreeNode } from "../../doc/schema.js";
-import type { Box } from "../../layout/layout.js";
+import { ROOT_ID, type TreeNode } from "../../doc/schema.js";
+import { kindOf, type Box } from "../../layout/layout.js";
 import type { Laid } from "./pick.js";
 import type { Line } from "./overlay.js";
 
 /** A frame lays its children out in a row or column (Pen's flex layout). */
-export const flows = (n: TreeNode) => n.type === "frame" && n.id !== ROOT_ID && (n.props.layout ?? DEFAULTS.frame.layout) !== "none";
+export const flows = (n: TreeNode) => n.type === "frame" && n.id !== ROOT_ID && kindOf(n) !== "free";
 
-/** A node placed by its own x and y: on the page, in a frame without layout, or set apart (`absolute`). */
-export const placedFreely = (n: TreeNode, parent: TreeNode) => parent.id === ROOT_ID || !flows(parent) || !!n.props.absolute;
+/** A node placed by its own x and y: on the page, in a frame without layout or a group, or set apart (`layoutPosition: "absolute"`). */
+export const placedFreely = (n: TreeNode, parent: TreeNode) => parent.id === ROOT_ID || !flows(parent) || n.props.layoutPosition === "absolute";
 
 const contains = (b: Box | undefined, x: number, y: number) => !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
 
@@ -21,7 +21,7 @@ export function frameAt(s: Laid, x: number, y: number, moving: Set<string> = new
   let found = s.tree;
   let level = s.tree.children;
   for (;;) {
-    const hit = [...level].reverse().find((n) => n.type === "frame" && !n.instance && !moving.has(n.id) && n.props.visible !== false && contains(s.boxes.get(n.id), x, y));
+    const hit = [...level].reverse().find((n) => (n.type === "frame" || n.type === "group") && !n.instance && !moving.has(n.id) && n.props.enabled !== false && contains(s.boxes.get(n.id), x, y));
     if (!hit) return found;
     found = hit;
     level = hit.children;
@@ -33,9 +33,9 @@ export function frameAt(s: Laid, x: number, y: number, moving: Set<string> = new
  * stay, and the line that shows it (between two children, across the frame's other axis).
  */
 export function flowSlot(s: Laid, frame: TreeNode, x: number, y: number, moving: Set<string> = new Set()): { index: number; line: Line } {
-  const row = frame.props.layout === "row";
+  const row = kindOf(frame) === "row";
   const fb = s.boxes.get(frame.id)!;
-  const kids = frame.children.filter((c) => !moving.has(c.id) && !c.props.absolute && s.boxes.has(c.id));
+  const kids = frame.children.filter((c) => !moving.has(c.id) && c.props.layoutPosition !== "absolute" && s.boxes.has(c.id));
   const at = row ? x : y;
   let index = kids.findIndex((c) => {
     const b = s.boxes.get(c.id)!;

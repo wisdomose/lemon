@@ -1,8 +1,8 @@
-// Pictures (image fills, stored once per document) and Lucide icons.
+// Pictures (image fills: files beside the .pen, kept in the document by url) and Lucide icons.
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
-import { assetId, assetLookup, assetsOf, putAsset } from "../src/doc/assets.js";
-import { fileText, fromBase64, readFile, toBase64 } from "../src/doc/file.js";
+import { assetLookup, assetsOf, pictureUrl, putAsset } from "../src/doc/assets.js";
+import { fileText, picturesOf, readFile } from "../src/doc/file.js";
 import { ROOT_ID } from "../src/doc/schema.js";
 import * as store from "../src/doc/store.js";
 import { layout } from "../src/layout/layout.js";
@@ -34,15 +34,15 @@ async function pixel(bytes: Uint8Array, x: number, y: number) {
 }
 
 describe("pictures and icons", () => {
-  it("draws a picture fill and a Lucide icon", async () => {
+  it("draws a picture fill and a Lucide icon in its fill colour", async () => {
     const { engine } = await setup();
     const doc = new Y.Doc();
     const red = await png([1, 0, 0]);
-    const id = await assetId(red);
-    putAsset(doc, id, red);
-    const page = store.insert(doc, ROOT_ID, { type: "frame", x: 0, y: 0, width: 200, height: 100, layout: "row", fill: "#ffffff" });
-    store.insert(doc, page, { type: "rect", width: 100, height: 100, fill: { type: "image", asset: id } });
-    store.insert(doc, page, { type: "icon", icon: "minus", width: 100, height: 100, color: "#0000ff" });
+    const url = await pictureUrl(red);
+    putAsset(doc, url, red);
+    const page = store.insert(doc, ROOT_ID, { type: "frame", x: 0, y: 0, width: 200, height: 100, layout: "horizontal", fill: "#ffffff" });
+    store.insert(doc, page, { type: "rectangle", width: 100, height: 100, fill: { type: "image", url } });
+    store.insert(doc, page, { type: "icon", library: "lucide", icon: "minus", width: 100, height: 100, fill: "#0000ff" });
     const tree = store.toTree(doc);
     const vars = store.getVars(doc);
     const boxes = layout(tree, vars, engine.text);
@@ -58,7 +58,7 @@ describe("pictures and icons", () => {
     const { engine } = await setup();
     const doc = new Y.Doc();
     const page = store.insert(doc, ROOT_ID, { type: "frame", x: 0, y: 0, width: 96, height: 96, fill: "#ffffff" });
-    store.insert(doc, page, { type: "icon", icon: "x", width: 96, height: 96, color: "#000000" });
+    store.insert(doc, page, { type: "icon", icon: "x", width: 96, height: 96, fill: "#000000" });
     const tree = store.toTree(doc);
     const boxes = layout(tree, {}, engine.text);
     const pic = screenshot(engine.ck, tree, boxes, {}, engine.text, assetLookup(doc), page, 96);
@@ -72,30 +72,25 @@ describe("pictures and icons", () => {
     expect(hasIcon("no-such-icon")).toBe(false);
   });
 
-  it("stores a picture once and saves only pictures in use", async () => {
+  it("names a picture by its bytes, stores it once, and saves only pictures in use", async () => {
     const doc = new Y.Doc();
     const [a, b] = [await png([1, 0, 0]), await png([0, 1, 0])];
-    const [ia, ib] = [await assetId(a), await assetId(b)];
-    putAsset(doc, ia, a);
-    putAsset(doc, ia, a);
-    putAsset(doc, ib, b);
+    const [ua, ub] = [await pictureUrl(a), await pictureUrl(b)];
+    expect(ua).toMatch(/^\.\/images\/[0-9a-f]{24}\.png$/);
+    putAsset(doc, ua, a);
+    putAsset(doc, ua, a);
+    putAsset(doc, ub, b);
     expect(assetsOf(doc).size).toBe(2);
-    const main = store.insert(doc, ROOT_ID, { type: "frame", component: true, children: [{ type: "rect", ref: "r" }] });
+    const main = store.insert(doc, ROOT_ID, { type: "frame", reusable: true, children: [{ type: "rectangle" }] });
     const r = store.toTree(doc, main).children[0]!.id;
-    // Used only through a copy's change.
-    store.insert(doc, ROOT_ID, { type: "instance", of: main, overrides: { [r]: { fill: { type: "image", asset: ia } } } });
-    const text = fileText(doc);
-    expect(Object.keys(JSON.parse(text).assets)).toEqual([ia]);
+    // Used only through an instance's change.
+    store.insert(doc, ROOT_ID, { type: "ref", ref: main, descendants: { [r]: { fill: { type: "image", url: ua } } } });
+    expect(picturesOf(doc)).toEqual([{ url: ua, bytes: a }]);
+    // The file names it; reading the file asks for its bytes by that url.
+    const asked: string[] = [];
     const back = new Y.Doc();
-    readFile(text, back);
-    expect(assetsOf(back).get(ia)).toEqual(a);
-  });
-
-  it("base64 round-trips any length", () => {
-    for (let n = 0; n < 12; n++) {
-      const bytes = Uint8Array.from({ length: n }, (_, i) => (i * 73 + n) & 255);
-      expect(fromBase64(toBase64(bytes))).toEqual(bytes);
-    }
-    expect(toBase64(new TextEncoder().encode("Lemon"))).toBe("TGVtb24=");
+    readFile(fileText(doc), back, (url) => (asked.push(url), url === ua ? a : undefined));
+    expect(asked).toEqual([ua]);
+    expect(assetsOf(back).get(ua)).toEqual(a);
   });
 });

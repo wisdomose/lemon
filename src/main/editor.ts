@@ -7,7 +7,6 @@ import { BrowserWindow, app, dialog } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
-import { fileText, readFile } from "../doc/file.js";
 import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
@@ -16,7 +15,7 @@ import { AGENTS, type Team } from "../agent/models.js";
 import { runAgent, type AgentStats } from "../agent/agent.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
 import { thumbnail } from "../render/thumbnail.js";
-import { EXT, addRecent, displayName, isDraft, newDraftPath, withoutExt, writeThumb, writeWhole } from "./files.js";
+import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
@@ -102,7 +101,12 @@ export class Editor {
     } else if (path?.endsWith(".yjs")) {
       Y.applyUpdate(this.doc, readFileSync(path));
       path = undefined;
-    } else if (path) readFile(readFileSync(path, "utf8"), this.doc);
+    } else if (path) {
+      const report = readPen(path, this.doc);
+      if (report.missingPictures.length) {
+        this.notice = { title: `${report.missingPictures.length} picture${report.missingPictures.length > 1 ? "s" : ""} not found`, details: report.missingPictures.map((u) => `${u} isn't beside the file.`) };
+      }
+    }
     // A new file starts empty (decided 26 Oct 2026; Pen starts with an 800 × 600 frame).
     this.path = path ?? null;
     this.pristine = !path;
@@ -198,7 +202,7 @@ export class Editor {
     this.timer = undefined;
     if (!this.dirty || !this.path) return;
     try {
-      writeWhole(this.path, fileText(this.doc));
+      writePen(this.path, this.doc);
       this.dirty = false;
       this.state = "saved";
       this.error = undefined;
@@ -246,12 +250,12 @@ export class Editor {
     const name = this.path ? withoutExt(this.path) : "Untitled";
     const r = await dialog.showSaveDialog(this.win, {
       defaultPath: join(app.getPath("documents"), `${name}${EXT}`),
-      filters: [{ name: `${PRODUCT.name} design`, extensions: [PRODUCT.fileExtension] }],
+      filters: [{ name: "Pen design", extensions: [PRODUCT.fileExtension] }],
     });
     if (r.canceled || !r.filePath) return;
     const target = r.filePath.endsWith(EXT) ? r.filePath : `${r.filePath}${EXT}`;
     try {
-      writeWhole(target, fileText(this.doc));
+      writePen(target, this.doc);
     } catch (e) {
       dialog.showErrorBox("Couldn't save", e instanceof Error ? e.message : String(e));
       return;

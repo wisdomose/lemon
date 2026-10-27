@@ -2,7 +2,7 @@
 // fields), linear gradients (stops) and pictures. Layout measured from the reference captures 13 and 16.
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { Blinds, ChevronDown, Droplet, Image as ImageIcon, Minus, Pipette, Plus, SquareActivity, SquareSquare } from "lucide-react";
-import type { ImageFill, LinearGradient, Paint } from "../../doc/schema.js";
+import type { Fill, GradientFill, ImageFill } from "../../doc/schema.js";
 import { parseColor } from "../../doc/values.js";
 import { cx } from "./kit.js";
 
@@ -156,15 +156,20 @@ function Channel({ value, max, step, suffix = "", onCommit }: { value: number; m
   );
 }
 
-function Gradient({ value, onChange }: { value: LinearGradient; onChange: (g: LinearGradient) => void }) {
-  const stops = [...value.stops].sort((a, b) => a.at - b.at);
+/** A gradient's stops with numeric positions (a stop whose position is a variable sits at 0). */
+const stopsOf = (g: GradientFill) =>
+  [...(g.colors ?? [])].map((s) => ({ color: s.color, at: typeof s.position === "number" ? s.position : 0 })).sort((a, b) => a.at - b.at);
+
+function Gradient({ value, onChange }: { value: GradientFill; onChange: (g: GradientFill) => void }) {
+  const stops = stopsOf(value);
   const css = `linear-gradient(to right, ${stops.map((s) => `${s.color} ${s.at * 100}%`).join(", ")})`;
-  const setStop = (i: number, patch: Partial<{ color: string; at: number }>) =>
-    onChange({ ...value, stops: stops.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
+  const write = (list: { color: string; at: number }[]) => onChange({ ...value, colors: list.map((s) => ({ color: s.color, position: s.at })) });
+  const setStop = (i: number, patch: Partial<{ color: string; at: number }>) => write(stops.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const kind = value.gradientType ?? "linear";
   return (
     <div className="px-3 pt-3 pb-3">
       <div className={cx(FIELD, "w-full gap-1")}>
-        Linear <ChevronDown size={12} strokeWidth={1.5} className="ml-auto" />
+        {kind[0]!.toUpperCase() + kind.slice(1)} <ChevronDown size={12} strokeWidth={1.5} className="ml-auto" />
       </div>
       <div className="relative mt-4 h-6 rounded-[4px]" style={{ background: `${css}, ${CHECKER}` }}>
         {stops.map((s, i) => (
@@ -181,7 +186,7 @@ function Gradient({ value, onChange }: { value: LinearGradient; onChange: (g: Li
           type="button"
           aria-label="Add stop"
           className="ml-auto text-muted-foreground"
-          onClick={() => onChange({ ...value, stops: [...stops, { color: "#808080", at: 0.5 }] })}
+          onClick={() => write([...stops, { color: "#808080", at: 0.5 }])}
         >
           <Plus size={16} strokeWidth={1.5} />
         </button>
@@ -204,7 +209,7 @@ function Gradient({ value, onChange }: { value: LinearGradient; onChange: (g: Li
                 aria-label="Remove stop"
                 disabled={stops.length <= 2}
                 className="text-muted-foreground"
-                onClick={() => onChange({ ...value, stops: stops.filter((_, j) => j !== i) })}
+                onClick={() => write(stops.filter((_, j) => j !== i))}
               >
                 <Minus size={16} strokeWidth={1.5} />
               </button>
@@ -219,7 +224,7 @@ function Gradient({ value, onChange }: { value: LinearGradient; onChange: (g: Li
 /** What the picker needs for pictures: choosing one (a file), and showing one. */
 export interface PictureSource {
   choose(): Promise<ImageFill | undefined>;
-  url(asset: string): string | undefined;
+  url(url: string): string | undefined;
 }
 
 /** The picker's body for a fill: tabs (solid, gradient, image, shader), blend icon, then the editor. */
@@ -229,22 +234,25 @@ export function ColourPicker({
   allowGradient = true,
   pictures,
 }: {
-  value: Paint;
-  onChange: (p: Paint) => void;
+  value: Fill;
+  onChange: (p: Fill) => void;
   allowGradient?: boolean;
   /** Offered for fills of shapes; without it the Image tab is off. */
   pictures?: PictureSource;
 }) {
-  const isGradient = typeof value === "object" && value.type === "linear";
+  const isGradient = typeof value === "object" && value.type === "gradient";
   const isPicture = typeof value === "object" && value.type === "image";
+  const isSolid = typeof value === "string" || value.type === "color";
+  const solid = typeof value === "string" ? value : value.type === "color" ? value.color : undefined;
   const tabs = [
-    { icon: SquareSquare, label: "Solid", on: typeof value === "string", enabled: true, pick: () => typeof value !== "string" && onChange(isGradient ? (value.stops[0]?.color ?? "#000000") : "#D9D9D9") },
+    { icon: SquareSquare, label: "Solid", on: isSolid, enabled: true, pick: () => !isSolid && onChange(isGradient ? (value.colors?.[0]?.color ?? "#000000") : "#D9D9D9") },
     {
       icon: Blinds,
       label: "Gradient",
       on: isGradient,
       enabled: allowGradient,
-      pick: () => !isGradient && onChange({ type: "linear", angle: 90, stops: [{ color: "#000000", at: 0 }, { color: "#FFFFFF", at: 1 }] }),
+      pick: () =>
+        !isGradient && onChange({ type: "gradient", gradientType: "linear", rotation: 270, colors: [{ color: solid ?? "#000000", position: 0 }, { color: "#FFFFFF", position: 1 }] }),
     },
     {
       icon: ImageIcon,
@@ -280,13 +288,13 @@ export function ColourPicker({
       ) : isPicture ? (
         <Picture value={value} onChange={onChange} pictures={pictures} />
       ) : (
-        <Solid value={value as string} onChange={onChange} />
+        <Solid value={solid ?? "#000000"} onChange={(c) => onChange(typeof value === "object" && value.type === "color" ? { ...value, color: c } : c)} />
       )}
     </div>
   );
 }
 
-const FITS: { fit: NonNullable<ImageFill["fit"]>; label: string }[] = [
+const FITS: { fit: NonNullable<ImageFill["mode"]>; label: string }[] = [
   { fit: "cover", label: "Fill" },
   { fit: "contain", label: "Fit" },
   { fit: "stretch", label: "Stretch" },
@@ -294,8 +302,8 @@ const FITS: { fit: NonNullable<ImageFill["fit"]>; label: string }[] = [
 
 /** A picture fill: the picture, how it fits the shape, and a button to choose another. */
 function Picture({ value, onChange, pictures }: { value: ImageFill; onChange: (f: ImageFill) => void; pictures?: PictureSource }) {
-  const url = pictures?.url(value.asset);
-  const fit = value.fit ?? "cover";
+  const url = value.url ? pictures?.url(value.url) : undefined;
+  const fit = value.mode ?? "cover";
   return (
     <div className="space-y-3 px-3 pt-3 pb-3">
       <div className="flex h-[150px] items-center justify-center overflow-hidden rounded-md bg-field">
@@ -306,7 +314,7 @@ function Picture({ value, onChange, pictures }: { value: ImageFill; onChange: (f
           <button
             key={f.fit}
             type="button"
-            onClick={() => onChange({ ...value, fit: f.fit })}
+            onClick={() => onChange({ ...value, mode: f.fit })}
             className={cx("flex flex-1 items-center justify-center rounded-[5px] text-foreground", fit === f.fit && "bg-seg-active")}
           >
             {f.label}
@@ -316,7 +324,7 @@ function Picture({ value, onChange, pictures }: { value: ImageFill; onChange: (f
       {pictures && (
         <button
           type="button"
-          onClick={() => void pictures.choose().then((f) => f && onChange({ ...f, fit }))}
+          onClick={() => void pictures.choose().then((f) => f && onChange({ ...f, mode: fit }))}
           className="flex h-6 w-full items-center justify-center rounded-md bg-field text-[11px] text-foreground"
         >
           Choose image…

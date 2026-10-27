@@ -19,7 +19,7 @@ export type Rect = Box;
 
 const contains = (b: Box | undefined, x: number, y: number) => !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
 const touches = (a: Box | undefined, b: Rect) => !!a && a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
-const shown = (n: TreeNode) => n.props.visible !== false;
+const shown = (n: TreeNode) => n.props.enabled !== false;
 
 /** The parent of every node, by id. */
 export function parents(tree: TreeNode): Map<string, TreeNode> {

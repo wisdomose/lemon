@@ -59,71 +59,117 @@ describe("sandbox", () => {
 });
 
 describe("execute (the agent's tool)", () => {
-  it("builds a section, returns refs, checks it and draws it", async () => {
+  it("builds a section with Pen's API, names what it made, checks it and draws it", async () => {
     const doc = new Y.Doc();
     const r = await run(doc, `
-      doc.setVars({ paper: "#f6f1e7", ink: "#1b1a17", accent: "#c4572f" });
-      const page = doc.insert(null, { type: "frame", name: "Landing", width: 1440, fill: "$paper", ref: "page" });
-      const hero = doc.insert(page, { type: "frame", name: "Hero", width: "fill", padding: [96, 120], gap: 24 });
-      doc.insert(hero, { type: "text", ref: "title", text: "Slow mornings above the Tagus.", font: "Fraunces", size: 88, weight: 600, color: "$ink", width: "fill" });
-      doc.insert(hero, { type: "text", text: "Coffee, pastries and a terrace with a view.", size: 22, color: "$ink" });
-      const button = doc.insert(hero, { type: "frame", layout: "row", padding: [16, 28], radius: 999, fill: "$accent" });
-      doc.insert(button, { type: "text", text: "Reserve a table", size: 18, weight: 600, color: "#ffffff" });
-      doc.screenshot(page);
-      return doc.get(page, 1);
+      SetVariables({ paper: { type: "color", value: "#f6f1e7" }, ink: { type: "color", value: "#1b1a17" }, accent: { type: "color", value: "#c4572f" } });
+      const page = Insert(document, { type: "frame", name: "Landing", width: 1440, layout: "vertical", fill: "$paper" });
+      const hero = Insert(page, { type: "frame", name: "Hero", layout: "vertical", width: "fill_container", padding: [96, 120], gap: 24 });
+      Insert(hero, { type: "text", name: "Title", content: "Slow mornings above the Tagus.", fontFamily: "Fraunces", fontSize: 88, fontWeight: "600", fill: "$ink", textGrowth: "fixed-width", width: "fill_container" });
+      Insert(hero, { type: "text", name: "Lede", content: "Coffee, pastries and a terrace with a view.", fontSize: 22, fill: "$ink" });
+      const button = Insert(hero, { type: "frame", name: "Button", padding: [16, 28], cornerRadius: 999, fill: "$accent" });
+      Insert(button, { type: "text", name: "Label", content: "Reserve a table", fontSize: 18, fontWeight: "600", fill: "#ffffff" });
+      TakeScreenshot([page]);
+      return Get(page, { depth: 1 });
     `);
     expect(r.error).toBeUndefined();
     expect(r.ok).toBe(true);
-    expect(r.refs.title).toBeTypeOf("string");
-    expect(r.frames).toEqual([r.refs.page]);
+    const title = r.created.find((c) => c.name === "Title");
+    expect(title?.type).toBe("text");
+    const page = r.created.find((c) => c.name === "Landing")!.id;
+    expect(r.frames).toEqual([page]);
     expect(r.pictures).toHaveLength(1);
     expect(r.pictures[0]!.png.slice(1, 4)).toEqual(new Uint8Array([0x50, 0x4e, 0x47])); // "PNG"
     expect(r.issues.some((i) => i.kind === "hard-coded-colour")).toBe(true); // the white button text
     expect(r.timings.attempts).toBeGreaterThanOrEqual(1);
-    const page = r.value as { box: { w: number; h: number } };
-    expect(page.box.w).toBe(1440);
+    // Get returns .pen data: the node's own properties, children nested to the depth asked.
+    const got = r.value as { type: string; width: number; children: { name: string; children: unknown }[] };
+    expect(got).toMatchObject({ type: "frame", width: 1440, fill: "$paper" });
+    expect(got.children.map((c) => c.name)).toEqual(["Hero"]);
+    expect(got.children[0]!.children).toBe("...");
   });
 
-  it("appends in order when a script leaves out the position", async () => {
+  it("appends in order, and Move puts a node at an index", async () => {
     const doc = new Y.Doc();
     const r = await run(doc, `
-      const page = doc.insert(null, { type: "frame", name: "Page" });
-      for (const name of ["Header", "Hero", "Footer"]) doc.insert(page, { type: "frame", name });
-      doc.insert(page, { type: "frame", name: "Top" }, 0);
-      return doc.get(page, 1).children.map((c) => c.name);
+      const page = Insert(document, { type: "frame", name: "Page" });
+      for (const name of ["Header", "Hero", "Footer"]) Insert(page, { type: "frame", name });
+      const top = Insert(page, { type: "frame", name: "Top" });
+      Move(top, undefined, 0);
+      return Get(page, { depth: 1 }).children.map((c) => c.name);
     `);
     expect(r.value).toEqual(["Top", "Header", "Hero", "Footer"]);
   });
 
+  it("visits a subtree with bounds and problems, and resolves variables when asked", async () => {
+    const doc = new Y.Doc();
+    const r = await run(doc, `
+      SetVariables({ ink: { type: "color", value: "#111111" } });
+      const box = Insert(document, { type: "frame", name: "Box", width: 100, height: 40, clip: true });
+      Insert(box, { type: "rectangle", name: "Wide", width: 150, height: 10, fill: "$ink" });
+      const rows = Get(box, (n, c) => [n.name, c.depth, c.bounds.width, c.problems ?? null]);
+      const fills = Get(box, (n) => n.fill, { resolveVariables: true });
+      return { rows, fills };
+    `);
+    expect(r.value).toEqual({ rows: [["Box", 0, 100, null], ["Wide", 1, 150, "partially clipped"]], fills: ["#111111"] });
+  });
+
   it("rolls back everything when the script fails part-way", async () => {
     const doc = new Y.Doc();
-    await run(doc, `doc.insert(null, { type: "frame", name: "Existing" });`);
+    await run(doc, `Insert(document, { type: "frame", name: "Existing" });`);
     const before = JSON.stringify(store.toTree(doc));
     const r = await run(doc, `
-      const f = doc.insert(null, { type: "frame", name: "Half-built" });
-      doc.insert(f, { type: "text", text: "one" });
-      doc.update("no-such-id", { text: "two" });
+      const f = Insert(document, { type: "frame", name: "Half-built" });
+      Insert(f, { type: "text", content: "one" });
+      Update("no-such-id", { content: "two" });
     `);
     expect(r.ok).toBe(false);
-    expect(r.error?.message).toMatch(/No node with id "no-such-id"/);
+    expect(r.error?.message).toMatch(/no node "no-such-id"/);
     expect(r.error?.line).toBe(4);
     expect(JSON.stringify(store.toTree(doc))).toBe(before);
   });
 
-  it("inserts one node at a time: children are refused", async () => {
-    const r = await run(new Y.Doc(), `doc.insert(null, { type: "frame", children: [{ type: "text", text: "x" }] });`);
-    expect(r.ok).toBe(false);
-    expect(r.error?.message).toMatch(/adds one node/);
+  it("inserts one node at a time, and refuses what Pen doesn't support", async () => {
+    const one = await run(new Y.Doc(), `Insert(document, { type: "frame", children: [{ type: "text", content: "x" }] });`);
+    expect(one.error?.message).toMatch(/adds one node/);
+    const pct = await run(new Y.Doc(), `Insert(document, { type: "frame", width: "50%" });`);
+    expect(pct.error?.message).toMatch(/percentages/);
+    const pad = await run(new Y.Doc(), `Insert(document, { type: "text", content: "x", padding: 4 });`);
+    expect(pad.error?.message).toMatch(/frames only/);
+    const obj = await run(new Y.Doc(), `const f = Get(Insert(document, { type: "frame" })); Insert(f, { type: "text" });`);
+    expect(obj.error?.message).toMatch(/pass its \.id/);
+  });
+
+  it("makes instances of components, changes their nodes, fills slots and copies", async () => {
+    const doc = new Y.Doc();
+    const r = await run(doc, `
+      const card = Insert(document, { type: "frame", name: "Card", reusable: true, layout: "vertical" });
+      const title = Insert(card, { type: "text", name: "Title", content: "Title", fill: "#000000" });
+      const slot = Insert(card, { type: "frame", name: "Slot", slot: [] });
+      const page = Insert(document, { type: "frame", name: "Page", layout: "vertical" });
+      const a = Insert(page, { type: "ref", ref: card, descendants: { Title: { content: "By name" } } });
+      Insert(a + "/" + slot, { type: "text", name: "Inside", content: "In the slot", fill: "#000000" });
+      const b = Copy(card, page, { descendants: { [title]: { content: "Copied" } } });
+      const plain = Copy(page, document, { name: "Page 2" });
+      return [Get(a, { resolveInstances: true }), Get(b), Get(plain, { depth: 1 }).children.length];
+    `);
+    expect(r.error).toBeUndefined();
+    const [a, b, count] = r.value as [{ children: { content?: string; children?: { content: string }[] }[] }, { type: string; descendants: Record<string, unknown> }, number];
+    expect(a.children[0]!.content).toBe("By name");
+    expect(a.children[1]!.children![0]!.content).toBe("In the slot");
+    expect(b.type).toBe("ref");
+    expect(Object.values(b.descendants)).toEqual([{ content: "Copied" }]);
+    expect(count).toBe(2);
   });
 
   it("keeps values assigned without const/let for the next script, and none from a failed one", async () => {
     const { engine, sandbox } = await setup();
     const doc = new Y.Doc();
-    const first = await execute(doc, engine, sandbox, `const local = 1; page = doc.insert(null, { type: "frame" }); helper = () => 1; return local;`, "test");
+    const first = await execute(doc, engine, sandbox, `const local = 1; page = Insert(document, { type: "frame" }); helper = () => 1; return local;`, "test");
     expect(Object.keys(first.globals)).toEqual(["page"]);
     const failed = await execute(doc, engine, sandbox, `stray = 2; throw new Error("no");`, "test", undefined, first.globals);
     expect(failed.globals).toEqual(first.globals);
-    const second = await execute(doc, engine, sandbox, `doc.insert(page, { type: "text", text: "Hi" }); return typeof helper;`, "test", undefined, first.globals);
+    const second = await execute(doc, engine, sandbox, `Insert(page, { type: "text", content: "Hi" }); return typeof helper;`, "test", undefined, first.globals);
     expect(second.ok).toBe(true);
     expect(second.value).toBe("undefined");
     expect(store.toTree(doc).children[0]!.children).toHaveLength(1);
@@ -131,8 +177,8 @@ describe("execute (the agent's tool)", () => {
 
   it("fixes a failed script with edits, which must each match once", () => {
     const failed = new FailedScripts();
-    const id = failed.keep(`doc.insert(null, { type: "frame", fill: "#zzz" });\nreturn 1;`);
-    expect(failed.patch(id, [{ find: "#zzz", replace: "#fff" }, { find: "#fff", replace: "#000" }])).toBe(`doc.insert(null, { type: "frame", fill: "#000" });\nreturn 1;`);
+    const id = failed.keep(`Insert(document, { type: "frame", fill: "#zzz" });\nreturn 1;`);
+    expect(failed.patch(id, [{ find: "#zzz", replace: "#fff" }, { find: "#fff", replace: "#000" }])).toBe(`Insert(document, { type: "frame", fill: "#000" });\nreturn 1;`);
     expect(() => failed.patch(id, [{ find: "nope", replace: "" }])).toThrow(/doesn't match/);
     expect(() => failed.patch(id, [{ find: "e", replace: "" }])).toThrow(/more than once/);
     // A failed patch is kept under the same id; later edits match the patched script.
@@ -142,16 +188,16 @@ describe("execute (the agent's tool)", () => {
     expect(() => failed.patch(id, [])).toThrow(/no failed script/);
   });
 
-  it("the cursor follows what is placed, not the frames around it or the generating mark", async () => {
+  it("the cursor follows what is placed, not the frames around it or the placeholder mark", async () => {
     const { engine, sandbox } = await setup();
     const doc = new Y.Doc();
     const seen: Focus[] = [];
     const r = await new LiveRun(doc, engine, sandbox, "test", undefined, {}, (f) => seen.push(f)).finish(`
-      const page = doc.insert(null, { type: "frame", width: 600, generating: true });
-      const title = doc.insert(page, { type: "text", text: "Hello there" });
-      doc.update(page, { padding: 40 });
-      doc.update(title, { size: 40 });
-      doc.update(page, { generating: null });
+      const page = Insert(document, { type: "frame", width: 600, placeholder: true });
+      const title = Insert(page, { type: "text", content: "Hello there" });
+      Update(page, { padding: 40 });
+      Update(title, { fontSize: 40 });
+      Update(page, { placeholder: false });
     `);
     expect(r.ok).toBe(true);
     const [page, title] = store.toTree(doc).children[0] ? [store.toTree(doc).children[0]!.id, store.toTree(doc).children[0]!.children[0]!.id] : [];
@@ -165,19 +211,19 @@ describe("execute (the agent's tool)", () => {
   it("handles a heavy chart (565 rectangles) and 1,000 small reads", async () => {
     const doc = new Y.Doc();
     const chart = await run(doc, `
-      const f = doc.insert(null, { type: "frame", name: "Chart", layout: "none", width: 1200, height: 500, fill: "#101418" });
+      const f = Insert(document, { type: "frame", name: "Chart", layout: "none", width: 1200, height: 500, fill: "#101418" });
       for (let i = 0; i < 565; i++) {
         const h = 40 + ((i * 37) % 300);
-        doc.insert(f, { type: "rect", x: 10 + i * 2, y: 450 - h, width: 1.5, height: h, fill: i % 2 ? "#3fb950" : "#f85149" });
+        Insert(f, { type: "rectangle", x: 10 + i * 2, y: 450 - h, width: 1.5, height: h, fill: i % 2 ? "#3fb950" : "#f85149" });
       }
-      return doc.get(f, 0).childCount;
+      return Get(f, { depth: 1 }).children.length;
     `);
     expect(chart.ok).toBe(true);
     expect(chart.value).toBe(565);
     const reads = await run(doc, `
-      const id = doc.page()[0].id;
+      const id = Get(document, (n, c) => (c.depth === 1 ? n.id : undefined))[0];
       let n = 0;
-      for (let i = 0; i < 1000; i++) n += doc.get(id, 0).childCount > 0 ? 1 : 0;
+      for (let i = 0; i < 1000; i++) n += Get(id, { depth: 0 }).children === "..." ? 1 : 0;
       return n;
     `);
     expect(reads.value).toBe(1000);

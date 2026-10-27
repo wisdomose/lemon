@@ -2,7 +2,8 @@
 // (src/agent/live-script.ts): page coordinates in this window's own layout, so the cursor follows
 // things that moved in the meantime.
 import type { Target } from "../../agent/live-script.js";
-import { DEFAULTS, ROOT_ID } from "../../doc/schema.js";
+import { ROOT_ID } from "../../doc/schema.js";
+import { kindOf } from "../../layout/layout.js";
 import { emptySpot } from "../../layout/space.js";
 import { findNode } from "../../render/screenshot.js";
 import type { Scene } from "../scene.js";
@@ -13,8 +14,8 @@ export function targetPoint(t: Target, s: Scene): { x: number; y: number } | und
   const parent = findNode(s.tree, t.parent);
   const pb = s.boxes.get(t.parent);
   if (!parent || !pb) return undefined;
-  const layout = parent.props.layout ?? DEFAULTS.frame.layout;
-  if (layout === "none") return t.at ? { x: pb.x + t.at.x, y: pb.y + t.at.y } : pb;
+  const layout = kindOf(parent);
+  if (layout === "free") return t.at ? { x: pb.x + t.at.x, y: pb.y + t.at.y } : pb;
   // In a row or column: where the new child will sit — before the child now at `index`, or after the last.
   const kids = parent.children.map((c) => s.boxes.get(c.id)).filter((b) => !!b);
   const at = kids[t.index ?? kids.length];

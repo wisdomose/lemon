@@ -39,7 +39,8 @@ export function partialField(json: string, field: string): { value: string; done
   return { value, done: false };
 }
 
-const CALL = /doc\.(insert|update|move|remove)\(\s*/g;
+/** Pen's calls that work on a node: Insert and Copy add into their parent (Copy's second argument). */
+const CALL = /\b(Insert|Copy|Update|Replace|Move|Delete)\(\s*/g;
 const ASSIGN = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(["'`])([^"'`\\\n]*)\2/g;
 const IDENT = /^[A-Za-z_$][\w$]*/;
 const POS_X = /[{,\s]x\s*:\s*(-?\d+(?:\.\d+)?)\b/;
@@ -83,14 +84,20 @@ function callEnd(src: string, at: number): { last: string; end: number } | undef
  * script, or kept from earlier scripts (`globals`).
  */
 export function scriptTarget(script: string, exists: (id: string) => boolean, globals: Record<string, unknown> = {}): Target | undefined {
-  const names = new Map<string, string>();
+  const names = new Map<string, string>([["document", ROOT_ID]]);
   for (const [k, v] of Object.entries(globals)) if (typeof v === "string") names.set(k, v);
   for (const m of script.matchAll(ASSIGN)) names.set(m[1]!, m[3]!);
   let target: Target | undefined;
   for (const m of script.matchAll(CALL)) {
     const at = m.index + m[0].length;
-    const arg = argAt(script, at, names);
-    if (m[1] === "insert") {
+    let arg = argAt(script, at, names);
+    if (m[1] === "Copy") {
+      // Copy(path, parent, …): it adds into the parent.
+      const comma = script.indexOf(",", at);
+      if (comma < 0) continue;
+      arg = argAt(script, script.slice(comma + 1).search(/\S/) + comma + 1, names);
+    }
+    if (m[1] === "Insert" || m[1] === "Copy") {
       if (arg === undefined && script[at] !== ")") continue;
       const parent = arg ?? ROOT_ID;
       if (parent !== ROOT_ID && !exists(parent)) continue;

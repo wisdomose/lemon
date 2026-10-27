@@ -51,7 +51,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import * as store from "../../doc/store.js";
-import type { LinearGradient, NodeProps, Paint, Size, TreeNode } from "../../doc/schema.js";
+import { ROOT_ID, type Effect, type Fill, type GradientFill, type NodeProps, type Size, type TreeNode } from "../../doc/schema.js";
+import { kindOf as layoutKind } from "../../layout/layout.js";
+import { weightOf } from "../../text/paragraph.js";
 import { findNode } from "../../render/screenshot.js";
 import { currentScene, doc, edit } from "../scene.js";
 import { useEditor } from "../store.js";
@@ -170,16 +172,22 @@ function ButtonGroup({ icons }: { icons: LucideIcon[] }) {
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
-  if (n.props.component) return { icon: Component, label: typeInfo({ ...n, props: { ...n.props, component: false } }).label };
+  if (n.props.reusable) return { icon: Component, label: typeInfo({ ...n, props: { ...n.props, reusable: false } }).label };
   if (n.type === "text") return { icon: Type, label: "Text" };
-  if (n.type === "rect") return { icon: Square, label: "Rectangle" };
+  if (n.type === "rectangle") return { icon: Array.isArray(n.props.fill) || typeof n.props.fill !== "object" || n.props.fill.type !== "image" ? Square : ImageIcon, label: "Rectangle" };
   if (n.type === "ellipse") return { icon: Circle, label: "Ellipse" };
-  if (n.type === "image") return { icon: ImageIcon, label: "Image" };
   if (n.type === "icon") return { icon: Smile, label: "Icon" };
+  if (n.type !== "frame") return { icon: n.type === "group" ? Frame : Square, label: n.type[0]!.toUpperCase() + n.type.slice(1) };
   return { icon: n.props.layout === "none" ? Frame : AlignHorizontalJustifyStart, label: "Frame" };
 }
 
 const sizeNum = (v: Size | undefined, measured: number) => (typeof v === "number" ? v : Math.round(measured * 10) / 10);
+/** Whether a size is "fill_container" / "fit_content" (with or without a fallback). */
+const sizeIs = (v: Size | undefined, rule: "fill_container" | "fit_content") => typeof v === "string" && v.startsWith(rule);
+/** A node's fills as a list (Pen allows one fill or several). */
+const fillList = (v: NodeProps["fill"]): Fill[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]);
+const EFFECT_NAMES: Record<string, string> = { shadow: "Drop Shadow", blur: "Layer Blur", background_blur: "Background Blur", shader: "Shader" };
+const effectName = (e: Effect) => (e.type === "shadow" && e.shadowType === "inner" ? "Inner Shadow" : (EFFECT_NAMES[e.type] ?? e.type));
 const hex = (c: unknown) => (typeof c === "string" ? c.replace(/^#/, "").toUpperCase() : "");
 
 export function PropertiesPanel() {
@@ -194,21 +202,28 @@ export function PropertiesPanel() {
   const boxOf = (id: string) => scene.boxes.get(id) ?? { x: 0, y: 0, w: 0, h: 0 };
   const parentBoxOf = (id: string) => {
     const pid = store.parentOf(doc, id);
-    return pid && pid !== "root" ? boxOf(pid) : { x: 0, y: 0, w: 0, h: 0 };
+    return pid && pid !== ROOT_ID ? boxOf(pid) : { x: 0, y: 0, w: 0, h: 0 };
   };
   const p = node.props;
   const box = scene.boxes.get(node.id) ?? { x: 0, y: 0, w: 0, h: 0 };
   const parent = store.parentOf(doc, node.id);
-  const topLevel = parent === "root";
-  const parentFrame = parent && parent !== "root" ? findNode(scene.tree, parent) : undefined;
+  const topLevel = parent === ROOT_ID;
+  const parentFrame = parent && parent !== ROOT_ID ? findNode(scene.tree, parent) : undefined;
   const parentBox = parentFrame ? scene.boxes.get(parentFrame.id) : undefined;
   const isFrame = node.type === "frame";
   const flex = isFrame && p.layout !== "none";
   const info = typeInfo(node);
   const kind = kindOf(node);
-  // Text and icons are coloured by `color`; everything else by its fill.
+  const free = topLevel || p.layoutPosition === "absolute" || (parentFrame ? layoutKind(parentFrame) === "free" : false);
+  // Text and icons are painted with their fill too (Pen's); pictures go only on shapes and frames.
   const inked = node.type === "text" || node.type === "icon";
-  const colour: Paint | undefined = inked ? (typeof p.color === "string" ? p.color : "#000000") : p.fill;
+  const fills = fillList(p.fill);
+  const colour: Fill | undefined = fills[0];
+  /** Sets the first fill, keeping the others. */
+  const setFirstFill = (f: Fill) => set(ids, { fill: Array.isArray(p.fill) ? [f, ...p.fill.slice(1)] : f });
+  const strokes = fillList(p.stroke);
+  const strokeWidth = p.strokeWidth;
+  const effects = Array.isArray(p.effect) ? p.effect : p.effect ? [p.effect] : [];
 
   return (
     <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
@@ -284,12 +299,12 @@ export function PropertiesPanel() {
             <NumberField
               lead="X"
               value={shared(ids, (id) => Math.round((boxOf(id).x - parentBoxOf(id).x) * 10) / 10)}
-              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (x) => set(ids, { x }) : undefined}
+              onCommit={free ? (x) => set(ids, { x }) : undefined}
             />
             <NumberField
               lead="Y"
               value={shared(ids, (id) => Math.round((boxOf(id).y - parentBoxOf(id).y) * 10) / 10)}
-              onCommit={topLevel || p.absolute || parentFrame?.props.layout === "none" ? (y) => set(ids, { y }) : undefined}
+              onCommit={free ? (y) => set(ids, { y }) : undefined}
             />
             <NumberField
               lead={<RotateCw size={12} strokeWidth={1.5} />}
@@ -299,8 +314,12 @@ export function PropertiesPanel() {
             />
             <ButtonGroup icons={[RotateCw, FlipVertical2, FlipHorizontal2]} />
           </div>
-          {parentFrame && parentFrame.props.layout !== "none" && (
-            <Check2 label="Absolute Position" checked={!!p.absolute} onChange={(v) => set(ids, { absolute: v, ...(v ? { x: Math.round(box.x - parentBox!.x), y: Math.round(box.y - parentBox!.y) } : {}) })} />
+          {parentFrame && layoutKind(parentFrame) !== "free" && (
+            <Check2
+              label="Absolute Position"
+              checked={p.layoutPosition === "absolute"}
+              onChange={(v) => set(ids, { layoutPosition: v ? "absolute" : null, ...(v ? { x: Math.round(box.x - parentBox!.x), y: Math.round(box.y - parentBox!.y) } : {}) } as never)}
+            />
           )}
         </Section>
 
@@ -310,12 +329,12 @@ export function PropertiesPanel() {
         >
           {isFrame && (
             <Segmented
-              value={p.layout ?? "column"}
+              value={p.layout ?? "horizontal"}
               onChange={(layout) => set(ids, { layout })}
               options={[
                 { value: "none", icon: LayoutGrid, label: "No layout" },
-                { value: "column", icon: ArrowDownFromLine, label: "Vertical" },
-                { value: "row", icon: ArrowRightFromLine, label: "Horizontal" },
+                { value: "vertical", icon: ArrowDownFromLine, label: "Vertical" },
+                { value: "horizontal", icon: ArrowRightFromLine, label: "Horizontal" },
               ]}
             />
           )}
@@ -325,12 +344,12 @@ export function PropertiesPanel() {
           <div className="grid grid-cols-2 gap-[6px]">
             <NumberField lead="W" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).width, boxOf(id).w))} onCommit={(width) => set(ids, { width })} />
             <NumberField lead="H" value={shared(ids, (id) => sizeNum(store.propsOf(doc, id).height, boxOf(id).h))} onCommit={(height) => set(ids, { height })} />
-            <Check2 label="Fill Width" checked={p.width === "fill"} onChange={(v) => set(ids, { width: v ? "fill" : Math.round(box.w) })} />
-            <Check2 label="Fill Height" checked={p.height === "fill"} onChange={(v) => set(ids, { height: v ? "fill" : Math.round(box.h) })} />
-            {(flex || node.type === "text") && (
+            <Check2 label="Fill Width" checked={sizeIs(p.width, "fill_container")} onChange={(v) => set(ids, { width: v ? "fill_container" : Math.round(box.w) })} />
+            <Check2 label="Fill Height" checked={sizeIs(p.height, "fill_container")} onChange={(v) => set(ids, { height: v ? "fill_container" : Math.round(box.h) })} />
+            {flex && (
               <>
-                <Check2 label="Hug Width" checked={p.width === "fit" || p.width === undefined} onChange={(v) => set(ids, { width: v ? "fit" : Math.round(box.w) })} />
-                <Check2 label="Hug Height" checked={p.height === "fit" || p.height === undefined} onChange={(v) => set(ids, { height: v ? "fit" : Math.round(box.h) })} />
+                <Check2 label="Hug Width" checked={sizeIs(p.width, "fit_content") || p.width === undefined} onChange={(v) => set(ids, { width: v ? "fit_content" : Math.round(box.w) })} />
+                <Check2 label="Hug Height" checked={sizeIs(p.height, "fit_content") || p.height === undefined} onChange={(v) => set(ids, { height: v ? "fit_content" : Math.round(box.h) })} />
               </>
             )}
           </div>
@@ -339,8 +358,8 @@ export function PropertiesPanel() {
         <Section
           title="Appearance"
           action={
-            <button type="button" aria-label="Visibility" onClick={() => set(ids, { visible: p.visible === false })}>
-              {p.visible === false ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}
+            <button type="button" aria-label="Visibility" onClick={() => set(ids, { enabled: p.enabled === false ? null : false } as never)}>
+              {p.enabled === false ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}
             </button>
           }
         >
@@ -348,19 +367,19 @@ export function PropertiesPanel() {
             <NumberField
               className="flex-1"
               lead={<SquareSlash size={12} strokeWidth={1.5} />}
-              value={Math.round((p.opacity ?? 1) * 100)}
+              value={typeof p.opacity === "number" ? Math.round(p.opacity * 100) : 100}
               onCommit={(v) => set(ids, { opacity: Math.max(0, Math.min(100, v)) / 100 })}
             />
             <NumberField
               className="flex-1"
               lead={<SquareDashed size={12} strokeWidth={1.5} />}
-              value={typeof p.radius === "number" ? p.radius : 0}
-              disabled={node.type === "text"}
-              onCommit={(radius) => set(ids, { radius })}
+              value={typeof p.cornerRadius === "number" ? p.cornerRadius : Array.isArray(p.cornerRadius) ? "Mixed" : 0}
+              disabled={!["frame", "rectangle", "polygon"].includes(node.type)}
+              onCommit={(cornerRadius) => set(ids, { cornerRadius })}
             />
             <Scan size={16} strokeWidth={1.5} className="mt-1 shrink-0 text-muted-foreground" />
           </div>
-          {isFrame && <Check2 label="Clip Content" checked={!!p.clip} onChange={(clip) => set(ids, { clip })} />}
+          {isFrame && <Check2 label="Clip Content" checked={p.clip === true} onChange={(clip) => set(ids, { clip })} />}
         </Section>
 
         <Section
@@ -376,10 +395,10 @@ export function PropertiesPanel() {
           {colour && (
             <ColourRow
               value={colour}
-              allowGradient={!inked}
+              allowGradient
               pictures={inked ? undefined : pictures}
-              onChange={(c) => set(ids, inked ? { color: c as string } : { fill: c })}
-              onRemove={inked ? undefined : () => set(ids, { fill: null as never })}
+              onChange={setFirstFill}
+              onRemove={() => set(ids, { fill: Array.isArray(p.fill) && p.fill.length > 1 ? p.fill.slice(1) : (null as never) })}
             />
           )}
         </Section>
@@ -389,40 +408,53 @@ export function PropertiesPanel() {
         <Section
           title="Stroke"
           action={
-            !p.stroke && (
-              <button type="button" aria-label="Add stroke" onClick={() => set(ids, { stroke: { color: "#000000", width: 1 } })}>
+            !strokes.length && (
+              <button type="button" aria-label="Add stroke" onClick={() => set(ids, { stroke: "#000000", strokeWidth: 1 })}>
                 <Plus size={16} strokeWidth={1.5} />
               </button>
             )
           }
         >
-          {p.stroke && (
+          {strokes[0] !== undefined && (
             <>
               <ColourRow
-                value={p.stroke.color}
-                onChange={(color) => set(ids, { stroke: { ...p.stroke!, color: color as string } })}
-                onRemove={() => set(ids, { stroke: null as never })}
+                value={strokes[0]}
+                allowGradient
+                onChange={(f) => set(ids, { stroke: Array.isArray(p.stroke) ? [f, ...p.stroke.slice(1)] : f })}
+                onRemove={() => set(ids, { stroke: null, strokeWidth: null, strokeAlignment: null } as never)}
               />
               <div className="grid grid-cols-2 gap-[6px]">
                 <Label>Position</Label>
                 <Label>Weight</Label>
-                <div className={FIELD}>Inside <ChevronDown size={12} className="ml-auto" /></div>
-                <NumberField lead="W" value={typeof p.stroke.width === "number" ? p.stroke.width : "Mixed"} onCommit={(width) => set(ids, { stroke: { ...p.stroke!, width } })} />
+                <button
+                  type="button"
+                  className={FIELD}
+                  onClick={() => set(ids, { strokeAlignment: p.strokeAlignment === "center" ? "outer" : p.strokeAlignment === "outer" ? "inner" : "center" })}
+                >
+                  {p.strokeAlignment === "center" ? "Center" : p.strokeAlignment === "outer" ? "Outside" : "Inside"} <ChevronDown size={12} className="ml-auto" />
+                </button>
+                <NumberField
+                  lead="W"
+                  value={typeof strokeWidth === "number" ? strokeWidth : strokeWidth === undefined ? 1 : "Mixed"}
+                  onCommit={(w) => set(ids, { strokeWidth: w })}
+                />
               </div>
             </>
           )}
         </Section>
 
         <Section title="Effects" action={<Plus size={16} strokeWidth={1.5} />}>
-          {p.shadow && (
-            <div className="flex items-center gap-2">
+          {effects.map((e, i) => (
+            <div key={i} className="flex items-center gap-2">
               <div className={cx(FIELD, "flex-1")}>
-                <SquareDashed size={12} strokeWidth={1.5} /> Drop Shadow
+                <SquareDashed size={12} strokeWidth={1.5} /> {effectName(e)}
               </div>
               <Eye size={16} strokeWidth={1.5} className="text-muted-foreground" />
-              <Minus size={16} strokeWidth={1.5} className="text-muted-foreground" />
+              <button type="button" aria-label="Remove effect" onClick={() => set(ids, { effect: effects.length > 1 ? effects.filter((_, j) => j !== i) : (null as never) })}>
+                <Minus size={16} strokeWidth={1.5} className="text-muted-foreground" />
+              </button>
             </div>
-          )}
+          ))}
         </Section>
 
         <Section title="Code" action={<Settings size={16} strokeWidth={1.5} />}>
@@ -459,25 +491,27 @@ function ColourRow({
   allowGradient = false,
   pictures: source,
 }: {
-  value: Paint;
-  onChange: (c: Paint) => void;
+  value: Fill;
+  onChange: (c: Fill) => void;
   onRemove?: () => void;
   allowGradient?: boolean;
   pictures?: PictureSource;
 }) {
-  const solid = typeof value === "string" ? value : undefined;
+  const solid = typeof value === "string" ? value : value.type === "color" ? value.color : undefined;
   const [text, setText] = useState(solid ? hex(solid) : "");
   useEffect(() => setText(solid ? hex(solid) : ""), [solid]);
   const [open, setOpen] = useState(false);
   const row = useRef<HTMLDivElement>(null);
   const isVar = !!solid?.startsWith("$");
   const picture = typeof value === "object" && value.type === "image" ? value : undefined;
-  const pictureUrl = picture && source?.url(picture.asset);
+  const pictureUrl = picture?.url ? source?.url(picture.url) : undefined;
   const swatch = solid
     ? isVar ? "transparent" : solid
     : picture
       ? pictureUrl ? `center / cover url(${pictureUrl})` : "#777"
-      : `linear-gradient(to right, ${(value as LinearGradient).stops.map((st) => `${st.color} ${st.at * 100}%`).join(", ")})`;
+      : typeof value === "object" && value.type === "gradient"
+        ? `linear-gradient(to right, ${((value as GradientFill).colors ?? []).map((st) => `${st.color} ${Number(st.position) * 100}%`).join(", ")})`
+        : "#777";
   // Anchor: the panel's left edge, at the row's height.
   const anchor = {
     current: {
@@ -497,10 +531,10 @@ function ColourRow({
           <button type="button" aria-label="Edit colour" className="ml-1 h-4 w-4 shrink-0 rounded-[3px] border border-input" style={{ background: swatch }} />
         </Popover.Trigger>
         <input
-          value={isVar ? solid : solid ? text : picture ? "Image" : "Linear"}
+          value={isVar ? solid : solid ? text : picture ? "Image" : typeof value === "object" && value.type === "gradient" ? (value.gradientType ?? "linear").replace(/^./, (c) => c.toUpperCase()) : "Fill"}
           readOnly={isVar || !solid}
           onChange={(e) => setText(e.target.value)}
-          onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(`#${text}`)}
+          onBlur={() => /^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(text) && onChange(typeof value === "object" && value.type === "color" ? { ...value, color: `#${text}` } : `#${text}`)}
           onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
           className="ml-2 w-full min-w-0 bg-transparent outline-none"
         />
@@ -530,15 +564,15 @@ function ColourRow({
 
 function FlexControls({ node, ids }: { node: TreeNode; ids: string[] }) {
   const p = node.props;
-  const row = p.layout === "row";
-  // The 3×3 grid sets justify along the layout's axis and align across it.
-  const justify = p.justify ?? "start";
-  const align = p.align ?? "start";
+  const row = layoutKind(node) === "row";
+  // The 3×3 grid sets justifyContent along the layout's axis and alignItems across it.
+  const justify = p.justifyContent ?? "start";
+  const align = p.alignItems ?? "start";
   const idx = (v: string) => (v === "center" ? 1 : v === "end" ? 2 : 0);
   const at = (col: number, r: number) => (row ? idx(justify) === col && idx(align) === r : idx(align) === col && idx(justify) === r);
   const pick = (col: number, r: number) => {
     const v = (i: number) => (["start", "center", "end"] as const)[i]!;
-    set(ids, row ? { justify: v(col), align: v(r) } : { align: v(col), justify: v(r) });
+    set(ids, row ? { justifyContent: v(col), alignItems: v(r) } : { alignItems: v(col), justifyContent: v(r) });
   };
   const pad = Array.isArray(p.padding) ? p.padding : [p.padding ?? 0, p.padding ?? 0];
   const [py, px] = pad.length === 4 ? [pad[0], pad[1]] : [pad[0], pad[1]];
@@ -557,9 +591,13 @@ function FlexControls({ node, ids }: { node: TreeNode; ids: string[] }) {
           )}
         </div>
         <div className="space-y-1.5 text-[10px] text-foreground">
-          <NumberField lead={<AlignJustify size={12} strokeWidth={1.5} />} value={p.gap ?? 0} onCommit={(gap) => set(ids, { gap, justify: p.justify === "between" ? "start" : p.justify })} />
-          <button type="button" className="flex items-center gap-2" onClick={() => set(ids, { justify: "between" })}>
-            <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justify === "between" && "border-[4px] border-foreground")} /> Space Between
+          <NumberField
+            lead={<AlignJustify size={12} strokeWidth={1.5} />}
+            value={typeof p.gap === "number" ? p.gap : (p.gap ?? 0)}
+            onCommit={(gap) => set(ids, { gap, justifyContent: p.justifyContent === "space_between" ? "start" : p.justifyContent })}
+          />
+          <button type="button" className="flex items-center gap-2" onClick={() => set(ids, { justifyContent: "space_between" })}>
+            <span className={cx("h-3.5 w-3.5 rounded-full border border-input", p.justifyContent === "space_between" && "border-[4px] border-foreground")} /> Space Between
           </button>
         </div>
       </div>
@@ -578,17 +616,18 @@ function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
     [100, "Thin"], [200, "Extra Light"], [300, "Light"], [400, "Regular"], [500, "Medium"],
     [600, "Semi Bold"], [700, "Bold"], [800, "Extra Bold"], [900, "Black"],
   ];
-  const weightName = WEIGHTS.find(([w]) => w === (p.weight ?? 400))?.[1] ?? String(p.weight);
+  const weight = typeof p.fontWeight === "string" && p.fontWeight.startsWith("$") ? undefined : weightOf(p.fontWeight);
+  const weightName = weight === undefined ? String(p.fontWeight) : (WEIGHTS.find(([w]) => w === weight)?.[1] ?? String(weight));
   return (
     <Section title="Typography">
       <div className={FIELD}>
-        {typeof p.font === "string" ? p.font : "Inter"} <ChevronDown size={12} className="ml-auto" />
+        {typeof p.fontFamily === "string" ? p.fontFamily : "Inter"} <ChevronDown size={12} className="ml-auto" />
       </div>
       <div className="grid grid-cols-2 gap-[6px]">
         <div className={FIELD}>
           {weightName} <ChevronDown size={12} className="ml-auto" />
         </div>
-        <NumberField lead="Aa" value={Number(p.size ?? 16)} onCommit={(size) => set(ids, { size })} />
+        <NumberField lead="Aa" value={typeof p.fontSize === "number" ? p.fontSize : (p.fontSize ?? 14)} onCommit={(fontSize) => set(ids, { fontSize })} />
         <Label>Line height</Label>
         <Label>Letter spacing</Label>
         <NumberField lead="↕" value={p.lineHeight ?? "Auto"} onCommit={(lineHeight) => set(ids, { lineHeight })} />
@@ -605,8 +644,8 @@ function Typography({ node, ids }: { node: TreeNode; ids: string[] }) {
           ]}
         />
         <Segmented
-          value="top"
-          onChange={() => {}}
+          value={p.textAlignVertical ?? "top"}
+          onChange={(textAlignVertical) => set(ids, { textAlignVertical })}
           options={[
             { value: "top", icon: ArrowUpToLine, label: "Top" },
             { value: "middle", icon: AlignCenterHorizontal, label: "Middle" },

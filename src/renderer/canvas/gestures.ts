@@ -3,8 +3,8 @@
 // the hand (H, Space or the middle button), nudge with the arrows. The rules for what gets picked are
 // in pick.ts, where moved or drawn nodes go in place.ts, snapping in snap.ts.
 import * as docStore from "../../doc/store.js";
-import { ROOT_ID, type NodeProps, type NodeSpec, type TreeNode } from "../../doc/schema.js";
-import type { Box } from "../../layout/layout.js";
+import { ROOT_ID, type NodeProps, type PenNode, type TreeNode } from "../../doc/schema.js";
+import { kindOf, type Box } from "../../layout/layout.js";
 import { currentScene, doc, edit, history, type Scene } from "../scene.js";
 import { store, type Tool } from "../store.js";
 import { labelAt, radiusHandles, schedule, toPage, toScreen, view } from "./canvas.js";
@@ -98,7 +98,7 @@ function handleAt(s: Scene, sx: number, sy: number): { corner: Corner } | { radi
   const w = b.w * view.zoom;
   const h = b.h * view.zoom;
   const near = (hx: number, hy: number) => Math.abs(sx - hx) <= HANDLE_HIT && Math.abs(sy - hy) <= HANDLE_HIT;
-  if (ids.length === 1 && index(s.tree).get(ids[0]!)?.type === "rect") {
+  if (ids.length === 1 && ["rectangle", "frame"].includes(index(s.tree).get(ids[0]!)?.type ?? "")) {
     const i = radiusHandles({ x, y, w, h }).findIndex(([hx, hy]) => near(hx, hy));
     if (i >= 0) return { radius: i, id: ids[0]! };
   }
@@ -283,7 +283,7 @@ function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py:
   if (stays) {
     // Moving within its own place: the nodes follow the pointer, snapping to what is beside them.
     const moving = movingIds(g);
-    const others = parent.children.filter((c) => !moving.has(c.id) && c.props.visible !== false).map((c) => boxOf(s, c.id));
+    const others = parent.children.filter((c) => !moving.has(c.id) && c.props.enabled !== false).map((c) => boxOf(s, c.id));
     if (parent.id !== ROOT_ID) others.push(boxOf(s, parent.id));
     const snap = noSnap ? { dx: 0, dy: 0, guides: [] } : snapBox({ ...g.union, x: g.union.x + dx, y: g.union.y + dy }, others, SNAP / view.zoom);
     dx += snap.dx;
@@ -384,7 +384,7 @@ function roundTo(g: Extract<Gesture, { kind: "radius" }>, px: number, py: number
   const [cx, cy] = [g.corner % 2 ? b.x + b.w : b.x, g.corner < 2 ? b.y : b.y + b.h];
   const inward = (Math.abs(px - cx) + Math.abs(py - cy)) / 2;
   const radius = Math.round(Math.max(0, Math.min(Math.min(b.w, b.h) / 2, inward)));
-  edit(() => docStore.update(doc, g.id, { radius }));
+  edit(() => docStore.update(doc, g.id, { cornerRadius: radius }));
 }
 
 // ---- Drawing ---------------------------------------------------------------------------------------
@@ -402,14 +402,14 @@ function draw(s: Scene, g: Extract<Gesture, { kind: "draw" }>, to: Point, square
   const dragged = Math.hypot(to.x - g.from.x, to.y - g.from.y) * view.zoom >= DRAG_START;
   const box = dragged ? drawnBox(g, to, square) : { x: g.from.x, y: g.from.y, w: DEFAULT_SIZE, h: DEFAULT_SIZE };
   const size = { width: Math.max(1, Math.round(box.w)), height: Math.max(1, Math.round(box.h)) };
-  const spec: NodeSpec =
+  const spec: PenNode =
     g.tool === "rect"
-      ? { type: "rect", name: "Rectangle", ...size, fill: SHAPE_FILL }
+      ? { type: "rectangle", name: "Rectangle", ...size, fill: SHAPE_FILL }
       : g.tool === "ellipse"
         ? { type: "ellipse", name: "Ellipse", ...size, fill: SHAPE_FILL }
         : g.tool === "frame"
           ? { type: "frame", name: "Frame", ...size, fill: "#FFFFFF", layout: "none" }
-          : { type: "text", text: "", ...(dragged ? { width: size.width } : {}) };
+          : { type: "text", content: "", fontFamily: "Inter", fontSize: 14, fill: "#000000", ...(dragged ? { textGrowth: "fixed-width", width: size.width } : {}) };
   const c = g.container;
   let id = "";
   edit(() => {
@@ -476,7 +476,7 @@ function nudge(dir: "left" | "right" | "up" | "down", by: number) {
         docStore.update(doc, h.node.id, { x: Math.round(h.box.x - h.parentBox.x + dx!), y: Math.round(h.box.y - h.parentBox.y + dy!) });
         continue;
       }
-      const row = h.parent.props.layout === "row";
+      const row = kindOf(h.parent) === "row";
       if ((row && dy) || (!row && dx) || docStore.isPart(h.node.id)) continue;
       const siblings = docStore.childIds(doc, h.parent.id);
       const at = siblings.indexOf(h.node.id) + Math.sign(dx! + dy!);

@@ -3,7 +3,7 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import * as Y from "yjs";
 import { nodesOf } from "../doc/store.js";
@@ -13,8 +13,7 @@ import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
-import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, withoutExt } from "./files.js";
-import { describeReport, importPen } from "../import/pen.js";
+import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
 import { dashboardWindow, openDashboard, refreshDashboard } from "./dashboard.js";
 import { buildMenu } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
@@ -50,16 +49,12 @@ let shared: Shared | undefined;
 /** Files asked for before the app was ready (double-clicked, or passed on the command line). */
 const pending: string[] = [];
 
-const designFiles = (args: string[]) => args.filter((a) => (a.endsWith(EXT) || a.toLowerCase().endsWith(".pen")) && existsSync(a));
+const designFiles = (args: string[]) => args.filter((a) => a.toLowerCase().endsWith(EXT) && existsSync(a));
 
-/** Opens a window on `path` (or a new file); an already open file just comes to the front. A Pen file opens as a new draft. */
+/** Opens a window on `path` (or a new file); an already open file just comes to the front. */
 function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
   if (!shared) {
     if (path) pending.push(path);
-    return undefined;
-  }
-  if (path?.toLowerCase().endsWith(".pen")) {
-    void openPen(path);
     return undefined;
   }
   const open = path && [...editors.values()].find((e) => e.path === path);
@@ -84,30 +79,6 @@ function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
   return editor;
 }
 
-/** Opens a Pen file as a new draft named after it, with its pictures from beside it; the .pen isn't changed. */
-async function openPen(path: string): Promise<Editor | undefined> {
-  if (!shared) return undefined;
-  const dir = dirname(path);
-  try {
-    const doc = new Y.Doc();
-    const report = await importPen(readFileSync(path, "utf8"), doc, (url) => {
-      const file = resolve(dir, decodeURIComponent(url.replace(/^file:\/\//, "")));
-      return existsSync(file) ? new Uint8Array(readFileSync(file)) : undefined;
-    });
-    const name = withoutExt(path);
-    const editor = new Editor(shared, undefined, undefined, { state: Y.encodeStateAsUpdate(doc), name, notice: describeReport(basename(path), report) });
-    const id = editor.win.webContents.id;
-    editors.set(id, editor);
-    editor.win.on("closed", () => editors.delete(id));
-    refreshMenu();
-    shared.changed();
-    return editor;
-  } catch (e) {
-    dialog.showErrorBox(`Couldn't open ${basename(path)}`, e instanceof Error ? e.message : String(e));
-    return undefined;
-  }
-}
-
 const focused = () => {
   const win = BrowserWindow.getFocusedWindow();
   return win ? editors.get(win.webContents.id) : undefined;
@@ -118,11 +89,7 @@ async function openDialog(): Promise<number> {
   const before = focused();
   const r = await dialog.showOpenDialog({
     properties: ["openFile", "multiSelections"],
-    filters: [
-      { name: `${PRODUCT.name} design or Pen file`, extensions: [PRODUCT.fileExtension, "pen"] },
-      { name: `${PRODUCT.name} design`, extensions: [PRODUCT.fileExtension] },
-      { name: "Pen file", extensions: ["pen"] },
-    ],
+    filters: [{ name: "Pen design", extensions: [PRODUCT.fileExtension] }],
   });
   if (r.canceled) return 0;
   return openPaths(r.filePaths, before);
@@ -131,7 +98,7 @@ async function openDialog(): Promise<number> {
 async function openPaths(paths: string[], replacing?: Editor): Promise<number> {
   const opened: Editor[] = [];
   for (const p of paths) {
-    const e = p.toLowerCase().endsWith(".pen") ? await openPen(p) : openEditor(p);
+    const e = openEditor(p);
     if (e) opened.push(e);
   }
   if (opened.length && replacing?.pristine && !opened.includes(replacing)) replacing.win.close();

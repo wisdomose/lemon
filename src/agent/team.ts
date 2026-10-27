@@ -15,7 +15,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { PRODUCT } from "../product.js";
 import { AgentChange } from "../doc/live.js";
-import { getVars, insert, nodesOf, setVars, toTree, update } from "../doc/store.js";
+import { getVars, insert, nodesOf, setVariables, toTree, update } from "../doc/store.js";
 import { ROOT_ID } from "../doc/schema.js";
 import { facesUsed, layout } from "../layout/layout.js";
 import { GAP_BETWEEN_FRAMES, emptySpot } from "../layout/space.js";
@@ -239,10 +239,16 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
   let page: string | undefined;
   const bg = "bg" in plan.vars ? "$bg" : undefined;
   o.doc.transact(() => {
-    setVars(o.doc, plan.vars);
+    // The plan's values as .pen variables: numbers, colours ("#…") and strings (font names).
+    setVariables(
+      o.doc,
+      Object.fromEntries(
+        Object.entries(plan.vars).map(([k, v]) => [k, { type: typeof v === "number" ? "number" : /^#[0-9a-f]{3,8}$/i.test(v) ? "color" : "string", value: v }]),
+      ),
+    );
     if (plan.layout === "page") {
-      page = insert(o.doc, ROOT_ID, { type: "frame", name: plan.name, ...spot, width: plan.width, height: "fit", layout: "column", generating: true, ...(bg ? { fill: bg } : {}) });
-      for (const part of plan.parts) frames.push(insert(o.doc, page, { type: "frame", name: part.name, width: "fill", height: "fit", layout: "column" }));
+      page = insert(o.doc, ROOT_ID, { type: "frame", name: plan.name, ...spot, width: plan.width, height: "fit_content", layout: "vertical", placeholder: true, ...(bg ? { fill: bg } : {}) });
+      for (const part of plan.parts) frames.push(insert(o.doc, page, { type: "frame", name: part.name, width: "fill_container", height: "fit_content", layout: "vertical" }));
     } else {
       plan.parts.forEach((part, i) =>
         frames.push(
@@ -252,9 +258,9 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
             x: spot.x + i * (plan.width + GAP_BETWEEN_FRAMES),
             y: spot.y,
             width: plan.width,
-            height: plan.height ?? "fit",
-            layout: "column",
-            generating: true,
+            height: plan.height ?? "fit_content",
+            layout: "vertical",
+            placeholder: true,
             ...(bg ? { fill: bg } : {}),
           }),
         ),
@@ -278,15 +284,15 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
           planText,
           `Your part: "${part.name}" — ${part.brief}`,
           page
-            ? `It has its own frame (id ${frames[i]}, kept for you as \`mine\`) inside the page "${plan.name}" (id ${page}), in its place among the other parts. Build only inside it: add to it and set its own properties (padding, fill, gap, layout), but don't create top-level frames and don't change anything outside it — the others are working there. Don't set \`generating\`; the page is marked while the team works.`
-            : `It is its own screen (id ${frames[i]}, kept for you as \`mine\`). Build only inside it, and don't change the other screens. It is marked \`generating\`; clear that when your screen is done.`,
+            ? `It has its own frame (id ${frames[i]}, kept for you as \`mine\`) inside the page "${plan.name}" (id ${page}), in its place among the other parts. Build only inside it: add to it and set its own properties (padding, fill, gap, layout), but don't create top-level frames and don't change anything outside it — the others are working there. Don't set \`placeholder\`; the page is marked while the team works.`
+            : `It is its own screen (id ${frames[i]}, kept for you as \`mine\`). Build only inside it, and don't change the other screens. It has \`placeholder: true\`; set it to false when your screen is done.`,
           `The variables are already set: use them for every colour and font so the parts match, and don't change them (add your own only if you must, prefixed "${AGENTS[i]!.name.toLowerCase()}-").`,
           `When done, reply in one or two sentences about your part only.`,
         ].join("\n"),
       }),
     ),
   );
-  if (page && nodesOf(o.doc).has(page)) o.doc.transact(() => update(o.doc, page!, { generating: null } as never), origin);
+  if (page && nodesOf(o.doc).has(page)) o.doc.transact(() => update(o.doc, page!, { placeholder: null } as never), origin);
   return finish(stats, stats.some((s) => s.ok));
 }
 

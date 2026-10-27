@@ -129,7 +129,7 @@ function reorder(front: boolean) {
   });
 }
 
-function setLayout(layout: "column" | "none") {
+function setLayout(layout: "vertical" | "none") {
   const frames = store.get().selection.filter((id) => docStore.typeOf(doc, id) === "frame");
   if (frames.length) edit(() => frames.forEach((id) => docStore.update(doc, id, { layout })));
 }
@@ -161,7 +161,7 @@ function CanvasMenu() {
       {flex ? (
         <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
       ) : (
-        <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("column")} />
+        <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("vertical")} />
       )}
       <ContextSeparator />
       <ContextItem label="Create Component" keys="Ctrl Alt K" onSelect={makeComponents} />
