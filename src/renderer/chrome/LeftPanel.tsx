@@ -20,6 +20,7 @@ import {
   Smile,
   Square,
   SquareDashed,
+  Code,
   Type,
   type LucideIcon,
 } from "lucide-react";
@@ -94,7 +95,9 @@ function allIds(n: TreeNode): string[] {
 function stacks(type: string | undefined, layout: unknown): boolean {
   return type === "group" || (type === "frame" && layout === "none");
 }
-const listed = (n: TreeNode): TreeNode[] => (n.id === ROOT_ID || stacks(n.type, n.props.layout) ? [...n.children].reverse() : n.children);
+// A script's output isn't listed (it isn't in the document); groups and free frames list top first.
+const listed = (n: TreeNode): TreeNode[] =>
+  n.type === "script" ? [] : n.id === ROOT_ID || stacks(n.type, n.props.layout) ? [...n.children].reverse() : n.children;
 const stacksIn = (id: string) => id === ROOT_ID || stacks(docStore.typeOf(doc, id), docStore.propsOf(doc, id).layout);
 
 function typeIcon(n: TreeNode): LucideIcon {
@@ -103,6 +106,7 @@ function typeIcon(n: TreeNode): LucideIcon {
   if (n.type === "text") return Type;
   if (n.type === "ellipse") return Circle;
   if (n.type === "group") return SquareDashed;
+  if (n.type === "script") return Code;
   if (n.type !== "frame") return Square;
   if (n.props.layout === "none") return Hash;
   return n.props.layout === "vertical" ? AlignStartVertical : AlignStartHorizontal;
@@ -298,11 +302,11 @@ function LayersPanel() {
                   className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (node.children.length) toggle(node.id);
+                    if (listed(node).length) toggle(node.id);
                   }}
                   onDoubleClick={(e) => e.stopPropagation()}
                 >
-                  {node.children.length > 0 && (open.has(node.id) ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />)}
+                  {listed(node).length > 0 && (open.has(node.id) ? <ChevronDown size={12} strokeWidth={1.5} /> : <ChevronRight size={12} strokeWidth={1.5} />)}
                 </span>
                 <span className={cx("flex min-w-0 flex-1 items-center", hidden && "opacity-40")}>
                   <Icon size={14} strokeWidth={1.5} className="mr-[10px] ml-[5px] shrink-0 text-muted-foreground" style={tone ? { color: tone } : undefined} />

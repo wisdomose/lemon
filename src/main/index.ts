@@ -209,6 +209,12 @@ async function main() {
   ipcMain.on("browser:input", (e, id: string, ev: PageInput) => editorOf(e)?.pages.input(id, ev));
   ipcMain.handle("browser:command", (e, id: string, what: "reload" | "back" | "forward") => editorOf(e)?.pages.command(id, what));
   ipcMain.on("browser:repaint", (e) => editorOf(e)?.pages.repaint());
+  // A tab's script nodes.
+  ipcMain.handle("script:choose", (e) => editorOf(e)?.chooseScript());
+  ipcMain.handle("script:reveal", (e, uri: string) => {
+    const path = editorOf(e)?.scriptPath(uri);
+    if (path && existsSync(path)) shell.showItemInFolder(path);
+  });
   // The Dashboard's own requests.
   ipcMain.handle("dashboard:files", () => dashboardFiles());
   ipcMain.handle("dashboard:open", (_e, path: string) => void openEditor(path));

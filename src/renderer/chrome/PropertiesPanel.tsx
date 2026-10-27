@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Circle,
   Code,
+  FolderOpen,
   Globe,
   Info,
   Upload,
@@ -60,14 +61,16 @@ import { kindOf as layoutKind } from "../../layout/layout.js";
 import { weightOf } from "../../text/paragraph.js";
 import { findNode } from "../../render/screenshot.js";
 import { pictures } from "../pictures.js";
-import { currentScene, doc, edit, engine } from "../scene.js";
-import { useEditor } from "../store.js";
+import { bridge, currentScene, doc, edit, engine } from "../scene.js";
+import { store as editorStore, useEditor } from "../store.js";
+import { scriptOutput } from "../scripts.js";
 import { Island, Tip, cx } from "../ui/kit.js";
 import { COPY_COLOUR, detachSelected, goToMain, kindOf, makeComponents, unmakeComponent } from "../components.js";
 import { placedFreely } from "../canvas/place.js";
 import {
   ButtonGroup,
   Check2,
+  ColourRow,
   Dropdown,
   EffectsSection,
   FIELD,
@@ -388,7 +391,7 @@ export function PropertiesPanel() {
           }
         >
           <Appearance key={node.id} node={node} ids={ids} rounded={rounded} />
-          {isFrame && <Check2 label="Clip Content" checked={p.clip === true} onChange={(clip) => set(ids, { clip })} />}
+          {(isFrame || node.type === "script") && <Check2 label="Clip Content" checked={p.clip === true} onChange={(clip) => set(ids, { clip })} />}
           {node.type === "ellipse" && (
             <>
               <Label>Ellipse</Label>
@@ -723,33 +726,91 @@ function TextProp({ value, placeholder, onSet }: { value: string; placeholder: s
   );
 }
 
-/**
- * A script's file (a path relative to the design file), as Pen shows it. Lemon doesn't run scripts
- * yet, so choosing a file, converting to layers and the gallery do nothing.
- */
+/** A script node's file and the inputs its script declares, as Pen shows them; Convert to layers keeps what it drew. */
 function ScriptSection({ node, ids }: { node: TreeNode; ids: string[] }) {
+  const uri = String(node.props.scriptUri ?? "");
+  const out = uri ? scriptOutput(node.id) : undefined;
+  const inputs = out && out.ok !== false ? out.inputs : out?.kind === "error" ? out.inputs : [];
+  const given = (node.props.inputs ?? {}) as Record<string, unknown>;
+  const setInput = (name: string, value: unknown) => set(ids, { inputs: { ...given, [name]: value } } as never);
+  const icon = cx(FIELD, "w-7 shrink-0 justify-center px-0 text-muted-foreground hover:text-foreground disabled:opacity-60");
+  const row = (label: string, field: ReactNode) => (
+    <div key={label} className="flex items-center gap-2">
+      <span className="w-[42px] shrink-0 truncate text-muted-foreground">{label}</span>
+      <div className="min-w-0 flex-1">{field}</div>
+    </div>
+  );
   return (
     <Section title="Script">
       <div className="flex gap-1.5">
         <label className={cx(FIELD, "flex-1 focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
-          <TextProp value={String(node.props.scriptUri ?? "")} placeholder="path to .js file" onSet={(v) => set(ids, { scriptUri: v || null } as never)} />
+          <TextProp key={uri} value={uri.replace(/^\.\//, "")} placeholder="path to .js file" onSet={(v) => set(ids, { scriptUri: v ? (/^(\.|\/|[A-Za-z]:)/.test(v) ? v : `./${v}`) : null } as never)} />
         </label>
-        <button type="button" disabled aria-label="Choose a script file" className={cx(FIELD, "w-7 justify-center px-0 opacity-60")}>
+        {uri && (
+          <button type="button" aria-label="Show the script in its folder" className={icon} onClick={() => void bridge.scripts.reveal(uri)}>
+            <FolderOpen size={13} strokeWidth={1.5} />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Choose a script file"
+          className={icon}
+          onClick={() => void bridge.scripts.choose().then((picked) => picked && set(ids, { scriptUri: picked } as never))}
+        >
           <Upload size={13} strokeWidth={1.5} />
         </button>
       </div>
-      <button type="button" disabled className={cx(FIELD, "justify-center opacity-60")}>
+      {inputs.map((i) => {
+        const v = given[i.name] ?? i.default;
+        if (i.type === "number")
+          return row(i.name, <NumberField lead="#" value={typeof v === "number" ? v : Number(v ?? 0)} onCommit={(n) => setInput(i.name, n)} />);
+        if (i.type === "boolean") return row(i.name, <Check2 label="" checked={v === true} onChange={(b) => setInput(i.name, b)} />);
+        if (i.type === "enum")
+          return row(i.name, <Dropdown value={String(v ?? i.options?.[0] ?? "")} options={(i.options ?? []).map((o) => ({ value: o, label: o }))} onChange={(o) => setInput(i.name, o)} />);
+        if (i.type === "color") return row(i.name, <ColourRow bare value={String(v ?? "#000000")} onChange={(c) => typeof c === "string" && setInput(i.name, c)} />);
+        return row(
+          i.name,
+          <label className={cx(FIELD, "focus-within:ring-1 focus-within:ring-[#3b82f6]")}>
+            <TextProp key={String(v ?? "")} value={String(v ?? "")} placeholder="" onSet={(t) => setInput(i.name, t)} />
+          </label>,
+        );
+      })}
+      <button type="button" disabled={!out?.ok} onClick={() => convertScript(node)} className={cx(FIELD, "w-full justify-center hover:bg-foreground/5 disabled:opacity-60")}>
         Convert to layers
       </button>
-      <p className="flex gap-1.5 text-[11px] leading-4 text-muted-foreground">
-        <Info size={12} strokeWidth={1.5} className="mt-0.5 shrink-0" />
-        Tip: You can ask agent to generate a script for you based on your description or find more scripts in Goodies.
-      </p>
-      <button type="button" disabled className={cx(FIELD, "justify-center opacity-60")}>
-        Script Gallery...
-      </button>
+      {!uri && (
+        <>
+          <p className="flex gap-1.5 text-[11px] leading-4 text-muted-foreground">
+            <Info size={12} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+            Tip: You can ask agent to generate a script for you based on your description or find more scripts in Goodies.
+          </p>
+          {/* Lemon has no script gallery yet. */}
+          <button type="button" disabled className={cx(FIELD, "justify-center opacity-60")}>
+            Script Gallery...
+          </button>
+        </>
+      )}
     </Section>
   );
+}
+
+/** Convert to layers, as in Pen: the script node becomes a frame (no layout, same name and size) holding what it drew. */
+function convertScript(node: TreeNode) {
+  const out = scriptOutput(node.id);
+  if (!out?.ok || !store.exists(doc, node.id)) return;
+  const p = store.propsOf(doc, node.id);
+  const keep = ["name", "x", "y", "width", "height", "clip", "opacity", "rotation", "flipX", "flipY", "layoutPosition", "effect", "enabled"] as const;
+  const spec: Record<string, unknown> = { type: "frame", layout: "none" };
+  for (const k of keep) if (p[k] !== undefined) spec[k] = p[k];
+  // What a script returns may carry ids of its own; the frame's nodes get fresh ones.
+  const fresh = (n: Record<string, unknown>): Record<string, unknown> => {
+    const { id: _id, children, ...rest } = n;
+    return Array.isArray(children) ? { ...rest, children: (children as Record<string, unknown>[]).map(fresh) } : rest;
+  };
+  spec.children = out.nodes.map(fresh);
+  let id = "";
+  edit(() => (id = store.replace(doc, node.id, spec as never)));
+  editorStore.set({ selection: [id] });
 }
 
 /** Pen's page zoom choices for a browser node. */

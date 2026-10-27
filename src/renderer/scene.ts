@@ -11,6 +11,7 @@ import { layout, type Boxes } from "../layout/layout.js";
 import { DEFAULT_FONT, FontsNeeded } from "../text/fonts.js";
 import type { TreeNode, Vars } from "../doc/schema.js";
 import { bridge } from "./bridge.js";
+import { graftScripts, onScriptOutput } from "./scripts.js";
 import { store } from "./store.js";
 
 export { bridge };
@@ -43,6 +44,11 @@ export async function boot(): Promise<void> {
   engine.fonts.addLocal({ family: CANVAS_UI_FONT, weight: 600, italic: false }, semibold!);
   await engine.fonts.ensure([{ family: DEFAULT_FONT, weight: 400, italic: false }]);
 
+  // A script's new output is laid out and drawn again, as a change to the document is.
+  onScriptOutput(() => {
+    stale = true;
+    store.set((s) => ({ docVersion: s.docVersion + 1 }));
+  });
   Y.applyUpdate(doc, await bridge.docState());
   store.set({ file: await bridge.fileInfo() });
   bridge.onFileInfo((file) => store.set({ file }));
@@ -74,6 +80,7 @@ const waiting = new Set<() => void>();
 export function currentScene(onReady?: () => void): Scene | undefined {
   if (!stale) return scene;
   const tree = toTree(doc);
+  graftScripts(tree);
   const vars = getVars(doc);
   try {
     scene = { tree, vars, boxes: layout(tree, vars, engine.text) };

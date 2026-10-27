@@ -273,6 +273,8 @@ export interface TreeNode {
   children: TreeNode[];
   /** On a ref (an instance of a component) read through its component: the component's id. */
   instance?: string;
+  /** On a node a script returned (drawn, not in the document): the script node's id. */
+  script?: string;
 }
 
 /** A node as Pen writes it: type, id, properties and children (refs: `descendants`). */

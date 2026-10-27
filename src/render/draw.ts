@@ -17,6 +17,7 @@ import { colorOf, resolveOr, withTheme } from "../doc/values.js";
 import { isOff, num, type Box, type Boxes } from "../layout/layout.js";
 import { isEnabled, textColor, type TextEngine } from "../text/paragraph.js";
 import { iconFace, iconLigature } from "../text/icon-fonts.js";
+import type { ScriptOutput } from "../main/scripts.js";
 
 const PLACEHOLDER = "#d8d4cc";
 const PLACEHOLDER_INK = "#8a857b";
@@ -30,6 +31,8 @@ export interface DrawContext {
   assets: Assets;
   /** A browser node's live page as it looks now (in the editor; elsewhere a browser shows its address bar). */
   pages?: (id: string) => Image | undefined;
+  /** What a script node's script gave (in the editor; elsewhere a script shows its stand-in). */
+  scripts?: (id: string) => ScriptOutput | undefined;
 }
 
 const list = <T>(v: T | T[] | undefined): T[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
@@ -767,9 +770,12 @@ const SCRIPT = { fill: "#51CA721A", ink: "#00C787" };
 /** An empty browser node: no fill, a rounded outline and Pen's "Enter a URL" bar in the middle. */
 const BROWSER = { outline: "#3a3b3e", bar: "#232426", barEdge: "#333436", hint: "#656668", icon: "#9a9a9a", ink: "#d4d4d8" };
 
-/** A script or browser node. Their content (a script's output, a live page) isn't drawn yet. */
+/** A script or browser node, before (or instead of) what it shows: a script's output is its children. */
 function drawStandIn(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): void {
   if (node.type === "browser") return drawBrowser(c, canvas, node, box);
+  const out = node.props.scriptUri ? c.scripts?.(node.id) : undefined;
+  if (out?.ok) return;
+  if (out) return drawScriptError(c, canvas, out, box);
   const { ck } = c;
   const paint = new ck.Paint();
   paint.setAntiAlias(true);
@@ -799,6 +805,75 @@ function drawStandIn(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): 
   } catch {
     /* its font isn't loaded yet */
   }
+  paint.delete();
+}
+
+/** A script that didn't run, in Pen's red: what went wrong, where, and the lines around it. */
+const SCRIPT_ERROR = { ink: "#DC1F3B", fill: "#DC1F3B1F", code: "#141414", codeInk: "#979797" };
+
+function drawScriptError(c: DrawContext, canvas: Canvas, out: Extract<ScriptOutput, { ok: false }>, box: Box): void {
+  const { ck } = c;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setColor(ck.Color4f(...colorOf(SCRIPT_ERROR.fill, {})));
+  canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(1);
+  paint.setColor(ck.Color4f(...colorOf(SCRIPT_ERROR.ink, {})));
+  canvas.drawRect(ck.XYWHRect(box.x + 0.5, box.y + 0.5, Math.max(0, box.w - 1), Math.max(0, box.h - 1)), paint);
+  canvas.save();
+  canvas.clipRect(ck.XYWHRect(box.x, box.y, box.w, box.h), ck.ClipOp.Intersect, true);
+  try {
+    const pad = 10;
+    const width = Math.max(1, box.w - 2 * pad);
+    const para = (content: string, size: number, weight = "400", fill = SCRIPT_ERROR.ink, family?: string, align: "center" | "left" = "center", w = width) => {
+      const t = c.text.paragraph({ content, fontSize: size, fontWeight: weight, fill, textAlign: align, lineHeight: 1.35, ...(family ? { fontFamily: family } : {}) }, {});
+      t.layout(w);
+      return t;
+    };
+    const title = para(out.kind === "missing" ? "Script not found" : out.title, 12);
+    const body =
+      out.kind === "missing"
+        ? para(`We could not find "${out.file}" at this path. Check for typos or missing folders.`, 10)
+        : para([out.message, ...out.stack].join("\n"), 10);
+    const excerpt =
+      out.kind === "error" && out.excerpt.length
+        ? para(out.excerpt.map((l) => `${l.at ? ">" : " "} ${l.line}: ${l.text}`).join("\n"), 10, "400", SCRIPT_ERROR.codeInk, CARD_FONT, "left", Math.max(1, box.w - 6 * pad - 16))
+        : null;
+    const ICON = 14;
+    const gap = 6;
+    const block = excerpt ? excerpt.getHeight() + 16 : 0;
+    const total = ICON + gap + title.getHeight() + 4 + body.getHeight() + (excerpt ? 20 + block : 0);
+    // A missing file's message sits in the middle; an error's starts near the top to leave room for the code.
+    let y = out.kind === "missing" ? box.y + Math.max(pad, (box.h - total) / 2) : box.y + pad;
+    const x = box.x + pad;
+    const icon = iconPath(ck, "circle-x");
+    if (icon) {
+      paint.setStrokeWidth(ICON_LINE);
+      paint.setStrokeCap(ck.StrokeCap.Round);
+      paint.setStrokeJoin(ck.StrokeJoin.Round);
+      canvas.save();
+      canvas.translate(box.x + box.w / 2 - ICON / 2, y);
+      canvas.scale(ICON / ICON_GRID, ICON / ICON_GRID);
+      canvas.drawPath(icon, paint);
+      canvas.restore();
+    }
+    y += ICON + gap;
+    canvas.drawParagraph(title, x, y);
+    y += title.getHeight() + 4;
+    canvas.drawParagraph(body, x, y);
+    y += body.getHeight() + 20;
+    if (excerpt) {
+      paint.setStyle(ck.PaintStyle.Fill);
+      paint.setColor(ck.Color4f(...colorOf(SCRIPT_ERROR.code, {})));
+      // The code sits 30 in from the sides, as in Pen.
+      canvas.drawRect(ck.XYWHRect(box.x + 3 * pad, y, Math.max(0, box.w - 6 * pad), block), paint);
+      canvas.drawParagraph(excerpt, box.x + 3 * pad + 8, y + 8);
+    }
+  } catch {
+    /* its font isn't loaded yet */
+  }
+  canvas.restore();
   paint.delete();
 }
 

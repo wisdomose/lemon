@@ -6,7 +6,7 @@
 // picture for the Dashboard is redrawn a little after the saves stop, and on close.
 import { app, dialog, type BaseWindow, type WebContentsView } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import * as Y from "yjs";
 import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
@@ -19,6 +19,7 @@ import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 import { page, type FileTab, type TabInfo } from "./shell.js";
 import { BrowserPages } from "./browser-pages.js";
+import { Scripts } from "./scripts.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
@@ -82,6 +83,8 @@ export class Editor implements FileTab {
   readonly view: WebContentsView;
   /** The live pages of the file's browser nodes. */
   readonly pages: BrowserPages;
+  /** The file's script nodes, run beside it. */
+  readonly scripts: Scripts;
   /** The origin of the window's changes in this document. */
   readonly fromWindow: PersonChange;
   path: string | null;
@@ -139,13 +142,15 @@ export class Editor implements FileTab {
       // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
       if (origin !== REPAIR) repairTree(this.doc);
       this.pages.sync();
+      this.scripts.sync();
       this.changed();
     });
     this.fromWindow = fromWindow;
     this.pages = new BrowserPages(this.doc, () => (this.page.isDestroyed() ? undefined : this.page));
+    this.scripts = new Scripts(this.doc, shared.sandbox, () => this.path, () => (this.page.isDestroyed() ? undefined : this.page));
     void this.page.loadURL(shared.pageUrl("index"));
-    // The tab draws the pages once it has loaded.
-    this.page.on("did-finish-load", () => (this.pages.sync(), this.pages.repaint()));
+    // The tab draws the pages and the scripts' output once it has loaded.
+    this.page.on("did-finish-load", () => (this.pages.sync(), this.pages.repaint(), this.scripts.sync(), this.scripts.resend()));
     // An imported document is written to its draft now.
     if (seed && this.path) {
       this.dirty = true;
@@ -166,6 +171,7 @@ export class Editor implements FileTab {
   closing(): void {
     this.running?.abort();
     this.pages.dispose();
+    this.scripts.dispose();
     this.flush();
     if (this.thumbTimer) void this.redrawThumb();
     this.shared.changed();
@@ -291,9 +297,28 @@ export class Editor implements FileTab {
       writeThumb(old, undefined);
     }
     void this.redrawThumb();
+    this.scripts.sync(true);
     addRecent(target);
     this.shared.changed();
     this.tell();
+  }
+
+  /** Asks for a script file; its path relative to this file ("./bars.js"), or absolute for a new file. */
+  async chooseScript(): Promise<string | undefined> {
+    const win = this.shared.window();
+    const options: Electron.OpenDialogOptions = { properties: ["openFile"], filters: [{ name: "Script", extensions: ["js", "mjs"] }] };
+    if (this.path) options.defaultPath = dirname(this.path);
+    const r = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+    const picked = r.filePaths[0];
+    if (r.canceled || !picked) return undefined;
+    if (!this.path) return picked;
+    const rel = relative(dirname(this.path), picked).replaceAll("\\", "/");
+    return rel.startsWith(".") || /^[A-Za-z]:/.test(rel) ? rel : `./${rel}`;
+  }
+
+  /** Where a script node's file is, beside this file. */
+  scriptPath(uri: string): string | undefined {
+    return this.path ? resolve(dirname(this.path), uri) : undefined;
   }
 
   // ---- The agent -----------------------------------------------------------------------------------

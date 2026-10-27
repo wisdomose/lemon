@@ -44,6 +44,13 @@ const bridge: Bridge = {
     command: (id, what) => ipcRenderer.invoke("browser:command", id, what),
     repaint: () => ipcRenderer.send("browser:repaint"),
   },
+  scripts: {
+    onOutput: (fn) => {
+      ipcRenderer.on("script:output", (_e, id, out) => fn(id, out));
+    },
+    choose: () => ipcRenderer.invoke("script:choose"),
+    reveal: (uri) => ipcRenderer.invoke("script:reveal", uri),
+  },
   tabs: {
     get: () => ipcRenderer.invoke("tabs:get"),
     onChange: (fn) => {

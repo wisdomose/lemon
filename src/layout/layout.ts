@@ -178,7 +178,11 @@ function build(
   const fw = axis("w", p.width, container ? fit : undefined);
   const fh = axis("h", p.height, container ? fit : undefined);
   if (fw || fh) freeFits.push({ node: yn, tree: node, w: !!fw, h: !!fh });
-  if (!container) return yn;
+  if (!container) {
+    // What a script returned sits inside it, each by its x/y.
+    if (node.type === "script") node.children.forEach((child, i) => yn.insertChild(build(child, "free", vars, text, nodes, freeFits), i));
+    return yn;
+  }
 
   yn.setFlexDirection(kind === "row" ? FlexDirection.Row : FlexDirection.Column);
   if (node.type === "frame") {
@@ -243,6 +247,8 @@ export function facesUsed(root: TreeNode, vars: Vars): FontFace[] {
     if (isOff(n.props, v)) return;
     if (n.type === "text") out.push(faceOf(n.props, v));
     if (TEXTS.has(n.type)) out.push({ family: "JetBrains Mono", weight: 400, italic: false }, { family: "JetBrains Mono", weight: 500, italic: false });
+    // A script's error shows its code in the cards' monospace font.
+    if (n.type === "script") out.push({ family: "JetBrains Mono", weight: 400, italic: false });
     if (n.type === "icon") {
       const face = iconFace(resolveOr(n.props.library, v, ""), resolveOr(n.props.weight, v, undefined));
       if (face) out.push(face);

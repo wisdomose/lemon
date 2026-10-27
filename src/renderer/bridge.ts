@@ -10,6 +10,7 @@ import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
 import type { PageFrame, PageInput } from "../main/browser-pages.js";
+import type { ScriptOutput } from "../main/scripts.js";
 import type { WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
@@ -54,6 +55,13 @@ export interface Bridge {
     command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
     /** Every page sends its whole picture again. */
     repaint(): void;
+  };
+  /** This file's script nodes: what each shows, and choosing or finding its file. */
+  scripts: {
+    onOutput(fn: (id: string, out: ScriptOutput | null) => void): void;
+    /** Asks for a .js file; its path as a script node stores it. */
+    choose(): Promise<string | undefined>;
+    reveal(uri: string): Promise<void>;
   };
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
@@ -152,6 +160,13 @@ export function browserBridge(): Bridge {
       input() {},
       async command() {},
       repaint() {},
+    },
+    scripts: {
+      onOutput() {},
+      async choose() {
+        return undefined;
+      },
+      async reveal() {},
     },
     tabs: {
       async get() {
