@@ -30,6 +30,15 @@ const bridge: Bridge = {
   startPrompt: () => ipcRenderer.invoke("agent:start-prompt"),
   notice: () => ipcRenderer.invoke("editor:notice"),
   showDashboard: () => ipcRenderer.invoke("dashboard:show"),
+  tabs: {
+    get: () => ipcRenderer.invoke("tabs:get"),
+    onChange: (fn) => {
+      ipcRenderer.on("tabs:state", (_e, tabs) => fn(tabs));
+    },
+    show: (id) => ipcRenderer.invoke("tabs:show", id),
+    close: (id) => ipcRenderer.invoke("tabs:close", id),
+    newFile: () => ipcRenderer.invoke("tabs:new"),
+  },
   dashboard: {
     files: () => ipcRenderer.invoke("dashboard:files"),
     onFiles: (fn) => {

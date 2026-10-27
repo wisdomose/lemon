@@ -33,6 +33,10 @@ import { PromptEditor, type PromptEditorHandle } from "../agent/PromptEditor.js"
 import { ParallelAgents, Variants } from "../agent/RunOptions.js";
 import { ModelPicker } from "../agent/ModelPicker.js";
 import { FileBrowser } from "./FileBrowser.js";
+import { TopBar } from "../chrome/TopBar.js";
+
+/** The account's initial in the top bar (as the editor's page reads it). */
+const initial = new URLSearchParams(location.search).get("initial") ?? "Y";
 
 
 type Page = "recents" | "drafts" | "systems";
@@ -53,8 +57,10 @@ export function Dashboard() {
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
   }, []);
+  // The window's top bar sits over Home as over a file; the page starts below it.
   return (
-    <div className="flex h-full bg-card text-foreground">
+    <div className="relative flex h-full bg-card pt-[58px] text-foreground">
+      <TopBar bridge={bridge} initial={initial} />
       <Sidebar page={page} onPage={setPage} />
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center pr-4 pl-4">

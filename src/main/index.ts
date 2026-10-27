@@ -1,6 +1,7 @@
-// Electron's main process: owns the documents (one per editor window, editor.ts), the fonts and the
-// agents. Windows show their document and receive every change as a Yjs update.
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+// Electron's main process: owns the window (shell.ts: Home and a tab per open file), the documents (one
+// per file tab, editor.ts), the fonts and the agents. Tabs show their document and receive every change
+// as a Yjs update.
+import { app, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -14,7 +15,7 @@ import { Sandbox } from "../sandbox/sandbox.js";
 import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
-import { dashboardWindow, openDashboard, refreshDashboard } from "./dashboard.js";
+import { Shell } from "./shell.js";
 import { buildMenu } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
@@ -43,15 +44,22 @@ if (process.platform === "win32") app.setAppUserModelId(PRODUCT.appId);
 
 const log = logTo(env.LEMON_LOG);
 
-/** Windows, by the id of their web contents (each window's messages are routed to its editor). */
+/** File tabs, by the id of their page (each page's messages are routed to its editor). */
 const editors = new Map<number, Editor>();
 let shared: Shared | undefined;
+/** The window; it opens with the first file or with Home, and the app quits when it closes. */
+let window: Shell | undefined;
+
+function theWindow(): Shell {
+  window ??= new Shell({ homeUrl: shared!.pageUrl("dashboard"), preload: shared!.preload, onClosed: () => app.quit() });
+  return window;
+}
 /** Files asked for before the app was ready (double-clicked, or passed on the command line). */
 const pending: string[] = [];
 
 const designFiles = (args: string[]) => args.filter((a) => a.toLowerCase().endsWith(EXT) && existsSync(a));
 
-/** Opens a window on `path` (or a new file); an already open file just comes to the front. */
+/** Opens a tab on `path` (or a new file); an already open file's tab is shown. */
 function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
   if (!shared) {
     if (path) pending.push(path);
@@ -59,8 +67,7 @@ function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
   }
   const open = path && [...editors.values()].find((e) => e.path === path);
   if (open) {
-    if (open.win.isMinimized()) open.win.restore();
-    open.win.focus();
+    theWindow().show(open);
     return open;
   }
   let editor: Editor;
@@ -72,25 +79,35 @@ function openEditor(path?: string, start?: StartPrompt): Editor | undefined {
     refreshMenu();
     return undefined;
   }
-  const id = editor.win.webContents.id;
+  const id = editor.page.id;
   editors.set(id, editor);
-  editor.win.on("closed", () => editors.delete(id));
+  editor.page.once("destroyed", () => editors.delete(id));
+  theWindow().add(editor);
   refreshMenu();
   return editor;
 }
 
+/** The file tab shown. */
 const focused = () => {
-  const win = BrowserWindow.getFocusedWindow();
-  return win ? editors.get(win.webContents.id) : undefined;
+  const tab = window?.shown();
+  return tab ? editors.get(tab.view.webContents.id) : undefined;
 };
 
-/** Open…: files chosen open in their own windows; a new file nobody has touched gives way to them. */
+/** Closes a file tab. */
+function closeTab(editor: Editor) {
+  window?.close(editor);
+  editors.delete(editor.page.id);
+  refreshMenu();
+}
+
+/** Open…: files chosen open in their own tabs; a new file nobody has touched gives way to them. */
 async function openDialog(): Promise<number> {
   const before = focused();
-  const r = await dialog.showOpenDialog({
+  const options: Electron.OpenDialogOptions = {
     properties: ["openFile", "multiSelections"],
     filters: [{ name: "Pen design", extensions: [PRODUCT.fileExtension] }],
-  });
+  };
+  const r = await (window ? dialog.showOpenDialog(window.win, options) : dialog.showOpenDialog(options));
   if (r.canceled) return 0;
   return openPaths(r.filePaths, before);
 }
@@ -101,17 +118,13 @@ async function openPaths(paths: string[], replacing?: Editor): Promise<number> {
     const e = openEditor(p);
     if (e) opened.push(e);
   }
-  if (opened.length && replacing?.pristine && !opened.includes(replacing)) replacing.win.close();
+  if (opened.length && replacing?.pristine && !opened.includes(replacing)) closeTab(replacing);
   return opened.length;
 }
 
-/** The Dashboard gives way to the file it opens (it comes back with Ctrl+N). */
-function leaveDashboard(opened: unknown) {
-  if (opened) dashboardWindow()?.close();
-}
-
+/** Shows the Home tab (the Dashboard). */
 function showDashboard() {
-  if (shared) openDashboard({ url: shared.pageUrl("dashboard"), preload: shared.preload });
+  if (shared) theWindow().show(null);
 }
 
 function refreshMenu() {
@@ -123,13 +136,16 @@ function refreshMenu() {
     clearRecents: () => (clearRecents(), refreshMenu()),
     save: () => void focused()?.save(),
     saveAs: () => void focused()?.saveAs(),
-    // Any window: editors take every command, the Dashboard takes Settings.
-    toWindow: (command) => BrowserWindow.getFocusedWindow()?.webContents.send("menu:command", command),
+    // The tab shown: editors take every command, Home takes Settings.
+    toWindow: (command) => {
+      const page = window?.shown()?.view.webContents ?? window?.pages()[0];
+      page?.send("menu:command", command);
+    },
   });
 }
 
-// One app, many windows: opening a file while the app runs (a double-click in Explorer, say) reaches
-// the running app instead of starting another.
+// One app, one window: opening a file while the app runs (a double-click in Explorer, say) reaches
+// the running app and opens a tab instead of starting another.
 // Developer runs (captures, scripted prompts) stand alone, so they can run beside the app.
 const developer = !!(env.LEMON_CAPTURE || env.LEMON_PROMPT);
 const alone = developer || app.requestSingleInstanceLock();
@@ -177,18 +193,29 @@ async function main() {
   ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
   ipcMain.handle("editor:notice", (e) => editorOf(e)?.takeNotice());
   ipcMain.handle("dashboard:show", () => showDashboard());
+  // The tab strip in every page's top bar.
+  ipcMain.handle("tabs:get", () => window?.tabs() ?? { tabs: [], active: "home" });
+  ipcMain.handle("tabs:show", (_e, id: number | "home") => {
+    const editor = id === "home" ? undefined : editors.get(id);
+    if (id === "home" || editor) theWindow().show(editor ?? null);
+  });
+  ipcMain.handle("tabs:close", (_e, id: number) => {
+    const editor = editors.get(id);
+    if (editor) closeTab(editor);
+  });
+  ipcMain.handle("tabs:new", () => void openEditor());
   // The Dashboard's own requests.
   ipcMain.handle("dashboard:files", () => dashboardFiles());
-  ipcMain.handle("dashboard:open", (_e, path: string) => leaveDashboard(openEditor(path)));
-  ipcMain.handle("dashboard:new", (_e, start?: StartPrompt) => leaveDashboard(openEditor(undefined, start)));
-  ipcMain.handle("dashboard:open-dialog", async () => leaveDashboard(await openDialog()));
+  ipcMain.handle("dashboard:open", (_e, path: string) => void openEditor(path));
+  ipcMain.handle("dashboard:new", (_e, start?: StartPrompt) => void openEditor(undefined, start));
+  ipcMain.handle("dashboard:open-dialog", async () => void (await openDialog()));
   ipcMain.handle("dashboard:reveal", (_e, path: string) => shell.showItemInFolder(path));
   ipcMain.handle("dashboard:forget", (_e, path: string) => (forgetRecent(path), fileListChanged()));
   ipcMain.handle("dashboard:delete", async (_e, path: string) => {
-    const win = dashboardWindow();
+    const win = window?.win;
     const ask = (o: Electron.MessageBoxOptions) => (win ? dialog.showMessageBox(win, o) : dialog.showMessageBox(o));
     if ([...editors.values()].some((ed) => ed.path === path)) {
-      await ask({ type: "info", message: `${basename(path)} is open.`, detail: "Close its window first." });
+      await ask({ type: "info", message: `${basename(path)} is open.`, detail: "Close its tab first." });
       return;
     }
     const r = await ask({
@@ -214,6 +241,8 @@ async function main() {
     log,
     noSave: developer,
     changed: fileListChanged,
+    tabsChanged: () => window?.tell(),
+    window: () => window?.win,
   };
   // The menu bar before any window opens (the app may start on the Dashboard alone).
   refreshMenu();
@@ -228,13 +257,14 @@ async function main() {
 
 function fileListChanged() {
   refreshMenu();
-  refreshDashboard();
+  window?.pages()[0]?.send("dashboard:files", dashboardFiles());
+  window?.tell();
 }
 
 /** LEMON_PROMPT runs the agent on an empty document; LEMON_CAPTURE saves a picture of the window. */
 async function developerRun(open: string | undefined) {
   const editor = openEditor(open)!;
-  const { win } = editor;
+  const win = { webContents: editor.page };
   if (env.LEMON_PROMPT) editor.doc.transact(() => nodesOf(editor.doc).clear());
   win.webContents.once("did-finish-load", async () => {
     log("window loaded");
@@ -276,7 +306,6 @@ function claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: str
   });
 }
 
-app.on("window-all-closed", () => app.quit());
 main().catch((e) => {
   console.error(e);
   app.exit(1);

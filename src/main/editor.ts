@@ -1,9 +1,10 @@
-// One editor window and the design file it shows (Pen opens one window per file). The window shows
-// the document and sends its changes back as Yjs updates; the agent works on the same document here.
+// One file tab and the design file it shows (Pen keeps open files as tabs of one window, shell.ts).
+// The tab's page shows the document and sends its changes back as Yjs updates; the agent works on the
+// same document here.
 // The file is saved about a second after a change (at most once a second while changes keep coming),
-// and when the window closes. A new file goes to the Drafts folder on its first change. The file's
+// and when the tab closes. A new file goes to the Drafts folder on its first change. The file's
 // picture for the Dashboard is redrawn a little after the saves stop, and on close.
-import { BrowserWindow, app, dialog } from "electron";
+import { app, dialog, type BaseWindow, type WebContentsView } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as Y from "yjs";
@@ -16,6 +17,7 @@ import { runAgent, type AgentStats } from "../agent/agent.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
+import { page, type FileTab, type TabInfo } from "./shell.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
@@ -66,13 +68,17 @@ export interface Shared {
   log: (msg: string) => void;
   /** Developer runs (captures, scripted prompts) don't write files. */
   noSave: boolean;
-  /** Called when a window closes, or a file is created, moved or redrawn (the menu and Dashboard follow). */
+  /** Called when a tab closes, or a file is created, moved or redrawn (the menu and Dashboard follow). */
   changed: () => void;
+  /** A tab's name or saved state changed (the tab strips follow). */
+  tabsChanged: () => void;
+  /** The window, for dialogs. */
+  window: () => BaseWindow | undefined;
 }
 
-export class Editor {
+export class Editor implements FileTab {
   readonly doc = new Y.Doc();
-  readonly win: BrowserWindow;
+  readonly view: WebContentsView;
   /** The origin of the window's changes in this document. */
   readonly fromWindow: PersonChange;
   path: string | null;
@@ -112,18 +118,10 @@ export class Editor {
     this.pristine = !path;
     if (path) addRecent(path);
 
-    this.win = new BrowserWindow({
-      width: 1600,
-      height: 1000,
-      title: displayName(this.path),
-      backgroundColor: "#1e1e1e",
-      webPreferences: { preload: shared.preload, contextIsolation: true, sandbox: true, nodeIntegration: false },
-    });
-    // The window's title is the file's name, not the page's.
-    this.win.on("page-title-updated", (e) => e.preventDefault());
+    this.view = page(shared.preload);
     const { log } = shared;
     if (process.env.LEMON_LOG) {
-      const wc = this.win.webContents;
+      const wc = this.view.webContents;
       wc.on("dom-ready", () => log("window dom ready"));
       wc.on("console-message", (e) => log(`[window] ${e.level}: ${e.message}`));
       wc.on("did-fail-load", (_e, code, desc) => log(`[window] failed to load: ${code} ${desc}`));
@@ -132,26 +130,37 @@ export class Editor {
 
     // The window's changes carry its own origin, so they are not echoed back and agents can tell
     // them apart (see doc/live.ts).
-    const fromWindow = new PersonChange(this.win.id);
+    const fromWindow = new PersonChange(this.view.webContents.id);
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {
-      if (origin !== fromWindow && !this.win.isDestroyed()) this.win.webContents.send("doc:update", update);
+      if (origin !== fromWindow && !this.page.isDestroyed()) this.page.send("doc:update", update);
       // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
       if (origin !== REPAIR) repairTree(this.doc);
       this.changed();
     });
     this.fromWindow = fromWindow;
-    this.win.on("close", () => {
-      this.running?.abort();
-      this.flush();
-      if (this.thumbTimer) void this.redrawThumb();
-    });
-    this.win.on("closed", () => shared.changed());
-    void this.win.loadURL(shared.pageUrl("index"));
+    void this.page.loadURL(shared.pageUrl("index"));
     // An imported document is written to its draft now.
     if (seed && this.path) {
       this.dirty = true;
       this.flush();
     }
+  }
+
+  /** The tab's page. */
+  get page() {
+    return this.view.webContents;
+  }
+
+  tab(): TabInfo {
+    return { id: this.page.id, name: displayName(this.path), path: this.path, edited: this.dirty || this.state !== "saved" };
+  }
+
+  /** The tab is closing (or the window): stop the agent, write the file and its picture. */
+  closing(): void {
+    this.running?.abort();
+    this.flush();
+    if (this.thumbTimer) void this.redrawThumb();
+    this.shared.changed();
   }
 
   private notice: Notice | undefined;
@@ -177,9 +186,9 @@ export class Editor {
   }
 
   private tell(): void {
-    if (this.win.isDestroyed()) return;
-    this.win.setTitle(displayName(this.path));
-    this.win.webContents.send("file:info", this.info());
+    if (this.page.isDestroyed()) return;
+    this.page.send("file:info", this.info());
+    this.shared.tabsChanged();
   }
 
   /** The document changed: save soon (a new file gets its place in Drafts now). */
@@ -248,10 +257,12 @@ export class Editor {
   /** Save As: writes the file where the person chooses; a draft moves there (it leaves Drafts). */
   async saveAs(): Promise<void> {
     const name = this.path ? withoutExt(this.path) : "Untitled";
-    const r = await dialog.showSaveDialog(this.win, {
+    const win = this.shared.window();
+    const options = {
       defaultPath: join(app.getPath("documents"), `${name}${EXT}`),
       filters: [{ name: "Pen design", extensions: [PRODUCT.fileExtension] }],
-    });
+    };
+    const r = await (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options));
     if (r.canceled || !r.filePath) return;
     const target = r.filePath.endsWith(EXT) ? r.filePath : `${r.filePath}${EXT}`;
     try {
@@ -278,20 +289,20 @@ export class Editor {
   }
 
   // ---- The agent -----------------------------------------------------------------------------------
-  /** Runs one agent, or a team of them (`team.count` > 1), on this window's document. */
+  /** Runs one agent, or a team of them (`team.count` > 1), on this tab's document. */
   async runAgent(prompt: string, model?: string, team?: Team, effort?: string): Promise<AgentStats[]> {
     this.running?.abort();
     const running = (this.running = new AbortController());
     const { engine, sandbox, log } = this.shared;
     const film = process.env.LEMON_FILM;
     const onEvent = (e: TaggedEvent) => {
-      if (this.win.isDestroyed()) return;
-      this.win.webContents.send("agent:event", e);
+      if (this.page.isDestroyed()) return;
+      this.page.send("agent:event", e);
       const who = "agent" in e && e.agent !== undefined ? ` [${AGENTS[e.agent]?.name}]` : "";
       if (e.type !== "step-target" && e.type !== "step-progress") log(`agent${who} ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
       if (film && e.type === "step-end") {
         const n = String(e.step.index).padStart(2, "0");
-        setTimeout(() => this.win.webContents.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
+        setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
     const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };

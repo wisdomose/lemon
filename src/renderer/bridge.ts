@@ -8,6 +8,7 @@ import type { ProviderStatus } from "../agent/codex.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
+import type { Tabs } from "../main/shell.js";
 import type { WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
@@ -42,6 +43,16 @@ export interface Bridge {
   /** Something to tell the person as the window opens (what an import brought over), once. */
   notice(): Promise<Notice | undefined>;
   showDashboard(): Promise<void>;
+  /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
+  tabs: {
+    get(): Promise<Tabs>;
+    onChange(fn: (tabs: Tabs) => void): void;
+    /** Shows a file tab, or Home. */
+    show(id: number | "home"): Promise<void>;
+    close(id: number): Promise<void>;
+    /** A new file in a new tab. */
+    newFile(): Promise<void>;
+  };
   /** The Dashboard's lists and actions. */
   dashboard: {
     files(): Promise<DashboardFiles>;
@@ -122,6 +133,15 @@ export function browserBridge(): Bridge {
       return undefined;
     },
     async showDashboard() {},
+    tabs: {
+      async get() {
+        return { tabs: [], active: "home" };
+      },
+      onChange() {},
+      async show() {},
+      async close() {},
+      async newFile() {},
+    },
     // `?files=<url of a JSON file>` gives the Dashboard its lists.
     dashboard: {
       async files() {

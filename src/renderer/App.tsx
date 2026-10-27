@@ -85,7 +85,7 @@ export function App({ initial }: { initial: string }) {
           <CanvasMenu />
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
-          <TopBar initial={initial} />
+          <TopBar bridge={bridge} initial={initial} />
           <ToolRail panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
           {panelOpen && (
             // The panel and the chat box share the left column: the chat box grows with its text up to
