@@ -96,6 +96,23 @@ export class Shell {
     else this.tell();
   }
 
+  /** Shows the tab `by` places before or after the one shown, Home first, wrapping round (Ctrl+Page Up/Down). */
+  step(by: -1 | 1): void {
+    const all: (FileTab | null)[] = [null, ...this.files];
+    const i = all.indexOf(this.active);
+    this.show(all[(i + by + all.length) % all.length] ?? null);
+  }
+
+  /** Moves the file tab shown one place left or right (Ctrl+Shift+Page Up/Down). */
+  shift(by: -1 | 1): void {
+    if (!this.active) return;
+    const i = this.files.indexOf(this.active);
+    const j = i + by;
+    if (j < 0 || j >= this.files.length) return;
+    [this.files[i], this.files[j]] = [this.files[j]!, this.files[i]!];
+    this.tell();
+  }
+
   /** Every page learns the tabs again (a name or a saved state changed). */
   tell(): void {
     const state: Tabs = { tabs: this.files.map((f) => f.tab()), active: this.active ? this.active.tab().id : "home" };

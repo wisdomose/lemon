@@ -17,7 +17,7 @@ import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
 import { Shell } from "./shell.js";
 import type { PageInput } from "./browser-pages.js";
-import { buildMenu } from "./menu.js";
+import { buildMenu, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
 
@@ -128,21 +128,33 @@ function showDashboard() {
   if (shared) theWindow().show(null);
 }
 
+/** What the menu shows checked; the window tells it when its settings change. */
+let menuState: MenuState = { chatTextSize: "small" };
+
 function refreshMenu() {
-  buildMenu({
-    newFile: () => openEditor(),
-    dashboard: showDashboard,
-    open: () => void openDialog(),
-    openPath: (path) => void openPaths([path], focused()),
-    clearRecents: () => (clearRecents(), refreshMenu()),
-    save: () => void focused()?.save(),
-    saveAs: () => void focused()?.saveAs(),
-    // The tab shown: editors take every command, Home takes Settings.
-    toWindow: (command) => {
-      const page = window?.shown()?.view.webContents ?? window?.pages()[0];
-      page?.send("menu:command", command);
+  buildMenu(
+    {
+      newFile: () => openEditor(),
+      home: showDashboard,
+      open: () => void openDialog(),
+      openPath: (path) => void openPaths([path], focused()),
+      clearRecents: () => (clearRecents(), refreshMenu()),
+      save: () => void focused()?.save(),
+      saveAs: () => void focused()?.saveAs(),
+      closeTab: () => {
+        const editor = focused();
+        if (editor) closeTab(editor);
+      },
+      stepTab: (by) => window?.step(by),
+      moveTab: (by) => window?.shift(by),
+      // The tab shown: editors take every command, Home takes Settings and the theme.
+      toWindow: (command) => {
+        const page = window?.shown()?.view.webContents ?? window?.pages()[0];
+        page?.send("menu:command", command);
+      },
     },
-  });
+    menuState,
+  );
 }
 
 // One app, one window: opening a file while the app runs (a double-click in Explorer, say) reaches
@@ -209,6 +221,23 @@ async function main() {
   ipcMain.on("browser:input", (e, id: string, ev: PageInput) => editorOf(e)?.pages.input(id, ev));
   ipcMain.handle("browser:command", (e, id: string, what: "reload" | "back" | "forward") => editorOf(e)?.pages.command(id, what));
   ipcMain.on("browser:repaint", (e) => editorOf(e)?.pages.repaint());
+  // The menu shows the window's settings (chat text size) checked.
+  ipcMain.on("menu:state", (_e, state: MenuState) => {
+    if (state.chatTextSize === menuState.chatTextSize) return;
+    menuState = state;
+    refreshMenu();
+  });
+  // Export Selection to…: the tab drew the picture; it is saved where the person chooses.
+  ipcMain.handle("export:save", async (_e, bytes: Uint8Array, name: string, ext: string) => {
+    const options: Electron.SaveDialogOptions = {
+      defaultPath: join(app.getPath("downloads"), `${name}.${ext}`),
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    };
+    const r = await (window ? dialog.showSaveDialog(window.win, options) : dialog.showSaveDialog(options));
+    if (r.canceled || !r.filePath) return false;
+    writeFileSync(r.filePath, bytes);
+    return true;
+  });
   // A tab's script nodes.
   ipcMain.handle("script:choose", (e) => editorOf(e)?.chooseScript());
   ipcMain.handle("script:reveal", (e, uri: string) => {

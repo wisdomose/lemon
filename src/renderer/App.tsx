@@ -20,6 +20,8 @@ import { detachSelected, makeComponents } from "./components.js";
 import { CanvasMenu, deleteSelection, reorder } from "./chrome/CanvasMenu.js";
 import { BrowserLiveBar, BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
 import { pageKey } from "./canvas/live-pages.js";
+import { exportSelection, type ExportFormat } from "./export.js";
+import { sharedCommand } from "./settings.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +80,8 @@ export function App({ initial }: { initial: string }) {
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (command === "settings") store.set({ settingsOpen: true });
       else if (command === "toggle-ui") setPanelOpen((o) => !o);
+      else if (sharedCommand(command)) return;
+      else if (command.startsWith("export-")) void exportSelection(command.slice(7) as ExportFormat);
       else if (typing) document.execCommand(command === "select-all" ? "selectAll" : command);
       else if (command === "undo") history.undo();
       else if (command === "redo") history.redo();

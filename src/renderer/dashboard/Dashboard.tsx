@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { bridge, type DashboardFiles } from "../bridge.js";
 import { SettingsDialog } from "../chrome/SettingsDialog.js";
-import { setSetting, useSettings } from "../settings.js";
+import { setSetting, sharedCommand, useSettings } from "../settings.js";
 import { store } from "../store.js";
 import { cx } from "../ui/kit.js";
 import { PromptEditor, type PromptEditorHandle } from "../agent/PromptEditor.js";
@@ -39,7 +39,7 @@ export function Dashboard() {
     void bridge.dashboard.files().then(setFiles);
     bridge.dashboard.onFiles(setFiles);
     // Settings opens here too: File › Settings… and Ctrl+, (as in the editor).
-    bridge.onMenuCommand((command) => command === "settings" && setSettingsOpen(true));
+    bridge.onMenuCommand((command) => (command === "settings" ? setSettingsOpen(true) : sharedCommand(command)));
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === ",") (e.preventDefault(), setSettingsOpen(true));
     };

@@ -11,7 +11,7 @@ import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
 import type { PageFrame, PageInput } from "../main/browser-pages.js";
 import type { ScriptOutput } from "../main/scripts.js";
-import type { WindowCommand } from "../main/menu.js";
+import type { MenuState, WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -63,6 +63,10 @@ export interface Bridge {
     choose(): Promise<string | undefined>;
     reveal(uri: string): Promise<void>;
   };
+  /** Tells the menu bar what to show checked (the chat text size). */
+  menuState(state: MenuState): void;
+  /** Saves an exported picture where the person chooses; whether it was saved. */
+  saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
     get(): Promise<Tabs>;
@@ -162,6 +166,10 @@ export function browserBridge(): Bridge {
       input() {},
       async command() {},
       repaint() {},
+    },
+    menuState() {},
+    async saveExport() {
+      return false;
     },
     scripts: {
       onOutput() {},
