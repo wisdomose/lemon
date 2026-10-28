@@ -243,8 +243,11 @@ async function main() {
   ipcMain.handle("app:who", () => userInfo().username);
   ipcMain.handle("comments:reload", (e) => editorOf(e)?.comments.load());
   // The command palette's file commands, as the menu runs them.
-  ipcMain.handle("app:command", (_e, command: AppCommand) => {
+  ipcMain.handle("app:command", (e, command: AppCommand) => {
     const editor = focused();
+    if (command === "copy") return e.sender.copy();
+    if (command === "cut") return e.sender.cut();
+    if (command === "paste") return e.sender.paste();
     if (command === "home") showDashboard();
     else if (command === "new-file") openEditor();
     else if (command === "open") void openDialog();

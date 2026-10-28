@@ -96,6 +96,7 @@ import { convertScript } from "./PropertiesPanel.js";
 import { detachSelected, goToMain, makeComponents, unmakeComponent } from "../components.js";
 import { exportSelection } from "../export.js";
 import { cx } from "../ui/kit.js";
+import { clipboardCommand, duplicateSelection, frameSelection, groupSelection, ungroupSelection } from "../editing.js";
 
 interface Action {
   group: string;
@@ -169,16 +170,20 @@ function actions(): Action[] {
     a("Edit", "Paste to replace", Clipboard, { keys: "Ctrl ⇧ R", blocked: NOT_YET }),
     a("Edit", "Undo", Undo2, { keys: "Ctrl Z", run: () => history.undo() }),
     a("Edit", "Redo", Redo2, { keys: "Ctrl ⇧ Z", run: () => history.redo() }),
-    a("Edit", "Duplicate", Copy, { keys: "Ctrl D", blocked: NOT_YET }),
+    a("Edit", "Duplicate", Copy, { keys: "Ctrl D", blocked: needSelection, run: duplicateSelection }),
     a("Edit", "Delete", Trash2, { keys: "⌫", blocked: needSelection, run: deleteSelection }),
-    a("Edit", "Copy", Copy, { keys: "Ctrl C", blocked: NOT_YET }),
-    a("Edit", "Cut", Scissors, { keys: "Ctrl X", blocked: NOT_YET }),
-    a("Edit", "Paste", Clipboard, { keys: "Ctrl V", blocked: NOT_YET }),
+    a("Edit", "Copy", Copy, { keys: "Ctrl C", blocked: needSelection, run: () => clipboardCommand("copy") }),
+    a("Edit", "Cut", Scissors, { keys: "Ctrl X", blocked: needSelection, run: () => clipboardCommand("cut") }),
+    a("Edit", "Paste", Clipboard, { keys: "Ctrl V", run: () => clipboardCommand("paste") }),
     a("Edit", "Import image or SVG...", Image, { blocked: NOT_YET }),
 
-    a("Arrange", "Group selection", Group, { keys: "Ctrl G", blocked: NOT_YET }),
-    a("Arrange", "Frame selection", Frame, { keys: "Ctrl Alt G", blocked: NOT_YET }),
-    a("Arrange", "Ungroup", Ungroup, { keys: "Ctrl ⌫", blocked: NOT_YET }),
+    a("Arrange", "Group selection", Group, { keys: "Ctrl G", blocked: needSelection, run: groupSelection }),
+    a("Arrange", "Frame selection", Frame, { keys: "Ctrl Alt G", blocked: needSelection, run: frameSelection }),
+    a("Arrange", "Ungroup", Ungroup, {
+      keys: "Ctrl ⌫",
+      blocked: () => (nodes().some((n) => (n.type === "group" || n.type === "frame") && !n.instance) ? null : "Select a group or frame"),
+      run: ungroupSelection,
+    }),
     a("Arrange", "Align left", AlignStartVertical, { keys: "Alt A", blocked: selectLayers, run: () => align("left") }),
     a("Arrange", "Align center", AlignCenterVertical, { keys: "Alt H", blocked: selectLayers, run: () => align("center") }),
     a("Arrange", "Align right", AlignEndVertical, { keys: "Alt D", blocked: selectLayers, run: () => align("right") }),

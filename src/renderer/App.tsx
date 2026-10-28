@@ -25,6 +25,7 @@ import { sharedCommand } from "./settings.js";
 import { CommentLayer, CommentsPanel } from "./chrome/Comments.js";
 import { ShortcutsDialog } from "./chrome/ShortcutsDialog.js";
 import { CommandPalette } from "./chrome/CommandPalette.js";
+import { duplicateSelection, frameSelection, groupSelection, onCopy, onPaste, ungroupSelection } from "./editing.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -57,6 +58,11 @@ export function App({ initial }: { initial: string }) {
       else if (mod && key === "p") (e.preventDefault(), store.set({ paletteOpen: true }));
       else if (!mod && e.key === "?") store.set({ shortcutsOpen: true });
       else if (!mod && e.shiftKey && key === "c") store.set((s) => ({ showComments: !s.showComments }));
+      else if (mod && e.altKey && e.code === "KeyG") (e.preventDefault(), frameSelection());
+      else if (mod && e.shiftKey && e.code === "KeyG") (e.preventDefault(), ungroupSelection());
+      else if (mod && e.code === "KeyG") (e.preventDefault(), groupSelection());
+      else if (mod && e.key === "Backspace") (e.preventDefault(), ungroupSelection());
+      else if (mod && e.code === "KeyD") (e.preventDefault(), duplicateSelection());
       else if (mod && e.altKey && e.code === "KeyK") (e.preventDefault(), makeComponents());
       else if (mod && e.altKey && e.code === "KeyX") (e.preventDefault(), detachSelected());
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
@@ -98,9 +104,26 @@ export function App({ initial }: { initial: string }) {
       else if (command === "select-all") reselect(selectAll);
       schedule();
     });
+    // Copy, cut and paste (keys, the Edit menu, the palette): in a text field they act on its text.
+    const typing = (e: Event) => {
+      const t = e.target as HTMLElement;
+      return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
+    };
+    const copy = (e: ClipboardEvent) => typing(e) || onCopy(e, false);
+    const cut = (e: ClipboardEvent) => typing(e) || onCopy(e, true);
+    const paste = (e: ClipboardEvent) => typing(e) || onPaste(e);
     addEventListener("keydown", onKey);
     addEventListener("keyup", onKeyUp);
-    return () => (removeEventListener("keydown", onKey), removeEventListener("keyup", onKeyUp));
+    document.addEventListener("copy", copy);
+    document.addEventListener("cut", cut);
+    document.addEventListener("paste", paste);
+    return () => {
+      removeEventListener("keydown", onKey);
+      removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("copy", copy);
+      document.removeEventListener("cut", cut);
+      document.removeEventListener("paste", paste);
+    };
   }, []);
 
   return (

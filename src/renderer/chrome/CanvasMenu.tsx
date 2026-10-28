@@ -4,6 +4,7 @@ import { doc, edit } from "../scene.js";
 import { store, useEditor } from "../store.js";
 import { ContextContent, ContextItem, ContextSeparator, ContextSub } from "../ui/menu.js";
 import { detachSelected, makeComponents } from "../components.js";
+import { clipboardCommand, frameSelection, groupSelection } from "../editing.js";
 
 export function deleteSelection() {
   const ids = store.get().selection.filter((id) => docStore.exists(doc, id));
@@ -37,7 +38,7 @@ export function CanvasMenu({ inLayers = false }: { inLayers?: boolean }) {
   const copies = selection.some((id) => !docStore.isPart(id) && docStore.isInstance(doc, id));
   return (
     <ContextContent>
-      <ContextItem label="Copy" keys="Ctrl C" />
+      <ContextItem label="Copy" keys="Ctrl C" onSelect={() => clipboardCommand("copy")} />
       <ContextSub label="Copy as">
         <ContextItem label="Copy as HTML + CSS" />
         <ContextItem label="Copy as HTML + Tailwind" />
@@ -50,8 +51,8 @@ export function CanvasMenu({ inLayers = false }: { inLayers?: boolean }) {
       <ContextItem label="Bring to Front" keys="]" onSelect={() => reorder(true)} />
       <ContextItem label="Send to Back" keys="[" onSelect={() => reorder(false)} />
       <ContextSeparator />
-      <ContextItem label="Group selection" keys="Ctrl G" />
-      <ContextItem label="Frame selection" keys="Ctrl Alt G" />
+      <ContextItem label="Group selection" keys="Ctrl G" onSelect={groupSelection} />
+      <ContextItem label="Frame selection" keys="Ctrl Alt G" onSelect={frameSelection} />
       {flex ? (
         <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
       ) : (

@@ -208,6 +208,13 @@ export function zoomToFit(animate = true, box?: Box, maxZoom = 1): void {
 }
 
 /** How much of the canvas's left side the floating panels cover (left panel + tool rail). */
+/** The part of the page in view: the canvas right of the tool rail. */
+export function pageInView(): Box {
+  const left = obstructionLeft();
+  const [x, y] = toPage(left, 0);
+  return { x, y, w: (el.clientWidth - left) / view.zoom, h: el.clientHeight / view.zoom };
+}
+
 function obstructionLeft(): number {
   const rail = document.querySelector("[data-rail]")?.getBoundingClientRect();
   return rail ? rail.right : 0;

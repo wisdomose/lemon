@@ -23,8 +23,8 @@ export type WindowCommand =
   | "export-jpeg"
   | "export-webp";
 
-/** File commands a tab can ask for (the command palette), as the menu runs them. */
-export type AppCommand = "home" | "new-file" | "open" | "save" | "save-as" | "close-tab";
+/** File commands a tab can ask for (the command palette), as the menu runs them; and the clipboard ones, which the tab then gets as copy, cut and paste events. */
+export type AppCommand = "home" | "new-file" | "open" | "save" | "save-as" | "close-tab" | "copy" | "cut" | "paste";
 
 /** What the menu shows checked: the window tells it (its settings live there). */
 export interface MenuState {
