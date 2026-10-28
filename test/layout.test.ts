@@ -82,11 +82,28 @@ describe("layout", () => {
     ] });
     put(doc, { type: "frame", id: "empty", width: "fit_content(120)", height: "fit_content(80)" });
     const { boxes } = await laidOut(doc);
-    // A group is exactly as big as its children, which start at its corner (as in Pen).
+    // In a column, a group is exactly as big as its children, which start at its slot's corner (as in Pen).
     expect(boxes.get("g")).toMatchObject({ x: 0, y: 0, w: 20, h: 30 });
     expect(boxes.get("abs")).toMatchObject({ x: 40, y: 40 });
     expect(boxes.get("f")).toMatchObject({ w: 20, h: 30 });
     expect(boxes.get("empty")).toMatchObject({ w: 120, h: 80 });
+  });
+
+  it("places a free group's children by its x/y plus theirs, even negative, and spans them (as in Pen)", async () => {
+    const doc = new Y.Doc();
+    put(doc, { type: "frame", id: "p", x: 0, y: 0, width: 400, height: 300, layout: "none", children: [
+      { type: "group", id: "neg", x: 100, y: 50, children: [
+        { type: "rectangle", id: "n1", x: -80, y: 20, width: 40, height: 40 },
+        { type: "rectangle", id: "n2", x: 50, y: 0, width: 40, height: 40 },
+      ] },
+      { type: "group", id: "pos", x: 100, y: 180, children: [{ type: "rectangle", id: "p1", x: 60, y: 40, width: 40, height: 40 }] },
+    ] });
+    const { boxes } = await laidOut(doc);
+    expect(boxes.get("n1")).toMatchObject({ x: 20, y: 70 });
+    expect(boxes.get("n2")).toMatchObject({ x: 150, y: 50 });
+    expect(boxes.get("neg")).toEqual({ x: 20, y: 50, w: 170, h: 60 });
+    expect(boxes.get("p1")).toMatchObject({ x: 160, y: 220 });
+    expect(boxes.get("pos")).toEqual({ x: 160, y: 220, w: 40, h: 40 });
   });
 
   it("measures text with the font that draws it", async () => {

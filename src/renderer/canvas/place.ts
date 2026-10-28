@@ -14,18 +14,45 @@ export const placedFreely = (n: TreeNode, parent: TreeNode) => parent.id === ROO
 const contains = (b: Box | undefined, x: number, y: number) => !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
 
 /**
- * The deepest frame under (x, y) that isn't one of `moving` or inside one; the page when none. A copy
- * of a component takes nothing new, so its frames don't count.
+ * The deepest frame under (x, y) that isn't one of `moving` or inside one; the page when none. As in
+ * Pen, groups take nothing dropped or drawn on them (the frame they are in does), but frames inside
+ * them count. A copy of a component takes nothing new, so its frames don't count.
  */
 export function frameAt(s: Laid, x: number, y: number, moving: Set<string> = new Set()): TreeNode {
+  // Children with groups opened up in their place (front to back stays the same).
+  const open = (list: TreeNode[]): TreeNode[] =>
+    list.flatMap((n) => (n.type === "group" && !moving.has(n.id) && n.props.enabled !== false ? open(n.children) : [n]));
   let found = s.tree;
-  let level = s.tree.children;
+  let level = open(s.tree.children);
   for (;;) {
-    const hit = [...level].reverse().find((n) => (n.type === "frame" || n.type === "group") && !n.instance && !moving.has(n.id) && n.props.enabled !== false && contains(s.boxes.get(n.id), x, y));
+    const hit = [...level].reverse().find((n) => n.type === "frame" && !n.instance && !moving.has(n.id) && n.props.enabled !== false && contains(s.boxes.get(n.id), x, y));
     if (!hit) return found;
     found = hit;
-    level = hit.children;
+    level = open(hit.children);
   }
+}
+
+/**
+ * Where on the page a node's children measure their x and y from: the page's origin, a frame's
+ * corner, or a group's own x/y (its box starts where its children do, which may be elsewhere).
+ */
+export function originIn(s: Laid, parent: TreeNode): { x: number; y: number } {
+  if (parent.id === ROOT_ID) return { x: 0, y: 0 };
+  const box = s.boxes.get(parent.id) ?? { x: 0, y: 0 };
+  if (parent.type !== "group") return { x: box.x, y: box.y };
+  for (const c of parent.children) {
+    const b = s.boxes.get(c.id);
+    const [x, y] = [c.props.x ?? 0, c.props.y ?? 0];
+    if (b && typeof x === "number" && typeof y === "number") return { x: b.x - x, y: b.y - y };
+  }
+  return { x: box.x, y: box.y };
+}
+
+/** The frame (or page) a node's group is in: up through its groups. */
+export function frameAround(up: Map<string, TreeNode>, node: TreeNode): TreeNode {
+  let n = node;
+  while (n.type === "group" && up.get(n.id)) n = up.get(n.id)!;
+  return n;
 }
 
 /**

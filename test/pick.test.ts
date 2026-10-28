@@ -71,12 +71,26 @@ describe("keyboard selection", () => {
 });
 
 describe("where dropped or drawn nodes go", async () => {
-  const { frameAt, flowSlot } = await import("../src/renderer/canvas/place.js");
+  const { frameAt, frameAround, flowSlot } = await import("../src/renderer/canvas/place.js");
   // The card is a column (layout: "vertical"; frames lay out in a row unless told otherwise); the button is in it.
   it("into the deepest frame under the pointer, not one being moved; the page outside every frame", () => {
     expect(frameAt(s, 45, 70).id).toBe("button");
     expect(frameAt(s, 45, 70, new Set(["button"])).id).toBe("card");
     expect(frameAt(s, 450, 50).id).toBe("document");
+  });
+  it("never into a group (as in Pen), but into a frame inside one", () => {
+    // A group "g" (300,300 80×80) in the page, holding a frame "inner" (300,300 40×40).
+    const inner = node("inner", "frame");
+    const group = node("g", "group", [inner]);
+    const t = node("document", "frame", [node("page", "frame", [group])]);
+    const b = new Map(boxes);
+    b.set("g", { x: 300, y: 300, w: 80, h: 80 });
+    b.set("inner", { x: 300, y: 300, w: 40, h: 40 });
+    const laid = { tree: t, boxes: b };
+    expect(frameAt(laid, 370, 370).id).toBe("page");
+    expect(frameAt(laid, 310, 310).id).toBe("inner");
+    const up = new Map([["g", t.children[0]!], ["inner", group], ["page", t]]);
+    expect(frameAround(up, group).id).toBe("page");
   });
   it("at the place in a column the pointer points to, with a line between the children", () => {
     const card = tree.children[0]!.children[0]!;

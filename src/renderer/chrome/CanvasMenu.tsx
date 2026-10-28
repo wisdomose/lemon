@@ -4,7 +4,8 @@ import { doc, edit } from "../scene.js";
 import { store, useEditor } from "../store.js";
 import { ContextContent, ContextItem, ContextSeparator, ContextSub } from "../ui/menu.js";
 import { detachSelected, makeComponents } from "../components.js";
-import { clipboardCommand, frameSelection, groupSelection } from "../editing.js";
+import { clipboardCommand, frameSelection, groupSelection, pasteHere, pasteToReplace, ungroupSelection } from "../editing.js";
+import { lastMenuPoint } from "../canvas/gestures.js";
 
 export function deleteSelection() {
   const ids = store.get().selection.filter((id) => docStore.exists(doc, id));
@@ -45,14 +46,20 @@ export function CanvasMenu({ inLayers = false }: { inLayers?: boolean }) {
         <ContextItem label="Copy as JSON" />
         <ContextItem label="Copy as PNG" keys="Ctrl Shift C" />
       </ContextSub>
-      <ContextItem label={inLayers ? "Paste" : "Paste here"} />
-      <ContextItem label="Paste to replace" keys="Ctrl Shift R" />
+      {inLayers ? (
+        <ContextItem label="Paste" onSelect={() => clipboardCommand("paste")} />
+      ) : (
+        <ContextItem label="Paste here" onSelect={() => pasteHere(lastMenuPoint())} />
+      )}
+      <ContextItem label="Paste to replace" keys="Ctrl Shift R" onSelect={pasteToReplace} />
       <ContextSeparator />
       <ContextItem label="Bring to Front" keys="]" onSelect={() => reorder(true)} />
       <ContextItem label="Send to Back" keys="[" onSelect={() => reorder(false)} />
       <ContextSeparator />
       <ContextItem label="Group selection" keys="Ctrl G" onSelect={groupSelection} />
       <ContextItem label="Frame selection" keys="Ctrl Alt G" onSelect={frameSelection} />
+      {/* Pen offers Ungroup when a group or frame is selected. */}
+      {selection.some((id) => ["group", "frame"].includes(docStore.typeOf(doc, id) ?? "")) && <ContextItem label="Ungroup" keys="Ctrl ⌫" onSelect={ungroupSelection} />}
       {flex ? (
         <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
       ) : (

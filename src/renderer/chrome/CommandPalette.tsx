@@ -96,7 +96,7 @@ import { convertScript } from "./PropertiesPanel.js";
 import { detachSelected, goToMain, makeComponents, unmakeComponent } from "../components.js";
 import { exportSelection } from "../export.js";
 import { cx } from "../ui/kit.js";
-import { clipboardCommand, duplicateSelection, frameSelection, groupSelection, ungroupSelection } from "../editing.js";
+import { clipboardCommand, duplicateSelection, frameSelection, groupSelection, pasteToReplace, ungroupSelection } from "../editing.js";
 
 interface Action {
   group: string;
@@ -167,7 +167,7 @@ function actions(): Action[] {
       blocked: () => (nodes().some((n) => n.type === "script") ? null : "Select a script"),
       run: () => nodes().filter((n) => n.type === "script").forEach(convertScript),
     }),
-    a("Edit", "Paste to replace", Clipboard, { keys: "Ctrl ⇧ R", blocked: NOT_YET }),
+    a("Edit", "Paste to replace", Clipboard, { keys: "Ctrl ⇧ R", blocked: needSelection, run: pasteToReplace }),
     a("Edit", "Undo", Undo2, { keys: "Ctrl Z", run: () => history.undo() }),
     a("Edit", "Redo", Redo2, { keys: "Ctrl ⇧ Z", run: () => history.redo() }),
     a("Edit", "Duplicate", Copy, { keys: "Ctrl D", blocked: needSelection, run: duplicateSelection }),

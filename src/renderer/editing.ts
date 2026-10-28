@@ -5,7 +5,7 @@ import * as docStore from "../doc/store.js";
 import { bridge, currentScene, doc, edit } from "./scene.js";
 import { store } from "./store.js";
 import { pageInView, schedule } from "./canvas/canvas.js";
-import { copyNodes, duplicateNodes, groupNodes, pasteNodes, readClip, ungroupNodes } from "./arrange.js";
+import { copyNodes, duplicateNodes, groupNodes, pasteAt, pasteNodes, pasteReplacing, readClip, ungroupNodes } from "./arrange.js";
 
 /** This window's mark on what it copies, so a paste here knows the nodes' places on the page. */
 const SOURCE = crypto.randomUUID();
@@ -44,11 +44,32 @@ export function onCopy(e: ClipboardEvent, cut: boolean): void {
   }
 }
 
+/** What the next paste event does instead of an ordinary paste (Paste here, Paste to replace). */
+let pending: { at: { x: number; y: number } } | "replace" | null = null;
+
+/** Paste here: the copy's top-left at a page point (where the canvas menu was opened). */
+export function pasteHere(at: { x: number; y: number }): void {
+  pending = { at };
+  clipboardCommand("paste");
+}
+
+/** Paste to replace (Ctrl+Shift+R): the copy takes the selected nodes' places. */
+export function pasteToReplace(): void {
+  if (!store.get().selection.length) return;
+  pending = "replace";
+  clipboardCommand("paste");
+}
+
 /** A paste event outside a text field: nodes copied in Pen or Lemon go in. */
 export function onPaste(e: ClipboardEvent): void {
+  const mode = pending;
+  pending = null;
   const clip = readClip(e.clipboardData?.getData("text/html") ?? "");
   if (!clip) return;
   e.preventDefault();
   const here = clip.source === SOURCE;
-  change((ids) => pasteNodes(doc, currentScene()!, clip, ids, pageInView(), here));
+  const s = currentScene()!;
+  if (mode === "replace") change((ids) => pasteReplacing(doc, s, clip, ids, here));
+  else if (mode) change(() => pasteAt(doc, s, clip, mode.at, here));
+  else change((ids) => pasteNodes(doc, s, clip, ids, pageInView(), here));
 }

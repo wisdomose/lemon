@@ -13,6 +13,9 @@
 //     the selected node (into its parent). With the copied node itself selected, or nothing selected,
 //     the copy keeps its spot, unless that spot is out of view or the copy came from another document:
 //     then it lands in the middle of the view.
+//   - Paste here (the canvas menu) puts the copy's top-left at the pointer, in the frame there.
+//   - Paste to replace (Ctrl+Shift+R) puts the copy in each selected node's place: its slot among its
+//     siblings and its top-left; the copy keeps its own size.
 // Functions of the document and the laid-out tree, so they can be tested without a window.
 import type * as Y from "yjs";
 import * as docStore from "../doc/store.js";
@@ -20,7 +23,7 @@ import { nodeAsPen } from "../doc/file.js";
 import { ROOT_ID, type PenNode, type TreeNode } from "../doc/schema.js";
 import type { Box } from "../layout/layout.js";
 import { index, parents, type Laid } from "./canvas/pick.js";
-import { flows } from "./canvas/place.js";
+import { flows, frameAt, originIn } from "./canvas/place.js";
 
 /** The attribute of Pen's clipboard span. */
 export const CLIP_ATTR = "data-pen-node-clipboard";
@@ -60,8 +63,6 @@ const union = (list: Box[]): Box | undefined => {
   return { x: l, y: t, w: Math.max(...list.map((b) => b.x + b.w)) - l, h: Math.max(...list.map((b) => b.y + b.h)) - t };
 };
 
-/** Where a node's children are measured from: the page's origin, or the parent's corner. */
-const originOf = (s: Laid, id: string) => (id === ROOT_ID ? { x: 0, y: 0 } : (s.boxes.get(id) ?? { x: 0, y: 0 }));
 
 /** Whether children of `parent` are placed by x and y (not in a row or column). */
 const free = (parent: TreeNode | undefined) => !parent || !flows(parent);
@@ -92,7 +93,7 @@ export function groupNodes(doc: Y.Doc, s: Laid, ids: string[], kind: "group" | "
   const siblings = parent.children.map((c) => c.id);
   const at = Math.max(...members.map((id) => siblings.indexOf(id)));
   const box = union(members.map((id) => s.boxes.get(id)!))!;
-  const origin = originOf(s, parent.id);
+  const origin = originIn(s, parent);
   const spec: PenNode =
     kind === "group"
       ? { type: "group" }
@@ -118,7 +119,7 @@ export function ungroupNodes(doc: Y.Doc, s: Laid, ids: string[]): string[] {
     const node = byId.get(id);
     if (!node || (node.type !== "group" && node.type !== "frame") || docStore.isInstance(doc, id)) continue;
     const parent = up.get(id)!;
-    const origin = originOf(s, parent.id);
+    const origin = originIn(s, parent);
     let at = docStore.childIds(doc, parent.id).indexOf(id);
     for (const kid of docStore.childIds(doc, id)) {
       const b = s.boxes.get(kid);
@@ -146,20 +147,25 @@ function besideFree(box: Box, taken: Box[]): { x: number; y: number } {
   return { x, y: box.y };
 }
 
+/** A copy of a node right after it, in the same spot (Alt-drag's copy); `at` moves it. Returns the copy. */
+export function copyInPlace(doc: Y.Doc, id: string, at?: { x: number; y: number }): string {
+  const parent = docStore.parentOf(doc, id)!;
+  const spec = { ...nodeAsPen(doc, id), ...at };
+  return docStore.insert(doc, parent, spec, docStore.childIds(doc, parent).indexOf(id) + 1);
+}
+
 /** Duplicate: a copy right after each node. Returns the copies. */
 export function duplicateNodes(doc: Y.Doc, s: Laid, ids: string[]): string[] {
   const taken = s.tree.children.map((c) => s.boxes.get(c.id)).filter((b): b is Box => !!b);
   const out: string[] = [];
   for (const id of inOrder(doc, s, ids)) {
-    const parent = docStore.parentOf(doc, id)!;
-    const spec = nodeAsPen(doc, id);
     const box = s.boxes.get(id);
-    if (parent === ROOT_ID && spec.type === "frame" && box) {
-      const spot = besideFree(box, taken);
-      Object.assign(spec, spot);
+    let spot: { x: number; y: number } | undefined;
+    if (docStore.parentOf(doc, id) === ROOT_ID && docStore.typeOf(doc, id) === "frame" && box) {
+      spot = besideFree(box, taken);
       taken.push({ ...box, ...spot });
     }
-    out.push(docStore.insert(doc, parent, spec, docStore.childIds(doc, parent).indexOf(id) + 1));
+    out.push(copyInPlace(doc, id, spot));
   }
   return out;
 }
@@ -204,12 +210,7 @@ const num = (v: unknown) => (typeof v === "number" ? v : 0);
 export function pasteNodes(doc: Y.Doc, s: Laid, clip: Clip, selection: string[], view: Box, here: boolean): string[] {
   const byId = index(s.tree);
   const up = parents(s.tree);
-  // Where each copied node was: on this page if it is here, else as the file had it.
-  const was = clip.nodes.map((n): Box => {
-    const b = here && n.id ? s.boxes.get(n.id) : undefined;
-    return b ?? { x: num(n.x), y: num(n.y), w: num(n.width), h: num(n.height) };
-  });
-  const all = union(was)!;
+  const { was, all } = measure(s, clip, here);
   const chosen = selection.filter((id) => byId.has(id) && movable(doc, id));
   const first = chosen[0];
   let parent: TreeNode = s.tree;
@@ -226,7 +227,7 @@ export function pasteNodes(doc: Y.Doc, s: Laid, clip: Clip, selection: string[],
   } else if (!here || !(all.x >= view.x && all.y >= view.y && all.x + all.w <= view.x + view.w && all.y + all.h <= view.y + view.h)) {
     shift = { x: view.x + (view.w - all.w) / 2 - all.x, y: view.y + (view.h - all.h) / 2 - all.y };
   }
-  const origin = originOf(s, parent.id);
+  const origin = originIn(s, parent);
   const out: string[] = [];
   clip.nodes.forEach((n, i) => {
     const b = was[i]!;
@@ -242,5 +243,55 @@ export function pasteNodes(doc: Y.Doc, s: Laid, clip: Clip, selection: string[],
       // A node this document can't take (say, an instance of a component it doesn't have) is left out.
     }
   });
+  return out;
+}
+
+/** Where each copied node was (on this page if it is here, else as the file had it), and all of them together. */
+function measure(s: Laid, clip: Clip, here: boolean): { was: Box[]; all: Box } {
+  const was = clip.nodes.map((n): Box => {
+    const b = here && n.id ? s.boxes.get(n.id) : undefined;
+    return b ?? { x: num(n.x), y: num(n.y), w: num(n.width), h: num(n.height) };
+  });
+  return { was, all: union(was)! };
+}
+
+/** Puts the copied nodes under `parent` with their top-left corner together at `corner` (page), from `index` on. */
+function putAt(doc: Y.Doc, s: Laid, clip: Clip, here: boolean, parent: TreeNode, corner: { x: number; y: number }, index?: number): string[] {
+  const { was, all } = measure(s, clip, here);
+  const origin = originIn(s, parent);
+  const out: string[] = [];
+  clip.nodes.forEach((n, i) => {
+    const spec: PenNode = { ...n };
+    if (free(parent)) Object.assign(spec, { x: corner.x + was[i]!.x - all.x - origin.x, y: corner.y + was[i]!.y - all.y - origin.y });
+    else {
+      delete spec.x;
+      delete spec.y;
+    }
+    try {
+      out.push(docStore.insert(doc, parent.id, spec, index === undefined ? undefined : index + out.length));
+    } catch {
+      // A node this document can't take is left out (as in pasteNodes).
+    }
+  });
+  return out;
+}
+
+/** Paste here: the copy's top-left at the pointer (page point), in the frame there. */
+export function pasteAt(doc: Y.Doc, s: Laid, clip: Clip, at: { x: number; y: number }, here: boolean): string[] {
+  return putAt(doc, s, clip, here, frameAt(s, at.x, at.y), at);
+}
+
+/** Paste to replace: the copy takes each selected node's place. Returns the copies. */
+export function pasteReplacing(doc: Y.Doc, s: Laid, clip: Clip, ids: string[], here: boolean): string[] {
+  const up = parents(s.tree);
+  const out: string[] = [];
+  for (const id of inOrder(doc, s, ids)) {
+    const box = s.boxes.get(id);
+    const parent = up.get(id);
+    if (!box || !parent) continue;
+    const index = docStore.childIds(doc, parent.id).indexOf(id);
+    docStore.remove(doc, id);
+    out.push(...putAt(doc, s, clip, here, parent, box, index));
+  }
   return out;
 }

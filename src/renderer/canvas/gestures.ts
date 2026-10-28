@@ -16,10 +16,14 @@ import { bridge } from "../scene.js";
 import { pageCursor } from "./live-pages.js";
 import { boxPick, clickPick, doubleClickPick, index, parents, pathAt, unionBox } from "./pick.js";
 import { startComment } from "../chrome/Comments.js";
-import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
+import { flowSlot, flows, frameAround, frameAt, originIn, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
 import { editingPointer, startTextEdit, stopTextEdit } from "./text-edit.js";
 import { COMPONENT_DRAG, placeCopy } from "../components.js";
+import { copyInPlace } from "../arrange.js";
+
+/** A node of the person's own (not a part of a copy of a component, nor a script's output). */
+const movable = (id: string) => docStore.nodesOf(doc).has(id);
 import { carriesPictures, placePictures } from "../pictures.js";
 
 /** How far (screen pixels) a press travels before it counts as a drag. */
@@ -58,6 +62,9 @@ type Gesture =
   | { kind: "pan"; screen: Point };
 
 let gesture: Gesture | null = null;
+/** Where on the page the canvas menu was last opened (Paste here). */
+let menuPoint = { x: 0, y: 0 };
+export const lastMenuPoint = () => menuPoint;
 let space = false;
 let el: HTMLCanvasElement;
 
@@ -82,7 +89,7 @@ function hold(s: Scene, ids: string[]): Held[] {
   const up = parents(s.tree);
   return topMost(s, ids).map((node) => {
     const parent = up.get(node.id)!;
-    return { node, parent, box: boxOf(s, node.id), parentBox: parent.id === ROOT_ID ? PAGE : boxOf(s, parent.id), free: placedFreely(node, parent) };
+    return { node, parent, box: boxOf(s, node.id), parentBox: { ...originIn(s, parent), w: 0, h: 0 }, free: placedFreely(node, parent) };
   });
 }
 
@@ -171,6 +178,7 @@ function onDown(e: PointerEvent) {
     gesture = { kind: "pan", screen };
     setCursor("grabbing");
   } else if (e.button !== 0) {
+    menuPoint = at;
     // Right-click selects what is under the pointer (unless it is already selected) for the menu.
     const pick = labelAt(px, py) ?? clickPick(s, px, py, store.get().selection, e.ctrlKey || e.metaKey);
     if (!pick || !store.get().selection.includes(pick)) store.set({ selection: pick ? [pick] : [] });
@@ -244,9 +252,18 @@ function onMove(e: PointerEvent) {
     if (Math.hypot(screen.x - g.screen.x, screen.y - g.screen.y) < DRAG_START) return;
     store.set({ hover: null });
     if (g.pick) {
-      gesture = { kind: "move", from: g.at, held: hold(s, store.get().selection), union: unionBox(s.boxes, store.get().selection)!, live: false, deep: false };
-      overlay.moving = true;
+      const union = unionBox(s.boxes, store.get().selection)!;
+      let held = hold(s, store.get().selection);
       beginChange();
+      // Alt: the drag carries copies, made where the nodes are, right after each (Pen's Alt-drag).
+      if (e.altKey && held.every((h) => movable(h.node.id))) {
+        const copies: string[] = [];
+        edit(() => held.forEach((h) => copies.push(copyInPlace(doc, h.node.id))));
+        held = held.map((h, i) => ({ ...h, node: { ...h.node, id: copies[i]! } }));
+        store.set({ selection: copies });
+      }
+      gesture = { kind: "move", from: g.at, held, union, live: false, deep: false };
+      overlay.moving = true;
     } else gesture = { kind: "marquee", from: g.at, base: g.shift ? store.get().selection : [], deep: g.deep };
     return onMove(e);
   } else if (g.kind === "marquee") {
@@ -254,7 +271,7 @@ function onMove(e: PointerEvent) {
     overlay.marquee = rect;
     const picked = boxPick(s, rect, g.from, g.deep || e.ctrlKey || e.metaKey);
     store.set({ selection: [...new Set([...g.base, ...picked])] });
-  } else if (g.kind === "move") moveTo(s, g, px, py, e.altKey, e.ctrlKey || e.metaKey);
+  } else if (g.kind === "move") moveTo(s, g, px, py, e.ctrlKey || e.metaKey);
   else if (g.kind === "resize") resizeTo(g, px, py, e.shiftKey, e.altKey);
   else if (g.kind === "radius") roundTo(g, px, py);
   else if (g.kind === "draw") {
@@ -321,22 +338,24 @@ const rectBetween = (a: Point, b: Point): Box => ({ x: Math.min(a.x, b.x), y: Ma
 const movingIds = (g: { held: Held[] }) => new Set(g.held.map((h) => h.node.id));
 
 /**
- * Where a move would drop. Top-level frames stay on the page. Nodes in a row or column stay in it
- * (they change place) while the pointer is inside it; outside it, or with Ctrl/⌘ held, they go into
- * the frame under the pointer.
+ * Where a move would drop, as in Pen: into the deepest frame under the pointer (the page when none),
+ * top-level frames too. Nodes in a row or column stay in it (they change place) while the pointer is
+ * inside it, unless Ctrl/⌘ is held; nodes in a group stay in it while over the group's frame.
  */
 function dropTarget(s: Scene, g: { held: Held[] }, px: number, py: number, deep: boolean): TreeNode {
-  if (g.held.every((h) => h.parent.id === ROOT_ID)) return s.tree;
   const parent = g.held[0]!.parent;
   // Parts of a copy of a component stay where they are (only their own x and y can change).
   if (g.held.some((h) => docStore.isPart(h.node.id))) return parent;
   const pb = s.boxes.get(parent.id);
   const inside = !!pb && px >= pb.x && px <= pb.x + pb.w && py >= pb.y && py <= pb.y + pb.h;
-  if (!deep && inside && flows(parent) && g.held.every((h) => h.parent.id === parent.id)) return parent;
-  return frameAt(s, px, py, movingIds(g));
+  const together = g.held.every((h) => h.parent.id === parent.id);
+  if (!deep && inside && flows(parent) && together) return parent;
+  const frame = frameAt(s, px, py, movingIds(g));
+  if (together && parent.type === "group" && frameAround(parents(s.tree), parent).id === frame.id) return parent;
+  return frame;
 }
 
-function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number, noSnap: boolean, deep: boolean) {
+function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number, deep: boolean) {
   g.deep = deep;
   let dx = px - g.from.x;
   let dy = py - g.from.y;
@@ -348,7 +367,7 @@ function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py:
     const moving = movingIds(g);
     const others = parent.children.filter((c) => !moving.has(c.id) && c.props.enabled !== false).map((c) => boxOf(s, c.id));
     if (parent.id !== ROOT_ID) others.push(boxOf(s, parent.id));
-    const snap = noSnap ? { dx: 0, dy: 0, guides: [] } : snapBox({ ...g.union, x: g.union.x + dx, y: g.union.y + dy }, others, SNAP / view.zoom);
+    const snap = snapBox({ ...g.union, x: g.union.x + dx, y: g.union.y + dy }, others, SNAP / view.zoom);
     dx += snap.dx;
     dy += snap.dy;
     overlay.guides = snap.guides;
@@ -385,9 +404,11 @@ function drop(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: n
       for (const h of g.held) {
         const siblings = docStore.childIds(doc, target.id).filter((c) => c !== h.node.id);
         docStore.move(doc, h.node.id, target.id, anchor ? siblings.indexOf(anchor) : undefined);
+        // The row or column places it: an x and y from before would only be stale.
+        if (h.node.props.layoutPosition !== "absolute") docStore.update(doc, h.node.id, { x: null, y: null } as never);
       }
     } else {
-      const tb = target.id === ROOT_ID ? PAGE : boxOf(s, target.id);
+      const tb = originIn(s, target);
       for (const h of g.held) {
         docStore.move(doc, h.node.id, target.id);
         docStore.update(doc, h.node.id, { x: Math.round(h.box.x + dx - tb.x), y: Math.round(h.box.y + dy - tb.y) });

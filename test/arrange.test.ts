@@ -6,7 +6,7 @@ import * as store from "../src/doc/store.js";
 import { nodeAsPen } from "../src/doc/file.js";
 import { ROOT_ID } from "../src/doc/schema.js";
 import { layout, facesUsed } from "../src/layout/layout.js";
-import { copyNodes, duplicateNodes, groupNodes, pasteNodes, readClip, ungroupNodes } from "../src/renderer/arrange.js";
+import { copyInPlace, copyNodes, duplicateNodes, groupNodes, pasteAt, pasteNodes, pasteReplacing, readClip, ungroupNodes } from "../src/renderer/arrange.js";
 import type { Laid } from "../src/renderer/canvas/pick.js";
 import { put, setup } from "./helpers.js";
 import type { Engine } from "../src/engine.js";
@@ -183,5 +183,37 @@ describe("copy and paste", () => {
     expect(store.childIds(doc, ROOT_ID).at(-1)).toBe(p);
     expect(pen(doc, p!)).toMatchObject({ name: "Board", x: 0, y: 0 });
     expect(store.childIds(doc, p!)).toHaveLength(2);
+  });
+});
+
+describe("paste here, paste to replace and Alt-drag's copy", () => {
+  it("puts the copy's top-left at the pointer, in the frame there", async () => {
+    const doc = sample();
+    put(doc, { type: "frame", id: "Card", name: "Card", x: 0, y: 600, width: 220, height: 160, layout: "none", children: [] });
+    const clip = readClip(copyNodes(doc, ["A"], "me")!.html)!;
+    const [p] = pasteAt(doc, await laid(doc), clip, { x: 20.5, y: 739 }, true);
+    expect(store.childIds(doc, "Card")).toEqual([p]);
+    expect(pen(doc, p!)).toMatchObject({ x: 20.5, y: 139, width: 60, height: 40 });
+    const [q] = pasteAt(doc, await laid(doc), clip, { x: 900, y: 900 }, true);
+    expect(store.parentOf(doc, q!)).toBe(ROOT_ID);
+  });
+
+  it("puts the copy in the replaced node's slot and top-left, keeping its own size", async () => {
+    const doc = sample();
+    const clip = readClip(copyNodes(doc, ["A"], "me")!.html)!;
+    const [p] = pasteReplacing(doc, await laid(doc), clip, ["C"], true);
+    expect(store.exists(doc, "C")).toBe(false);
+    expect(store.childIds(doc, ROOT_ID)).toEqual(["Board", p, "Stack"]);
+    expect(pen(doc, p!)).toMatchObject({ name: "A", x: 400, y: 0, width: 60, height: 40 });
+    const [q] = pasteReplacing(doc, await laid(doc), clip, ["D"], true);
+    expect(store.childIds(doc, "Stack")).toEqual([q, "E"]);
+    expect(pen(doc, q!)).not.toHaveProperty("x");
+  });
+
+  it("copies a node in place right after it", () => {
+    const doc = sample();
+    const c = copyInPlace(doc, "A");
+    expect(store.childIds(doc, "Board")).toEqual(["A", c, "B"]);
+    expect(pen(doc, c)).toEqual(pen(doc, "A"));
   });
 });

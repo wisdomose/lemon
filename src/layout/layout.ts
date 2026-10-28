@@ -1,7 +1,8 @@
 // Layout: positions and sizes for every node, computed with Yoga (single-axis flexbox, no wrapping),
 // by Pen's rules:
 //   - A frame lays its children out in a row unless `layout` says "vertical" or "none" (placed by x/y).
-//     A group places its children by x/y and is as big as they reach.
+//     A group places its children by its x/y plus theirs (negative ones too) and its box is where
+//     they reach, from the leftmost and topmost; in a row or column they start at its slot's corner.
 //   - Sizes are pixels, "fill_container" (the parent's space; needs a parent with a layout) or
 //     "fit_content" (the children's; needs a layout and children), each with an optional fallback in
 //     pixels for when it can't apply: "fit_content(100)". Frames and groups fit their content by default.
@@ -97,6 +98,8 @@ interface FreeFit {
   tree: TreeNode;
   w: boolean;
   h: boolean;
+  /** In a row or column (not placed by its own x/y). */
+  inFlow: boolean;
 }
 
 function build(
@@ -177,7 +180,7 @@ function build(
   const fit: SizeRule = { kind: "fit" };
   const fw = axis("w", p.width, container ? fit : undefined);
   const fh = axis("h", p.height, container ? fit : undefined);
-  if (fw || fh) freeFits.push({ node: yn, tree: node, w: !!fw, h: !!fh });
+  if (fw || fh) freeFits.push({ node: yn, tree: node, w: !!fw, h: !!fh, inFlow: flows });
   if (!container) {
     // What a script returned sits inside it, each by its x/y.
     if (node.type === "script") node.children.forEach((child, i) => yn.insertChild(build(child, "free", vars, text, nodes, freeFits), i));
@@ -205,38 +208,45 @@ function build(
 
 /**
  * Sizes free containers (groups, frames without a layout) that fit their content to how far their
- * children reach, deepest first, laying out again until nothing changes.
+ * children reach, deepest first, laying out again until nothing changes. Returns, for each group,
+ * where its children start relative to its own x/y (its box starts there).
  */
-function fitFree(root: YogaNode, freeFits: FreeFit[], nodes: Map<string, YogaNode>, vars: Vars): void {
-  if (!freeFits.length) return;
+function fitFree(root: YogaNode, freeFits: FreeFit[], nodes: Map<string, YogaNode>, vars: Vars): Map<string, { x: number; y: number }> {
+  const reach = new Map<string, { x: number; y: number }>();
+  if (!freeFits.length) return reach;
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
     for (const f of [...freeFits].reverse()) {
       const shown = f.tree.children.filter((c) => !isOff(c.props, vars)).map((c) => nodes.get(c.id)!);
-      // A group is exactly as big as its children: they start at its top-left corner (as in Pen).
+      // A group spans its children wherever they are; in a row or column they start at the corner
+      // of its slot instead (both as in Pen). A frame spans from its own corner.
+      const from = { x: 0, y: 0 };
       if (f.tree.type === "group" && shown.length) {
         const minX = Math.min(...shown.map((cn) => cn.getComputedLeft()));
         const minY = Math.min(...shown.map((cn) => cn.getComputedTop()));
-        if (Math.abs(minX) > 0.01 || Math.abs(minY) > 0.01) {
+        if (!f.inFlow) Object.assign(from, { x: minX, y: minY });
+        else if (Math.abs(minX) > 0.01 || Math.abs(minY) > 0.01) {
           for (const cn of shown) {
             cn.setPosition(Edge.Left, cn.getComputedLeft() - minX);
             cn.setPosition(Edge.Top, cn.getComputedTop() - minY);
           }
           changed = true;
         }
+        reach.set(f.tree.id, from);
       }
       let w = 0;
       let h = 0;
       for (const cn of shown) {
-        w = Math.max(w, cn.getComputedLeft() + cn.getComputedWidth());
-        h = Math.max(h, cn.getComputedTop() + cn.getComputedHeight());
+        w = Math.max(w, cn.getComputedLeft() + cn.getComputedWidth() - from.x);
+        h = Math.max(h, cn.getComputedTop() + cn.getComputedHeight() - from.y);
       }
       if (f.w && Math.abs(f.node.getComputedWidth() - w) > 0.01) (f.node.setWidth(w), (changed = true));
       if (f.h && Math.abs(f.node.getComputedHeight() - h) > 0.01) (f.node.setHeight(h), (changed = true));
     }
-    if (!changed) return;
+    if (!changed) return reach;
     root.calculateLayout(undefined, undefined, Direction.LTR);
   }
+  return reach;
 }
 
 /** Every font face the text in `root` uses. */
@@ -276,12 +286,14 @@ export function layout(root: TreeNode, vars: Vars, text: TextEngine): Boxes {
     page.insertChild(yn, 0);
     try {
       page.calculateLayout(undefined, undefined, Direction.LTR);
-      fitFree(page, freeFits, nodes, vars);
+      const reach = fitFree(page, freeFits, nodes, vars);
       const walk = (node: TreeNode, ox: number, oy: number) => {
         const n = nodes.get(node.id)!;
         const x = ox + n.getComputedLeft();
         const y = oy + n.getComputedTop();
-        boxes.set(node.id, { x, y, w: n.getComputedWidth(), h: n.getComputedHeight() });
+        // A group's box starts where its children do, which may be left of or above its own x/y.
+        const from = reach.get(node.id) ?? { x: 0, y: 0 };
+        boxes.set(node.id, { x: x + from.x, y: y + from.y, w: n.getComputedWidth(), h: n.getComputedHeight() });
         for (const c of node.children) walk(c, x, y);
       };
       walk(top, 0, 0);

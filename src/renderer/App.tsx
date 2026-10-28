@@ -17,7 +17,7 @@ import { useEditor } from "./store.js";
 import { selectAll, selectChildren, selectParents, unionBox, type Laid } from "./canvas/pick.js";
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
 import { detachSelected, makeComponents } from "./components.js";
-import { CanvasMenu, deleteSelection, reorder } from "./chrome/CanvasMenu.js";
+import { CanvasMenu, deleteSelection, reorder, setLayout } from "./chrome/CanvasMenu.js";
 import { BrowserLiveBar, BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
 import { pageKey } from "./canvas/live-pages.js";
 import { exportSelection, type ExportFormat } from "./export.js";
@@ -25,7 +25,7 @@ import { sharedCommand } from "./settings.js";
 import { CommentLayer, CommentsPanel } from "./chrome/Comments.js";
 import { ShortcutsDialog } from "./chrome/ShortcutsDialog.js";
 import { CommandPalette } from "./chrome/CommandPalette.js";
-import { duplicateSelection, frameSelection, groupSelection, onCopy, onPaste, ungroupSelection } from "./editing.js";
+import { duplicateSelection, frameSelection, groupSelection, onCopy, onPaste, pasteToReplace, ungroupSelection } from "./editing.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,6 +63,8 @@ export function App({ initial }: { initial: string }) {
       else if (mod && e.code === "KeyG") (e.preventDefault(), groupSelection());
       else if (mod && e.key === "Backspace") (e.preventDefault(), ungroupSelection());
       else if (mod && e.code === "KeyD") (e.preventDefault(), duplicateSelection());
+      else if (mod && e.shiftKey && e.code === "KeyR") (e.preventDefault(), pasteToReplace());
+      else if (!mod && e.shiftKey && e.code === "KeyA") setLayout(e.altKey ? "none" : "vertical");
       else if (mod && e.altKey && e.code === "KeyK") (e.preventDefault(), makeComponents());
       else if (mod && e.altKey && e.code === "KeyX") (e.preventDefault(), detachSelected());
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
