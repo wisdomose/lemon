@@ -25,7 +25,7 @@ export function TopBar({ bridge, initial }: { bridge: Bridge; initial: string })
   const home = active === "home";
   return (
     <>
-      <Island className="absolute left-2 top-2 flex h-[42px] items-center rounded-full pr-2 pl-3">
+      <Island data-topbar className="absolute left-2 top-2 flex h-[42px] items-center rounded-full pr-2 pl-3">
         <div className="flex items-center gap-[5px] pr-3">
           <img src={logoUrl} alt="" className="h-4 w-4" />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">{PRODUCT.name}</span>

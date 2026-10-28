@@ -7,18 +7,20 @@ import { unionBox } from "../canvas/pick.js";
 import { store, useEditor } from "../store.js";
 import { Island } from "../ui/kit.js";
 import { MenuContent, MenuItem } from "../ui/menu.js";
+import { COMMENTS_PANEL_WIDTH } from "./Comments.js";
 
 export function ZoomControl() {
   const zoom = useEditor((s) => s.zoom);
-  // Sits 8px left of the properties panel while something is selected, as in the reference.
-  const panel = useEditor((s) => s.selection.length > 0);
+  // Sits 8px left of the properties panel while something is selected, or of the (wider) Comments
+  // panel while the Comment tool is on, as in Pen.
+  const panel = useEditor((s) => (s.tool === "comment" ? COMMENTS_PANEL_WIDTH : s.selection.length > 0 ? 221 : 0));
   const zoomToSelection = () => {
     const s = currentScene();
     const box = s && unionBox(s.boxes, store.get().selection);
     if (box) zoomToFit(true, box, 32);
   };
   return (
-    <Island className="absolute bottom-2 flex h-8 items-center gap-0.5 rounded-full px-1" style={{ right: panel ? 8 + 221 + 8 : 8 }}>
+    <Island className="absolute bottom-2 flex h-8 items-center gap-0.5 rounded-full px-1" style={{ right: panel ? 8 + panel + 8 : 8 }}>
       <button type="button" aria-label="Zoom out" onClick={() => zoomStep(-1)} className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/5">
         <Minus size={14} strokeWidth={1.5} />
       </button>

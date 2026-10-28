@@ -195,7 +195,10 @@ function onDown(e: PointerEvent) {
     } else if (tool === "pen") {
       penDown(at, screen);
     } else if (tool === "comment") {
-      startComment(at, pathAt(s, px, py).at(-1)?.id ?? null);
+      // With a thread or a new comment open, a press elsewhere only closes it (as in Pen).
+      const st = store.get();
+      if (st.commentOpen || st.commentDraft) store.set({ commentOpen: null, commentDraft: null });
+      else startComment(at, pathAt(s, px, py).at(-1)?.id ?? null);
     } else if (tool === "move" && cardPress(s, at, screen)) {
       return;
     } else if (tool === "move") {
