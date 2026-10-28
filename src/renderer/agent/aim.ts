@@ -28,10 +28,10 @@ function aim(f: Focus): Point[] {
   const type = typeOf(doc, f.id);
   if (type === "text") {
     const p = propsOf(doc, f.id);
-    const size = typeof p.size === "number" ? p.size : DEFAULTS.text.size!;
-    const lineHeight = typeof p.lineHeight === "number" ? p.lineHeight : DEFAULTS.text.lineHeight!;
-    const word = (p.text ?? "").trim().split(/\s+/)[0] ?? "";
-    const wordWidth = word.length * size * CHAR_WIDTH * (p.uppercase ? 1.15 : 1);
+    const size = typeof p.fontSize === "number" ? p.fontSize : 14;
+    const lineHeight = typeof p.lineHeight === "number" ? p.lineHeight : 1.2;
+    const word = String(p.content ?? "").trim().split(/\s+/)[0] ?? "";
+    const wordWidth = word.length * size * CHAR_WIDTH;
     return [{ x: f.x + Math.min(f.w, wordWidth + size * 0.15), y: f.y + (size * lineHeight) / 2 }];
   }
   if (f.created && f.w > 4 && f.h > 4) return [{ x: f.x, y: f.y }, { x: f.x + f.w, y: f.y + f.h }];

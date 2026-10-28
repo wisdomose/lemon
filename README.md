@@ -9,12 +9,12 @@ your own computer with your own AI subscription (Claude or Codex); nothing runs 
 
 | Part | Folder | What it does |
 |---|---|---|
-| Document | `src/doc` | Flat records in Yjs so people and agents can edit at the same time; read as a tree. |
+| Document | `src/doc` | Pen's .pen format (schema 2.21) is the native file and document model: flat records in Yjs so people and agents can edit at the same time, read as a tree; pictures are files beside the .pen. |
 | Layout | `src/layout` | Yoga (single-axis flexbox) positions every node; the automatic check finds clipped, overflowing, cut-off or low-contrast content by measuring. |
 | Text | `src/text` | Fonts from Google Fonts; text measured and drawn by the same CanvasKit paragraphs. |
 | Drawing | `src/render` | CanvasKit (Skia) draws the canvas and the agent's screenshots. |
 | Sandbox | `src/sandbox` | QuickJS (WebAssembly) runs the agent's scripts with no access to the computer. |
-| Agent | `src/agent` | The Claude Agent SDK with one tool, `execute`: a script against the document, all-or-nothing. |
+| Agent | `src/agent` | The Claude Agent SDK (or Codex) with one tool, `execute`: a script against the document in Pen's API (Insert, Update, Get, …), all-or-nothing. |
 
 The product name lives in one place: `product.json`.
 

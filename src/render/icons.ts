@@ -1,7 +1,9 @@
-// Icons: Lucide's icons (Pen uses Lucide too), drawn from Lucide's own shape data as one stroked
-// path on a 24 × 24 grid, the way Lucide draws them (2px lines, round ends and joins).
+// Icons drawn from their libraries' own shape data: Lucide and Feather, each icon one stroked path
+// on a 24 × 24 grid, the way both draw them (2px lines, round ends and joins). Pen's other icon
+// libraries are fonts (text/icon-fonts.ts).
 import type { CanvasKit, Path } from "canvaskit-wasm";
 import { icons, type IconNode } from "lucide";
+import featherIcons from "feather-icons/dist/icons.json" with { type: "json" };
 
 /** Lucide's grid and line width. */
 export const ICON_GRID = 24;
@@ -15,8 +17,23 @@ const pascal = (name: string) =>
     .map((p) => p[0]!.toUpperCase() + p.slice(1))
     .join("");
 
-/** Whether Lucide has an icon by this name ("arrow-right"). */
-export const hasIcon = (name: string) => !!(icons as Record<string, IconNode>)[pascal(name)];
+/** The libraries drawn from shape data. */
+export type ShapeLibrary = "lucide" | "feather";
+
+/** Whether a library has an icon by this name ("arrow-right"). */
+export const hasIcon = (name: string, library: ShapeLibrary = "lucide") =>
+  library === "feather" ? Object.hasOwn(featherIcons, name) : !!(icons as Record<string, IconNode>)[pascal(name)];
+
+/** A Feather icon's SVG elements, as Lucide's shape list: [tag, attributes]. */
+function featherShapes(svg: string): IconNode {
+  const out: [string, Record<string, string>][] = [];
+  for (const m of svg.matchAll(/<(\w+)([^>]*?)\/?>/g)) {
+    const attrs: Record<string, string> = {};
+    for (const a of m[2]!.matchAll(/([\w-]+)="([^"]*)"/g)) attrs[a[1]!] = a[2]!;
+    out.push([m[1]!, attrs]);
+  }
+  return out as unknown as IconNode;
+}
 
 const n = (v: unknown) => Number(v ?? 0);
 
@@ -56,13 +73,19 @@ function shapePath([tag, a]: IconNode[number]): string {
 
 const cache = new WeakMap<CanvasKit, Map<string, Path | null>>();
 
-/** The icon's path on Lucide's 24 × 24 grid (null when Lucide has no icon by that name). Owned by the cache. */
-export function iconPath(ck: CanvasKit, name: string): Path | null {
+/** The icon's path on the 24 × 24 grid (null when the library has no icon by that name). Owned by the cache. */
+export function iconPath(ck: CanvasKit, name: string, library: ShapeLibrary = "lucide"): Path | null {
   let byName = cache.get(ck);
   if (!byName) cache.set(ck, (byName = new Map()));
-  if (byName.has(name)) return byName.get(name)!;
-  const node = (icons as Record<string, IconNode>)[pascal(name)];
+  const key = `${library}:${name}`;
+  if (byName.has(key)) return byName.get(key)!;
+  const node =
+    library === "feather"
+      ? Object.hasOwn(featherIcons, name)
+        ? featherShapes((featherIcons as Record<string, string>)[name]!)
+        : undefined
+      : (icons as Record<string, IconNode>)[pascal(name)];
   const path = node ? ck.Path.MakeFromSVGString(node.map(shapePath).join("")) : null;
-  byName.set(name, path);
+  byName.set(key, path);
   return path;
 }

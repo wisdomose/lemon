@@ -19,7 +19,8 @@ export interface ExecuteResult {
   error?: { name: string; message: string; line?: number };
   /** Values the script left on the global object, for the agent's next script (the input's on failure). */
   globals: Globals;
-  refs: Record<string, string>;
+  /** Nodes the script made (Pen returns names → ids): id, type and name. */
+  created: { id: string; name?: string; type: string }[];
   logs: string[];
   /** Changes skipped because a person had just made their own (see doc/live.ts, rule b). */
   leftAlone: string[];
@@ -245,7 +246,7 @@ export class LiveRun {
         ok: false,
         error: this.error ?? { name: "Error", message: "The script was stopped." },
         globals: this.globals,
-        refs: {},
+        created: [],
         logs: s.logs,
         leftAlone: [],
         issues: [],
@@ -267,7 +268,7 @@ export class LiveRun {
       ok: true,
       value: this.returned?.value,
       globals,
-      refs: s.refs,
+      created: s.created,
       logs: s.logs,
       leftAlone: s.leftAlone,
       issues,

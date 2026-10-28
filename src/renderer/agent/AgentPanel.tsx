@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronsUpDown, CircleCheck, CircleX, Plus } from "lucide-react";
 import { AGENTS } from "../../agent/models.js";
 import { useEditor, type ChatItem } from "../store.js";
+import { CHAT_ZOOM, useSettings } from "../settings.js";
 import { markdown } from "../markdown.js";
 import { cx } from "../ui/kit.js";
 import { clearHistory, formatDuration, newSession, openSession, sendPrompt } from "./chat.js";
@@ -34,6 +35,7 @@ export function AgentPanel() {
   const chat = useEditor((s) => s.chat);
   const session = useEditor((s) => s.session);
   const status = useEditor((s) => s.agentStatus);
+  const { chatTextSize } = useSettings();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex gap-[9px] px-3 pb-3.5">
@@ -47,7 +49,10 @@ export function AgentPanel() {
         </button>
       </div>
       <div className="h-px bg-line" />
-      {chat.length ? <Thread chat={chat} status={status} /> : <EmptyState />}
+      {/* View › Agent Chat Text Size. */}
+      <div className="flex min-h-0 flex-1 flex-col" style={{ zoom: CHAT_ZOOM[chatTextSize] }}>
+        {chat.length ? <Thread chat={chat} status={status} /> : <EmptyState />}
+      </div>
     </div>
   );
 }

@@ -19,7 +19,9 @@ export type Rect = Box;
 
 const contains = (b: Box | undefined, x: number, y: number) => !!b && x >= b.x && y >= b.y && x <= b.x + b.w && y <= b.y + b.h;
 const touches = (a: Box | undefined, b: Rect) => !!a && a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
-const shown = (n: TreeNode) => n.props.visible !== false;
+const shown = (n: TreeNode) => n.props.enabled !== false;
+/** What can be picked inside a node: a script's output is part of it, so nothing. */
+const inside = (n: TreeNode) => (n.type === "script" ? [] : n.children);
 
 /** The parent of every node, by id. */
 export function parents(tree: TreeNode): Map<string, TreeNode> {
@@ -37,7 +39,8 @@ export function pathAt(s: Laid, x: number, y: number): TreeNode[] {
     const hit = [...level].reverse().find((n) => shown(n) && contains(s.boxes.get(n.id), x, y));
     if (!hit) return path;
     path.push(hit);
-    level = hit.children;
+    // What a script draws is part of it: a click picks the script node.
+    level = inside(hit);
   }
 }
 
@@ -55,19 +58,20 @@ export function clickPick(s: Laid, x: number, y: number, selection: string[], de
     if (i > 0 && scopes.has(path[i - 1]!.id)) return path[i]!.id;
   }
   if (path.length > 1) return path[1]!.id;
-  return path[0]!.children.length ? null : path[0]!.id;
+  return inside(path[0]!).length ? null : path[0]!.id;
 }
 
 /**
  * What a double-click selects: one level into the selected node under the pointer. `edit` says the
- * double-click was on a selected text, which then opens for typing.
+ * double-click was on a selected text or card, which then opens for typing.
  */
 export function doubleClickPick(s: Laid, x: number, y: number, selection: string[]): { id: string | null; edit?: boolean } {
   const path = pathAt(s, x, y);
   const selected = new Set(selection);
   for (let i = path.length - 1; i >= 0; i--) {
     if (!selected.has(path[i]!.id)) continue;
-    if (path[i]!.type === "text") return { id: path[i]!.id, edit: true };
+    // A text, or a note, prompt or context card, opens for typing.
+    if (["text", "note", "prompt", "context"].includes(path[i]!.type)) return { id: path[i]!.id, edit: true };
     const next = path[i + 1];
     if (next) return { id: next.id };
   }
@@ -76,9 +80,9 @@ export function doubleClickPick(s: Laid, x: number, y: number, selection: string
 
 /** The deepest nodes (without children) inside `n` that `rect` touches. */
 function leavesTouching(s: Laid, n: TreeNode, rect: Rect, out: string[]): void {
-  for (const c of n.children) {
+  for (const c of inside(n)) {
     if (!shown(c) || !touches(s.boxes.get(c.id), rect)) continue;
-    if (c.children.length) leavesTouching(s, c, rect, out);
+    if (inside(c).length) leavesTouching(s, c, rect, out);
     else out.push(c.id);
   }
 }
@@ -92,13 +96,13 @@ export function boxPick(s: Laid, rect: Rect, from: { x: number; y: number }, dee
     leavesTouching(s, scope, rect, out);
     return out;
   }
-  return scope.children.filter((c) => shown(c) && touches(s.boxes.get(c.id), rect)).map((c) => c.id);
+  return inside(scope).filter((c) => shown(c) && touches(s.boxes.get(c.id), rect)).map((c) => c.id);
 }
 
 /** Enter: the children of the selected frames (the selection stays if none has children). */
 export function selectChildren(s: Laid, selection: string[]): string[] {
   const byId = index(s.tree);
-  const out = selection.flatMap((id) => byId.get(id)?.children.map((c) => c.id) ?? []);
+  const out = selection.flatMap((id) => { const n = byId.get(id); return n ? inside(n).map((c) => c.id) : []; });
   return out.length ? out : selection;
 }
 

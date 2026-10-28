@@ -6,7 +6,7 @@ import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
-export type Tool = "move" | "rect" | "ellipse" | "pen" | "text" | "frame" | "note" | "browser" | "hand";
+export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand" | "comment";
 
 /**
  * One thing in the chat. Items from one of several agents carry `agent` (its place in the team), and
@@ -64,6 +64,22 @@ export interface EditorState {
   history: Session[];
   /** The file this window shows. */
   file: FileInfo;
+  /** A card's kind menu, open at a screen point (a click on a selected card's header). */
+  cardMenu: { id: string; x: number; y: number } | null;
+  /** The browser node whose address is being typed. */
+  urlEdit: string | null;
+  /** The browser node whose page is in use (a double-click): the pointer, wheel and keys go to the page. */
+  browserLive: string | null;
+  /** A comment being written where the Comment tool clicked (on a node, from its corner, or on the page). */
+  commentDraft: { node?: string; x: number; y: number } | null;
+  /** The comment thread shown beside its pin. */
+  commentOpen: string | null;
+  /** Comment pins on the canvas (Shift+C, or the eye in the Comments panel). */
+  showComments: boolean;
+  shortcutsOpen: boolean;
+  paletteOpen: boolean;
+  /** The left column (panel and chat box), Ctrl+\. */
+  panelOpen: boolean;
 }
 
 export interface Session {
@@ -90,6 +106,15 @@ const initial: EditorState = {
   settingsOpen: false,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
+  cardMenu: null,
+  urlEdit: null,
+  browserLive: null,
+  commentDraft: null,
+  commentOpen: null,
+  showComments: true,
+  shortcutsOpen: false,
+  paletteOpen: false,
+  panelOpen: true,
 };
 
 let state = initial;

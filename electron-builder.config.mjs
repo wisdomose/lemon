@@ -18,11 +18,13 @@ export default {
     // which Lemon turns off.
     "!node_modules/@openai/**/codex-resources/voice/**",
     "!node_modules/@openai/**/codex-path/**",
+    // Phosphor's icons are drawn from its TrueType fonts (src/text/icon-fonts.ts); the rest of its web package isn't needed.
+    "!node_modules/@phosphor-icons/web/src/**/*.{svg,woff,woff2,css,json,js}",
   ],
   // Packages with native binaries or WebAssembly must stay outside the app archive to be loadable.
   asarUnpack: ["node_modules/@anthropic-ai/**", "node_modules/@openai/**", "node_modules/canvaskit-wasm/**", "node_modules/quickjs-emscripten*/**", "node_modules/@jitl/**"],
   // Double-clicking a design file opens it in the app.
-  fileAssociations: [{ ext: product.fileExtension, name: `${product.name} design`, role: "Editor" }],
+  fileAssociations: [{ ext: product.fileExtension, name: "Pen design", role: "Editor" }],
   artifactName: `${product.slug}-\${version}-\${os}-\${arch}.\${ext}`,
   win: { target: [{ target: "nsis", arch: ["x64"] }] },
   nsis: { oneClick: false, allowToChangeInstallationDirectory: true },

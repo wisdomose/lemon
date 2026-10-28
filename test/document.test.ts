@@ -6,38 +6,48 @@ import * as store from "../src/doc/store.js";
 describe("document store", () => {
   it("inserts nested nodes, keeps sibling order, and reads back as a tree", () => {
     const doc = new Y.Doc();
-    const refs: Record<string, string> = {};
     const id = store.insert(doc, ROOT_ID, {
       type: "frame",
       name: "Card",
       children: [
-        { type: "text", text: "B", ref: "b" },
-        { type: "text", text: "C" },
+        { type: "text", content: "B" },
+        { type: "text", content: "C" },
       ],
-    }, undefined, refs);
-    store.insert(doc, id, { type: "text", text: "A" }, 0);
+    });
+    store.insert(doc, id, { type: "text", content: "A" }, 0);
     const tree = store.toTree(doc);
-    expect(tree.children[0]!.children.map((c) => c.props.text)).toEqual(["A", "B", "C"]);
-    expect(refs.b).toBeTypeOf("string");
+    expect(tree.children[0]!.children.map((c) => c.props.content)).toEqual(["A", "B", "C"]);
+    // New nodes get new ids like Pen's, whatever id they are given.
+    expect(id).toMatch(/^[A-Za-z0-9]{5}$/);
+    expect(store.insert(doc, ROOT_ID, { type: "frame", id: "mine" })).not.toBe("mine");
   });
 
   it("moves, updates and removes", () => {
     const doc = new Y.Doc();
     const a = store.insert(doc, ROOT_ID, { type: "frame", name: "A" });
     const b = store.insert(doc, ROOT_ID, { type: "frame", name: "B" });
-    const t = store.insert(doc, a, { type: "text", text: "hi" });
+    const t = store.insert(doc, a, { type: "text", content: "hi" });
     store.move(doc, t, b);
-    store.update(doc, t, { text: "hello", size: 20 });
-    expect(store.toTree(doc, b).children[0]!.props).toMatchObject({ text: "hello", size: 20 });
+    store.update(doc, t, { content: "hello", fontSize: 20 });
+    expect(store.toTree(doc, b).children[0]!.props).toMatchObject({ content: "hello", fontSize: 20 });
     expect(() => store.move(doc, a, a)).toThrow(/inside itself/);
+    expect(() => store.update(doc, t, { type: "frame" } as never)).toThrow(/not `type`/);
     store.remove(doc, b);
     expect(store.exists(doc, t)).toBe(false);
   });
 
-  it("rejects children on non-frames and unknown types", () => {
+  it("rejects children on what can't have them, and unknown types", () => {
     const doc = new Y.Doc();
-    expect(() => store.insert(doc, ROOT_ID, { type: "text", children: [] } as never)).toThrow(/cannot have children/);
+    expect(() => store.insert(doc, ROOT_ID, { type: "text", children: [{ type: "text" }] })).toThrow(/can't have children/);
+    const t = store.insert(doc, ROOT_ID, { type: "rectangle" });
+    expect(() => store.insert(doc, t, { type: "text" })).toThrow(/only frames and groups/);
     expect(() => store.insert(doc, ROOT_ID, { type: "blob" } as never)).toThrow(/Unknown node type/);
+  });
+
+  it("keeps properties it doesn't know", () => {
+    const doc = new Y.Doc();
+    const id = store.insert(doc, ROOT_ID, { type: "frame", somethingNew: { a: 1 } });
+    expect(store.propsOf(doc, id)).toMatchObject({ somethingNew: { a: 1 } });
   });
 
   it("staging leaves the document untouched when the work fails", () => {
@@ -59,7 +69,7 @@ describe("document store", () => {
     const updates: unknown[] = [];
     doc.on("update", (_u, origin) => updates.push(origin));
     const staged = store.stage(doc, (copy) => {
-      store.insert(copy, frame, { type: "text", text: "from agent" });
+      store.insert(copy, frame, { type: "text", content: "from agent" });
       store.update(copy, frame, { gap: 12 });
     });
     store.update(doc, frame, { name: "Renamed by person" }); // happens while the agent works
@@ -67,6 +77,16 @@ describe("document store", () => {
     expect(updates.filter((o) => o === "agent")).toHaveLength(1);
     const t = store.toTree(doc, frame);
     expect(t.props).toMatchObject({ name: "Renamed by person", gap: 12 });
-    expect(t.children[0]!.props.text).toBe("from agent");
+    expect(t.children[0]!.props.content).toBe("from agent");
+  });
+
+  it("sets variables with their types, adding the theme axes they use", () => {
+    const doc = new Y.Doc();
+    store.setVariables(doc, { ink: { type: "color", value: [{ value: "#000000", theme: { mode: "light" } }, { value: "#ffffff", theme: { mode: "dark" } }] } });
+    expect(store.getThemes(doc)).toEqual({ mode: ["light", "dark"] });
+    expect(store.getVars(doc)).toEqual({ ink: "#000000" });
+    expect(() => store.setVariables(doc, { bad: "#fff" as never })).toThrow(/needs \{ type/);
+    store.setVariables(doc, { gap: { type: "number", value: 8 } }, true);
+    expect(Object.keys(store.getVariables(doc))).toEqual(["gap"]);
   });
 });

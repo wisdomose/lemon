@@ -13,15 +13,15 @@ const response = { reply: "Done", durationMs: 1, tokens: { input: 10, output: 2,
 beforeEach(() => { provider.mockReset(); });
 
 describe("Codex canvas integration", () => {
-  it("executes validated scripts, rolls back failures, and clears generating marks", async () => {
+  it("executes validated scripts, rolls back failures, and clears placeholder marks", async () => {
     const doc = new Y.Doc();
     const events: AgentEvent[] = [];
     provider.mockImplementation(async (o) => {
       expect(() => o.tool!.call({ title: 42 })).toThrow();
-      const failed = await o.tool!.call({ title: "Failed step", script: 'doc.insert(null, { type: "frame", name: "Discard" }); throw new Error("undo");' });
+      const failed = await o.tool!.call({ title: "Failed step", script: 'Insert(document, { type: "frame", name: "Discard" }); throw new Error("undo");' });
       expect(failed.isError).toBe(true);
       expect(toTree(doc).children).toHaveLength(0);
-      const valid = await o.tool!.call({ title: "Draw frame", script: 'doc.insert(null, { type: "frame", name: "Keep", width: 200, height: 100, generating: true });' });
+      const valid = await o.tool!.call({ title: "Draw frame", script: 'Insert(document, { type: "frame", name: "Keep", width: 200, height: 100, placeholder: true });' });
       expect(valid.isError).toBeUndefined();
       o.onText?.("Done", "reply");
       return response;
@@ -30,7 +30,7 @@ describe("Codex canvas integration", () => {
     expect(stats.ok).toBe(true);
     expect(stats.steps.map((s) => s.ok)).toEqual([false, true]);
     expect(toTree(doc).children.map((c) => c.props.name)).toEqual(["Keep"]);
-    expect(toTree(doc).children[0]!.props.generating).toBeUndefined();
+    expect(toTree(doc).children[0]!.props.placeholder).toBeUndefined();
     expect(events).toContainEqual({ type: "text", text: "Done", streamId: "reply" });
     expect(events.at(-1)?.type).toBe("done");
   });
@@ -44,7 +44,7 @@ describe("Codex canvas integration", () => {
       expect(o.effort).toBe("ultra");
       if (!o.tool) { planning++; return { ...response, reply: plan }; }
       building++;
-      const r = await o.tool.call({ title: "Build part", script: 'doc.insert(mine, { type: "rect", width: 10, height: 10 });' });
+      const r = await o.tool.call({ title: "Build part", script: 'Insert(mine, { type: "rectangle", width: 10, height: 10 });' });
       expect(r.isError).toBeUndefined();
       return response;
     });

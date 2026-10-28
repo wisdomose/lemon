@@ -1,44 +1,37 @@
-// The Dashboard (PRD "Dashboard window", capture 01): a sidebar (Recents, Drafts, Design Systems), a
-// header with Open File and New File, the prompt starter, the import tiles and the file browser.
-// Sizes measured from capture 01 (the window's content is 1426 × 896; the native title and menu bars
-// take the rest).
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+// Home, as in Pen's: the Home tab of the window, under the same top bar as a file. The prompt starter
+// (the kinds of design, the prompt, the import tiles) sits in the middle, the files below it (Recents,
+// Drafts and Design Systems, as a grid or a list). Sizes measured from Pen's Home at 1920 x 1080.
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Dialog as D } from "radix-ui";
 import {
   AppWindow,
   ArrowUp,
-  Clock,
-  FilePen,
   FilePlus2,
-  FolderOpen,
   GalleryHorizontalEnd,
   Globe,
   ImagePlus,
   LayoutDashboard,
   Plus,
   Presentation,
-  Shapes,
   Smartphone,
   X,
   type LucideIcon,
 } from "lucide-react";
-import logoUrl from "../../../assets/logo.svg?url";
-import { PRODUCT } from "../../product.js";
 import { bridge, type DashboardFiles } from "../bridge.js";
 import { SettingsDialog } from "../chrome/SettingsDialog.js";
-import { setSetting, useSettings } from "../settings.js";
+import { setSetting, sharedCommand, useSettings } from "../settings.js";
 import { store } from "../store.js";
 import { cx } from "../ui/kit.js";
 import { PromptEditor, type PromptEditorHandle } from "../agent/PromptEditor.js";
 import { ParallelAgents, Variants } from "../agent/RunOptions.js";
 import { ModelPicker } from "../agent/ModelPicker.js";
 import { FileBrowser } from "./FileBrowser.js";
+import { TopBar } from "../chrome/TopBar.js";
 
-
-type Page = "recents" | "drafts" | "systems";
+/** The account's initial in the top bar (as the editor's page reads it). */
+const initial = new URLSearchParams(location.search).get("initial") ?? "Y";
 
 export function Dashboard() {
-  const [page, setPage] = useState<Page>("recents");
   const [files, setFiles] = useState<DashboardFiles>({ recents: [], drafts: [] });
   const settings = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -46,7 +39,7 @@ export function Dashboard() {
     void bridge.dashboard.files().then(setFiles);
     bridge.dashboard.onFiles(setFiles);
     // Settings opens here too: File › Settings… and Ctrl+, (as in the editor).
-    bridge.onMenuCommand((command) => command === "settings" && setSettingsOpen(true));
+    bridge.onMenuCommand((command) => (command === "settings" ? setSettingsOpen(true) : sharedCommand(command)));
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === ",") (e.preventDefault(), setSettingsOpen(true));
     };
@@ -54,82 +47,15 @@ export function Dashboard() {
     return () => removeEventListener("keydown", onKey);
   }, []);
   return (
-    <div className="flex h-full bg-card text-foreground">
-      <Sidebar page={page} onPage={setPage} />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center pr-4 pl-4">
-          <h1 className="text-[15px] font-semibold">Dashboard</h1>
-          <button
-            type="button"
-            onClick={() => void bridge.dashboard.openDialog()}
-            className="ml-auto flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-          >
-            <FolderOpen size={14} strokeWidth={1.5} /> Open File
-          </button>
-          <button
-            type="button"
-            onClick={() => void bridge.dashboard.newFile()}
-            className="ml-2 flex h-7 items-center gap-1.5 rounded-[8px] bg-white pr-3 pl-2.5 text-[13px] font-semibold text-zinc-900 hover:bg-zinc-200"
-          >
-            <Plus size={14} strokeWidth={1.75} /> New File
-          </button>
-        </header>
-        {/* A 10px scrollbar gutter on the right, as in the capture. */}
-        <div className="min-h-0 flex-1 overflow-y-scroll pr-0 pb-6 pl-5">
-          <div className="pr-5">
-            {settings.dashboardPrompt && <PromptStarter onHide={() => setSetting("dashboardPrompt", false)} />}
-            {page === "systems" ? (
-              <Empty title="Design Systems">Starter design systems come in a later version.</Empty>
-            ) : (
-              <FileBrowser
-                key={page}
-                title={page === "recents" ? "Recents" : "Drafts"}
-                files={page === "recents" ? files.recents : files.drafts}
-                drafts={page === "drafts"}
-                bridge={bridge}
-                empty={
-                  page === "recents"
-                    ? "Files you open show up here."
-                    : "New files are kept here until you save them somewhere else."
-                }
-              />
-            )}
-          </div>
-        </div>
-      </main>
+    <div className="relative h-full bg-background text-foreground">
+      {/* The page scrolls under the top bar, which floats over it as over a file. */}
+      <div className="h-full overflow-y-auto px-5 pt-[58px]">
+        {settings.dashboardPrompt && <PromptStarter onHide={() => setSetting("dashboardPrompt", false)} />}
+        <FileBrowser files={files} bridge={bridge} />
+      </div>
+      <TopBar bridge={bridge} initial={initial} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
-  );
-}
-
-function Sidebar({ page, onPage }: { page: Page; onPage: (p: Page) => void }) {
-  const item = (p: Page, icon: LucideIcon, label: string) => {
-    const Icon = icon;
-    return (
-      <button
-        type="button"
-        onClick={() => onPage(p)}
-        className={cx(
-          "flex h-[30px] w-full items-center gap-2 rounded-[8px] px-2 text-[13px]",
-          page === p ? "bg-sidebar-accent font-semibold text-foreground" : "text-foreground/90 hover:bg-sidebar-accent/60",
-        )}
-      >
-        <Icon size={15} strokeWidth={1.5} className="text-muted-foreground" />
-        {label}
-      </button>
-    );
-  };
-  return (
-    <nav className="flex w-[225px] shrink-0 flex-col border-r border-border bg-sidebar px-[11px]">
-      <div className="flex h-12 items-center gap-1.5 pl-1.5">
-        <img src={logoUrl} alt="" className="h-[18px] w-[18px]" />
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground">{PRODUCT.name}</span>
-      </div>
-      {item("recents", Clock, "Recents")}
-      {item("drafts", FilePen, "Drafts")}
-      <div className="mt-[18px] mb-1.5 pl-2 text-[11px] tracking-wide text-muted-foreground uppercase">Templates</div>
-      {item("systems", Shapes, "Design Systems")}
-    </nav>
   );
 }
 
@@ -169,7 +95,7 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
       >
         <X size={14} strokeWidth={1.5} />
       </button>
-      <div className="mx-auto w-[768px] pt-12">
+      <div className="mx-auto w-[768px] pt-[42px]">
         {/* Neutral hover and keyboard-focus rings override Chromium's yellow accent outline. */}
         <div className="flex justify-center gap-2">
           {KINDS.map((k, i) => {
@@ -295,14 +221,5 @@ function Tile({ icon: Icon, label }: { icon: LucideIcon | typeof FigmaMark; labe
       <Icon size={16} strokeWidth={1.5} />
       {label}
     </button>
-  );
-}
-
-export function Empty({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="mt-10">
-      <h2 className="text-[13px] tracking-wide text-foreground uppercase">{title}</h2>
-      <p className="mt-6 text-[13px] text-muted-foreground">{children}</p>
-    </section>
   );
 }

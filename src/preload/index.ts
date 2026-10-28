@@ -30,6 +30,41 @@ const bridge: Bridge = {
   startPrompt: () => ipcRenderer.invoke("agent:start-prompt"),
   notice: () => ipcRenderer.invoke("editor:notice"),
   showDashboard: () => ipcRenderer.invoke("dashboard:show"),
+  browser: {
+    onFrame: (fn) => {
+      ipcRenderer.on("browser:frame", (_e, id, frame) => fn(id, frame));
+    },
+    onCursor: (fn) => {
+      ipcRenderer.on("browser:cursor", (_e, id, cursor) => fn(id, cursor));
+    },
+    onClosed: (fn) => {
+      ipcRenderer.on("browser:closed", (_e, id) => fn(id));
+    },
+    input: (id, ev) => ipcRenderer.send("browser:input", id, ev),
+    command: (id, what) => ipcRenderer.invoke("browser:command", id, what),
+    repaint: () => ipcRenderer.send("browser:repaint"),
+  },
+  menuState: (state) => ipcRenderer.send("menu:state", state),
+  who: () => ipcRenderer.invoke("app:who"),
+  reloadComments: () => ipcRenderer.invoke("comments:reload"),
+  appCommand: (command) => ipcRenderer.invoke("app:command", command),
+  saveExport: (bytes, name, ext) => ipcRenderer.invoke("export:save", bytes, name, ext),
+  scripts: {
+    onOutput: (fn) => {
+      ipcRenderer.on("script:output", (_e, id, out) => fn(id, out));
+    },
+    choose: () => ipcRenderer.invoke("script:choose"),
+    reveal: (uri) => ipcRenderer.invoke("script:reveal", uri),
+  },
+  tabs: {
+    get: () => ipcRenderer.invoke("tabs:get"),
+    onChange: (fn) => {
+      ipcRenderer.on("tabs:state", (_e, tabs) => fn(tabs));
+    },
+    show: (id) => ipcRenderer.invoke("tabs:show", id),
+    close: (id) => ipcRenderer.invoke("tabs:close", id),
+    newFile: () => ipcRenderer.invoke("tabs:new"),
+  },
   dashboard: {
     files: () => ipcRenderer.invoke("dashboard:files"),
     onFiles: (fn) => {
@@ -40,6 +75,7 @@ const bridge: Bridge = {
     openDialog: () => ipcRenderer.invoke("dashboard:open-dialog"),
     reveal: (path) => ipcRenderer.invoke("dashboard:reveal", path),
     forget: (path) => ipcRenderer.invoke("dashboard:forget", path),
+    rename: (path, name) => ipcRenderer.invoke("dashboard:rename", path, name),
     deleteDraft: (path) => ipcRenderer.invoke("dashboard:delete", path),
   },
 };

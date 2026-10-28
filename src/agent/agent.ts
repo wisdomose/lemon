@@ -103,7 +103,7 @@ function notRun(message: string, globals: Globals): ExecuteResult {
     ok: false,
     error: { name: "EditError", message },
     globals,
-    refs: {},
+    created: [],
     logs: [],
     leftAlone: [],
     issues: [],
@@ -125,7 +125,11 @@ function summarise(r: ExecuteResult, editId?: string): string {
       const v = JSON.stringify(r.value);
       lines.push(`Returned: ${v.length > 6000 ? v.slice(0, 6000) + " …(cut)" : v}`);
     }
-    if (Object.keys(r.refs).length) lines.push(`Refs: ${JSON.stringify(r.refs)}`);
+    const named = r.created.filter((c) => c.name);
+    if (named.length) {
+      const shown = named.slice(0, 120);
+      lines.push(`Created (name → id):\n${shown.map((c) => `- ${c.name} → ${c.id}`).join("\n")}${named.length > shown.length ? `\n…and ${named.length - shown.length} more` : ""}`);
+    }
     const kept = Object.keys(r.globals);
     if (kept.length) lines.push(`Globals kept for your next scripts: ${kept.join(", ")}.`);
     if (r.leftAlone.length) {
@@ -228,7 +232,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     } else if (ev.type === "content_block_stop" && ev.index === writing?.block) writing = undefined;
   };
 
-  const toolDescription = "Run a JavaScript script against the design document (global `doc`). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().";
+  const toolDescription = "Run a JavaScript snippet against the .pen document (Insert, Copy, Update, Replace, Move, Delete, Get, SetVariables, GetVariables, FindEmptySpace, Print, TakeScreenshot). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the names → ids of the nodes it made, Print lines, the automatic layout check and any screenshots taken with TakeScreenshot.";
   const toolSchema = z.object({
       title: z.string().describe("A short plain-language name for this step, shown to the person."),
       script: z.string().optional().describe("The script: a function body; `return` a value to get it back. Leave out when sending edits."),
@@ -405,8 +409,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   for (const run of live.values()) await run.cancel();
   // A frame the agent left marked as being built (it stopped, or forgot) is no longer being built.
   // Only its own: other agents may still be building theirs.
-  const marked = [...touched].filter((id) => nodesOf(o.doc).get(id)?.get("generating") && !o.leaveMarked?.includes(id));
-  if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("generating")), new AgentChange(o.name ?? "agent", steps.length));
+  const marked = [...touched].filter((id) => nodesOf(o.doc).get(id)?.get("placeholder") && !o.leaveMarked?.includes(id));
+  if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("placeholder")), new AgentChange(o.name ?? "agent", steps.length));
   stats.durationMs = performance.now() - started;
   personEdits.dispose();
   emit({ type: "done", stats });

@@ -1,8 +1,8 @@
 // Pictures in the window: choosing one for a fill (the colour picker's Image tab), showing one in the
 // picker, and dropping picture files onto the canvas, where each becomes an image the size of the
 // picture (no wider than MAX_SIDE), in the frame it was dropped on.
-import { assetId, assetsOf, putAsset } from "../doc/assets.js";
-import { ROOT_ID, type ImageFill, type NodeSpec } from "../doc/schema.js";
+import { assetsOf, pictureUrl, putAsset } from "../doc/assets.js";
+import { ROOT_ID, type ImageFill, type PenNode } from "../doc/schema.js";
 import * as docStore from "../doc/store.js";
 import type { PictureSource } from "./ui/ColourPicker.js";
 import { flowSlot, flows, frameAt } from "./canvas/place.js";
@@ -14,15 +14,15 @@ const ACCEPT = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 /** A dropped picture's largest side on the canvas. */
 const MAX_SIDE = 1200;
 
-/** Stores a picture file in the document; its id and natural size. */
-async function storeFile(file: Blob): Promise<{ asset: string; width: number; height: number }> {
+/** Stores a picture file in the document (saved beside the .pen as "./images/…"); its url and natural size. */
+async function storeFile(file: Blob): Promise<{ url: string; width: number; height: number }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const asset = await assetId(bytes);
+  const url = await pictureUrl(bytes);
   const bitmap = await createImageBitmap(file);
   const size = { width: bitmap.width, height: bitmap.height };
   bitmap.close();
-  edit(() => putAsset(doc, asset, bytes));
-  return { asset, ...size };
+  edit(() => putAsset(doc, url, bytes));
+  return { url, ...size };
 }
 
 /** Asks for a picture file; its fill once stored. */
@@ -34,7 +34,7 @@ function choose(): Promise<ImageFill | undefined> {
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return resolve(undefined);
-      storeFile(file).then(({ asset }) => resolve({ type: "image", asset, fit: "cover" }), () => resolve(undefined));
+      storeFile(file).then(({ url }) => resolve({ type: "image", url, mode: "cover" }), () => resolve(undefined));
     };
     input.addEventListener("cancel", () => resolve(undefined));
     input.click();
@@ -43,13 +43,13 @@ function choose(): Promise<ImageFill | undefined> {
 
 const urls = new Map<string, string>();
 /** A picture's address for <img> (made once per picture). */
-function url(asset: string): string | undefined {
-  const known = urls.get(asset);
+function url(picture: string): string | undefined {
+  const known = urls.get(picture);
   if (known) return known;
-  const bytes = assetsOf(doc).get(asset);
+  const bytes = assetsOf(doc).get(picture);
   if (!bytes) return undefined;
   const made = URL.createObjectURL(new Blob([bytes as BlobPart]));
-  urls.set(asset, made);
+  urls.set(picture, made);
   return made;
 }
 
@@ -69,7 +69,7 @@ export async function placePictures(files: File[], x: number, y: number): Promis
   edit(() => {
     for (const p of stored) {
       const k = Math.min(1, MAX_SIDE / Math.max(p.width, p.height));
-      const spec: NodeSpec = { type: "image", name: p.name, width: Math.round(p.width * k), height: Math.round(p.height * k), fill: { type: "image", asset: p.asset, fit: "cover" } };
+      const spec: PenNode = { type: "rectangle", name: p.name, width: Math.round(p.width * k), height: Math.round(p.height * k), fill: { type: "image", url: p.url, mode: "cover" } };
       if (flows(container)) ids.push(docStore.insert(doc, container.id, spec, flowSlot(s, container, x, y).index));
       else {
         const cb = container.id === ROOT_ID ? { x: 0, y: 0 } : s.boxes.get(container.id)!;

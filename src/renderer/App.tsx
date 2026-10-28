@@ -1,7 +1,6 @@
 // The editor window: full-window canvas with the floating islands over it.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
-import * as docStore from "../doc/store.js";
 import { attach, schedule, setZoom, zoomStep, zoomToFit } from "./canvas/canvas.js";
 import { attachGestures, canvasKey, canvasKeyUp } from "./canvas/gestures.js";
 import { ChatInput } from "./agent/ChatInput.js";
@@ -10,18 +9,30 @@ import { PropertiesPanel } from "./chrome/PropertiesPanel.js";
 import { ToolRail } from "./chrome/ToolRail.js";
 import { TopBar } from "./chrome/TopBar.js";
 import { ZoomControl } from "./chrome/ZoomControl.js";
-import { bridge, doc, edit, currentScene, history } from "./scene.js";
+import { bridge, currentScene, history } from "./scene.js";
 import { store } from "./store.js";
 import { TipProvider } from "./ui/kit.js";
-import { ContextContent, ContextItem, ContextRoot, ContextSeparator, ContextSub, ContextTrigger } from "./ui/menu.js";
+import { ContextRoot, ContextTrigger } from "./ui/menu.js";
 import { useEditor } from "./store.js";
 import { selectAll, selectChildren, selectParents, unionBox, type Laid } from "./canvas/pick.js";
 import { SettingsDialog } from "./chrome/SettingsDialog.js";
 import { detachSelected, makeComponents } from "./components.js";
+import { CanvasMenu, deleteSelection, reorder, setLayout } from "./chrome/CanvasMenu.js";
+import { BrowserLiveBar, BrowserUrlField, CardKindMenu } from "./chrome/CanvasFields.js";
+import { pageKey } from "./canvas/live-pages.js";
+import { exportSelection, type ExportFormat } from "./export.js";
+import { sharedCommand } from "./settings.js";
+import { CommentLayer, CommentsPanel } from "./chrome/Comments.js";
+import { ShortcutsDialog } from "./chrome/ShortcutsDialog.js";
+import { CommandPalette } from "./chrome/CommandPalette.js";
+import { duplicateSelection, frameSelection, groupSelection, onCopy, onPaste, pasteToReplace, ungroupSelection } from "./editing.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const panelOpen = useEditor((s) => s.panelOpen);
+  // The Comment tool swaps the properties panel for the comments, as in Pen.
+  const commenting = useEditor((s) => s.tool === "comment");
+  const setPanelOpen = (fn: (o: boolean) => boolean) => store.set((s) => ({ panelOpen: fn(s.panelOpen) }));
   useEffect(() => {
     const detach = [attach(canvasRef.current!), attachGestures(canvasRef.current!)];
     return () => detach.forEach((d) => d());
@@ -31,10 +42,29 @@ export function App({ initial }: { initial: string }) {
       const target = e.target as HTMLElement;
       // Keys typed into a text field (including the prompt editor) are not shortcuts.
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      // A browser page in use takes the keys; Escape stops using it.
+      const live = store.get().browserLive;
+      if (live) {
+        e.preventDefault();
+        if (e.key === "Escape") store.set({ browserLive: null });
+        else pageKey(live, e, "keyDown");
+        schedule();
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       if (canvasKey(e)) schedule();
       else if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      else if (mod && key === "p") (e.preventDefault(), store.set({ paletteOpen: true }));
+      else if (!mod && e.key === "?") store.set({ shortcutsOpen: true });
+      else if (!mod && e.shiftKey && key === "c") store.set((s) => ({ showComments: !s.showComments }));
+      else if (mod && e.altKey && e.code === "KeyG") (e.preventDefault(), frameSelection());
+      else if (mod && e.shiftKey && e.code === "KeyG") (e.preventDefault(), ungroupSelection());
+      else if (mod && e.code === "KeyG") (e.preventDefault(), groupSelection());
+      else if (mod && e.key === "Backspace") (e.preventDefault(), ungroupSelection());
+      else if (mod && e.code === "KeyD") (e.preventDefault(), duplicateSelection());
+      else if (mod && e.shiftKey && e.code === "KeyR") (e.preventDefault(), pasteToReplace());
+      else if (!mod && e.shiftKey && e.code === "KeyA") setLayout(e.altKey ? "none" : "vertical");
       else if (mod && e.altKey && e.code === "KeyK") (e.preventDefault(), makeComponents());
       else if (mod && e.altKey && e.code === "KeyX") (e.preventDefault(), detachSelected());
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
@@ -56,13 +86,19 @@ export function App({ initial }: { initial: string }) {
       else if (e.key === "\\") setPanelOpen((o) => !o);
       schedule();
     };
-    const onKeyUp = (e: KeyboardEvent) => canvasKeyUp(e);
+    const onKeyUp = (e: KeyboardEvent) => {
+      const live = store.get().browserLive;
+      if (live) pageKey(live, e, "keyUp");
+      else canvasKeyUp(e);
+    };
     // The menu bar's editing commands: in a text field they act on its text, elsewhere on the design.
     bridge.onMenuCommand((command) => {
       const target = document.activeElement as HTMLElement | null;
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (command === "settings") store.set({ settingsOpen: true });
       else if (command === "toggle-ui") setPanelOpen((o) => !o);
+      else if (sharedCommand(command)) return;
+      else if (command.startsWith("export-")) void exportSelection(command.slice(7) as ExportFormat);
       else if (typing) document.execCommand(command === "select-all" ? "selectAll" : command);
       else if (command === "undo") history.undo();
       else if (command === "redo") history.redo();
@@ -70,9 +106,26 @@ export function App({ initial }: { initial: string }) {
       else if (command === "select-all") reselect(selectAll);
       schedule();
     });
+    // Copy, cut and paste (keys, the Edit menu, the palette): in a text field they act on its text.
+    const typing = (e: Event) => {
+      const t = e.target as HTMLElement;
+      return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
+    };
+    const copy = (e: ClipboardEvent) => typing(e) || onCopy(e, false);
+    const cut = (e: ClipboardEvent) => typing(e) || onCopy(e, true);
+    const paste = (e: ClipboardEvent) => typing(e) || onPaste(e);
     addEventListener("keydown", onKey);
     addEventListener("keyup", onKeyUp);
-    return () => (removeEventListener("keydown", onKey), removeEventListener("keyup", onKeyUp));
+    document.addEventListener("copy", copy);
+    document.addEventListener("cut", cut);
+    document.addEventListener("paste", paste);
+    return () => {
+      removeEventListener("keydown", onKey);
+      removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("copy", copy);
+      document.removeEventListener("cut", cut);
+      document.removeEventListener("paste", paste);
+    };
   }, []);
 
   return (
@@ -85,7 +138,9 @@ export function App({ initial }: { initial: string }) {
           <CanvasMenu />
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
-          <TopBar initial={initial} />
+          {/* First, so the panels cover the pins (a pin's card still goes over them). */}
+          <CommentLayer />
+          <TopBar bridge={bridge} initial={initial} />
           <ToolRail panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
           {panelOpen && (
             // The panel and the chat box share the left column: the chat box grows with its text up to
@@ -95,10 +150,15 @@ export function App({ initial }: { initial: string }) {
               <ChatInput />
             </div>
           )}
-          <PropertiesPanel />
+          {commenting ? <CommentsPanel /> : <PropertiesPanel />}
+          <CardKindMenu />
+          <BrowserUrlField />
+          <BrowserLiveBar />
           <ZoomControl />
         </div>
         <SettingsHost />
+        <ShortcutsDialog />
+        <CommandPalette />
       </div>
       <Toaster position="bottom-center" theme="dark" />
     </TipProvider>
@@ -109,77 +169,6 @@ export function App({ initial }: { initial: string }) {
 function reselect(rule: (s: Laid, selection: string[]) => string[]) {
   const s = currentScene();
   if (s) store.set({ selection: rule(s, store.get().selection) });
-}
-
-function deleteSelection() {
-  const ids = store.get().selection.filter((id) => docStore.exists(doc, id));
-  if (!ids.length) return;
-  edit(() => ids.forEach((id) => docStore.exists(doc, id) && docStore.remove(doc, id)));
-  store.set({ selection: [] });
-}
-
-/** Bring to front (`]`) or send to back (`[`), keeping the selected nodes' order among themselves. */
-function reorder(front: boolean) {
-  const ids = store.get().selection.filter((id) => !docStore.isPart(id));
-  edit(() => {
-    for (const id of front ? ids : [...ids].reverse()) {
-      const parent = docStore.parentOf(doc, id);
-      if (parent) docStore.move(doc, id, parent, front ? undefined : 0);
-    }
-  });
-}
-
-function setLayout(layout: "column" | "none") {
-  const frames = store.get().selection.filter((id) => docStore.typeOf(doc, id) === "frame");
-  if (frames.length) edit(() => frames.forEach((id) => docStore.update(doc, id, { layout })));
-}
-
-/** The canvas's right-click menu. Groups and labels follow the reference; items depend on the selection. */
-function CanvasMenu() {
-  const selection = useEditor((s) => s.selection);
-  useEditor((s) => s.docVersion);
-  const frames = selection.filter((id) => docStore.typeOf(doc, id) === "frame");
-  const flex = frames.length > 0 && frames.every((id) => docStore.propsOf(doc, id).layout !== "none");
-  const copies = selection.some((id) => !docStore.isPart(id) && docStore.isInstance(doc, id));
-  return (
-    <ContextContent>
-      <ContextItem label="Copy" keys="Ctrl C" />
-      <ContextSub label="Copy as">
-        <ContextItem label="Copy as HTML + CSS" />
-        <ContextItem label="Copy as HTML + Tailwind" />
-        <ContextItem label="Copy as JSON" />
-        <ContextItem label="Copy as PNG" keys="Ctrl Shift C" />
-      </ContextSub>
-      <ContextItem label="Paste here" />
-      <ContextItem label="Paste to replace" keys="Ctrl Shift R" />
-      <ContextSeparator />
-      <ContextItem label="Bring to Front" keys="]" onSelect={() => reorder(true)} />
-      <ContextItem label="Send to Back" keys="[" onSelect={() => reorder(false)} />
-      <ContextSeparator />
-      <ContextItem label="Group selection" keys="Ctrl G" />
-      <ContextItem label="Frame selection" keys="Ctrl Alt G" />
-      {flex ? (
-        <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
-      ) : (
-        <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("column")} />
-      )}
-      <ContextSeparator />
-      <ContextItem label="Create Component" keys="Ctrl Alt K" onSelect={makeComponents} />
-      {copies && <ContextItem label="Detach instance" keys="Ctrl Alt X" onSelect={detachSelected} />}
-      <ContextSeparator />
-      <ContextItem label="Flip horizontal" keys="Shift H" />
-      <ContextItem label="Flip vertical" keys="Shift V" />
-      <ContextSeparator />
-      <ContextItem label="Delete" keys="⌫" danger onSelect={deleteSelection} />
-      <ContextSeparator />
-      <ContextSub label="Settings">
-        <ContextItem label="Show pixel grid" />
-        <ContextItem label="Snap to pixel grid" />
-        <ContextItem label="Snap to objects" />
-        <ContextItem label="Open settings…" onSelect={() => store.set({ settingsOpen: true })} />
-      </ContextSub>
-    </ContextContent>
-  );
 }
 
 function SettingsHost() {

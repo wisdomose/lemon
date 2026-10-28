@@ -33,7 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
   nudgeSmall: 1,
   nudgeBig: 10,
   htmlMetadata: true,
-  chatTextSize: "medium",
+  chatTextSize: "small",
   cursorSize: "medium",
   cursorLabel: true,
   notifyWhenDone: true,
@@ -62,6 +62,27 @@ addEventListener("storage", (e) => {
   applyTheme();
   listeners.forEach((l) => l());
 });
+
+/**
+ * View › Agent Chat Text Size scales the agent's panel: Medium and Large are a point and two points up
+ * from Small (12px), as Pen's appear.
+ */
+export const CHAT_ZOOM: Record<Settings["chatTextSize"], number> = { small: 1, medium: 13 / 12, large: 14 / 12 };
+
+/** Menu commands every page carries out the same way (settings it shares); whether `command` was one. */
+export function sharedCommand(command: string): boolean {
+  if (command === "toggle-theme") setSetting("theme", current.theme === "dark" ? "light" : "dark");
+  else if (command === "chat-small" || command === "chat-medium" || command === "chat-large") setSetting("chatTextSize", command.slice(5) as Settings["chatTextSize"]);
+  else return false;
+  return true;
+}
+
+/** The menu bar shows the chat text size checked: it is told whenever it changes. */
+function tellMenu(): void {
+  window.lemon?.menuState({ chatTextSize: current.chatTextSize });
+}
+listeners.add(tellMenu);
+tellMenu();
 
 export function useSettings(): Settings {
   return useSyncExternalStore(

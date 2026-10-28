@@ -8,7 +8,10 @@ import type { ProviderStatus } from "../agent/codex.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
-import type { WindowCommand } from "../main/menu.js";
+import type { Tabs } from "../main/shell.js";
+import type { PageFrame, PageInput } from "../main/browser-pages.js";
+import type { ScriptOutput } from "../main/scripts.js";
+import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -42,6 +45,44 @@ export interface Bridge {
   /** Something to tell the person as the window opens (what an import brought over), once. */
   notice(): Promise<Notice | undefined>;
   showDashboard(): Promise<void>;
+  /** The live pages of this file's browser nodes. */
+  browser: {
+    onFrame(fn: (id: string, frame: PageFrame) => void): void;
+    onCursor(fn: (id: string, cursor: string) => void): void;
+    onClosed(fn: (id: string) => void): void;
+    /** Pointer, wheel and keys for a page in use. */
+    input(id: string, ev: PageInput): void;
+    command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
+    /** Every page sends its whole picture again. */
+    repaint(): void;
+  };
+  /** This file's script nodes: what each shows, and choosing or finding its file. */
+  scripts: {
+    onOutput(fn: (id: string, out: ScriptOutput | null) => void): void;
+    /** Asks for a .js file; its path as a script node stores it. */
+    choose(): Promise<string | undefined>;
+    reveal(uri: string): Promise<void>;
+  };
+  /** The name comments are signed with (the computer's user name). */
+  who(): Promise<string>;
+  /** Reads this file's comments again. */
+  reloadComments(): Promise<void>;
+  /** A file command, as the menu runs it (the command palette). */
+  appCommand(command: AppCommand): Promise<void>;
+  /** Tells the menu bar what to show checked (the chat text size). */
+  menuState(state: MenuState): void;
+  /** Saves an exported picture where the person chooses; whether it was saved. */
+  saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
+  /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
+  tabs: {
+    get(): Promise<Tabs>;
+    onChange(fn: (tabs: Tabs) => void): void;
+    /** Shows a file tab, or Home. */
+    show(id: number | "home"): Promise<void>;
+    close(id: number): Promise<void>;
+    /** A new file in a new tab. */
+    newFile(): Promise<void>;
+  };
   /** The Dashboard's lists and actions. */
   dashboard: {
     files(): Promise<DashboardFiles>;
@@ -52,6 +93,8 @@ export interface Bridge {
     openDialog(): Promise<void>;
     reveal(path: string): Promise<void>;
     forget(path: string): Promise<void>;
+    /** Renames a file on disk; why it couldn't, if it couldn't. */
+    rename(path: string, name: string): Promise<string | null>;
     deleteDraft(path: string): Promise<void>;
   };
 }
@@ -122,6 +165,39 @@ export function browserBridge(): Bridge {
       return undefined;
     },
     async showDashboard() {},
+    browser: {
+      onFrame() {},
+      onCursor() {},
+      onClosed() {},
+      input() {},
+      async command() {},
+      repaint() {},
+    },
+    menuState() {},
+    async who() {
+      return "You";
+    },
+    async reloadComments() {},
+    async appCommand() {},
+    async saveExport() {
+      return false;
+    },
+    scripts: {
+      onOutput() {},
+      async choose() {
+        return undefined;
+      },
+      async reveal() {},
+    },
+    tabs: {
+      async get() {
+        return { tabs: [], active: "home" };
+      },
+      onChange() {},
+      async show() {},
+      async close() {},
+      async newFile() {},
+    },
     // `?files=<url of a JSON file>` gives the Dashboard its lists.
     dashboard: {
       async files() {
@@ -134,6 +210,9 @@ export function browserBridge(): Bridge {
       async openDialog() {},
       async reveal() {},
       async forget() {},
+      async rename() {
+        return null;
+      },
       async deleteDraft() {},
     },
   };

@@ -2,9 +2,12 @@
 // hover and selection outlines, size pill, agent cursor), and handles panning, zooming and selecting.
 import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode } from "../../render/draw.js";
+import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, assets, currentScene, engine, type Scene } from "../scene.js";
+import { CANVAS_UI_FONT, assets, bridge, currentScene, engine, type Scene } from "../scene.js";
+import { pageImage, pagesVersion, startLivePages } from "./live-pages.js";
+import { scriptOutput } from "../scripts.js";
 import { store } from "../store.js";
 import { overlay } from "./overlay.js";
 import { index, unionBox } from "./pick.js";
@@ -16,9 +19,13 @@ import { getSettings } from "../settings.js";
 
 // Overlay look, measured from the reference captures.
 const SELECT = "#3d99ff";
+/** A selected script's outline and size pill (measured from Pen). */
+const SCRIPT_GREEN = "#00C787";
 /** Frame names use the theme's muted text colour. */
 const label = () => getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa";
 const LABEL_SIZE = 12;
+/** A frame label's top above the frame (measured from Pen at its corner). */
+const LABEL_LIFT = LABEL_SIZE + 10;
 const HANDLE = 8;
 const PILL_H = 20;
 const PILL_GAP = 6;
@@ -113,6 +120,16 @@ let surface: Surface | null = null;
 let queued = false;
 let fitted = false;
 
+/** Things on top of the canvas that keep to a place on the page (comment pins): placed as it draws. */
+const followers = new Set<() => void>();
+
+/** Calls `place` in every frame the canvas draws, so it moves with the view in that same frame. */
+export function follow(place: () => void): () => void {
+  followers.add(place);
+  place();
+  return () => void followers.delete(place);
+}
+
 export function schedule(): void {
   if (queued || !el) return;
   queued = true;
@@ -201,6 +218,13 @@ export function zoomToFit(animate = true, box?: Box, maxZoom = 1): void {
 }
 
 /** How much of the canvas's left side the floating panels cover (left panel + tool rail). */
+/** The part of the page in view: the canvas right of the tool rail. */
+export function pageInView(): Box {
+  const left = obstructionLeft();
+  const [x, y] = toPage(left, 0);
+  return { x, y, w: (el.clientWidth - left) / view.zoom, h: el.clientHeight / view.zoom };
+}
+
 function obstructionLeft(): number {
   const rail = document.querySelector("[data-rail]")?.getBoundingClientRect();
   return rail ? rail.right : 0;
@@ -219,10 +243,11 @@ export function labelAt(x: number, y: number): string | null {
 }
 
 export function labelHit(f: TreeNode, b: Box, x: number, y: number): boolean {
+  if (!hasLabel(f)) return false;
   const [sx, sy] = toScreen(b.x, b.y);
   const [px, py] = toScreen(x, y);
   const w = labelWidth(f, b);
-  return px >= sx && px <= sx + w && py >= sy - LABEL_SIZE - 10 && py <= sy - 2;
+  return px >= sx && px <= sx + w && py >= sy - LABEL_LIFT - 2 && py <= sy - 2;
 }
 
 // ---- Drawing --------------------------------------------------------------------------------------
@@ -236,6 +261,8 @@ function nodeIn(s: Scene, id: string): TreeNode | undefined {
 
 /** The outline colour for nodes: magenta for a main component, violet (dashed for the copy itself) inside a copy. */
 function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
+  // Scripts are outlined in their own green (as in Pen).
+  if (ids.length && ids.every((id) => nodeIn(s, id)?.type === "script")) return { color: SCRIPT_GREEN, dashed: false };
   const kinds = new Set(ids.map((id) => kindOf(nodeIn(s, id))));
   if (kinds.size !== 1) return { color: SELECT, dashed: false };
   const [k] = kinds;
@@ -245,22 +272,35 @@ function accent(s: Scene, ids: string[]): { color: string; dashed: boolean } {
 }
 
 function uiText(text: string, size: number, color: string, weight = 400) {
-  return engine.text.paragraph({ text, font: CANVAS_UI_FONT, size, weight, color, lineHeight: 1.2 }, {});
+  return engine.text.paragraph({ content: text, fontFamily: CANVAS_UI_FONT, fontSize: size, fontWeight: String(weight), fill: color, lineHeight: 1.2 }, {});
 }
-/** A frame's label: its name, or "Generating: <name>" (after a sparkle) while an agent builds it. */
-const labelText = (f: TreeNode) => (f.props.generating ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? "Frame"));
+/**
+ * As in Pen, only top-level frames are labelled: by name, a component or a copy of one after its icon
+ * (the icon alone when it has no name), and a plain frame without a name not at all. A placeholder an
+ * agent builds reads "Generating: <name>" after a sparkle.
+ */
+function hasLabel(f: TreeNode): boolean {
+  if (f.type !== "frame") return false;
+  return !!(f.props.placeholder || f.props.name || f.instance || f.props.reusable);
+}
+const labelText = (f: TreeNode) => (f.props.placeholder ? `Generating: ${f.props.name ?? "Frame"}` : (f.props.name ?? ""));
+/** The space before the text taken by the sparkle, or a component's or copy's icon (12px, then 7px; measured in Pen). */
 const SPARKLE_W = 17;
+const KIND_ICON = 12;
+const KIND_W = 19;
+const leadOf = (f: TreeNode) => (f.props.placeholder ? SPARKLE_W : f.instance || f.props.reusable ? KIND_W : 0);
 /** The narrowest a label gets on a small frame: room for a letter or two and "…" (as Pen's "La…"). */
 const LABEL_MIN_W = 24;
 
 /** A frame's label as drawn: one line, cut with "…" to the frame's width on screen (as in Pen). */
 function labelParagraph(f: TreeNode, b: Box, color: string) {
-  const room = b.w * view.zoom - (f.props.generating ? SPARKLE_W : 0);
+  const room = b.w * view.zoom - leadOf(f);
   return fitLabel(labelText(f), color, Math.max(LABEL_MIN_W, room));
 }
 
 function labelWidth(f: TreeNode, b: Box) {
-  return labelParagraph(f, b, label()).getMaxIntrinsicWidth() + (f.props.generating ? SPARKLE_W : 0);
+  const text = labelText(f) ? labelParagraph(f, b, label()).getMaxIntrinsicWidth() : 0;
+  return leadOf(f) + text || KIND_ICON;
 }
 
 /** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
@@ -295,6 +335,7 @@ function draw() {
     zoomToFit(false);
     return draw();
   }
+  followers.forEach((place) => place());
   if (s) {
     const st = store.get();
     canvas.save();
@@ -305,9 +346,11 @@ function draw() {
     canvas.drawPicture(documentPicture(s));
     canvas.restore();
     for (const frame of s.tree.children) {
-      if (frame.props.generating) drawGenerating(canvas, s.boxes.get(frame.id));
+      if (frame.props.placeholder) drawGenerating(canvas, s.boxes.get(frame.id));
     }
-    for (const frame of s.tree.children) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id));
+    for (const frame of s.tree.children) {
+      if (hasLabel(frame)) drawLabel(canvas, frame, s.boxes.get(frame.id), st.selection.includes(frame.id) || st.hover === frame.id);
+    }
     if (st.hover && !st.selection.includes(st.hover) && !overlay.moving) outline(canvas, s.boxes.get(st.hover), accent(s, [st.hover]));
     drawSelection(canvas, s, st.selection);
     drawOverlay(canvas, s);
@@ -317,21 +360,22 @@ function draw() {
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.generating)) schedule();
+  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder)) schedule();
 }
 
 /** The document drawn once per change and replayed for every frame of animation. */
-let recorded: { scene: Scene; picture: SkPicture } | undefined;
+let recorded: { scene: Scene; pages: number; picture: SkPicture } | undefined;
 function documentPicture(s: Scene): SkPicture {
-  if (recorded?.scene === s) return recorded.picture;
+  // Drawn again when the document or a live page changes.
+  if (recorded?.scene === s && recorded.pages === pagesVersion) return recorded.picture;
   const { ck } = engine;
   const recorder = new ck.PictureRecorder();
   const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, c, frame);
+  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput }, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
-  recorded = { scene: s, picture };
+  recorded = { scene: s, pages: pagesVersion, picture };
   return picture;
 }
 
@@ -373,17 +417,42 @@ function drawGenerating(canvas: Canvas, b: Box | undefined) {
   paint.delete();
 }
 
-function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, selected: boolean) {
+/** A frame's label above its top-left corner: blue while it is selected or pointed at, a component's or copy's in its own colour. */
+function drawLabel(canvas: Canvas, f: TreeNode, b: Box | undefined, lit: boolean) {
   if (!b) return;
   const [x, y] = toScreen(b.x, b.y);
-  if (f.props.generating) {
+  if (f.props.placeholder) {
     drawSparkle(canvas, x + 6, y - LABEL_SIZE / 2 - 9);
     canvas.drawParagraph(labelParagraph(f, b, LIVE), x + SPARKLE_W, y - LABEL_SIZE - 8);
     return;
   }
   const kind = kindOf(f);
-  const colour = kind === "main" ? MAIN_COLOUR : kind === "instance" ? COPY_COLOUR : selected ? SELECT : label();
-  canvas.drawParagraph(labelParagraph(f, b, colour), x, y - LABEL_SIZE - 8);
+  const colour = kind === "main" ? MAIN_COLOUR : kind === "instance" ? COPY_COLOUR : lit ? SELECT : label();
+  if (kind === "main" || kind === "instance") drawKindIcon(canvas, kind === "main" ? "component" : "diamond", colour, x, y - LABEL_LIFT + LABEL_SIZE / 2);
+  if (labelText(f)) canvas.drawParagraph(labelParagraph(f, b, colour), x + leadOf(f), y - LABEL_LIFT);
+}
+
+/** A component's icon (four diamonds) or a copy's (one diamond): the shape 12px across, its left edge at x, centred on cy. */
+function drawKindIcon(canvas: Canvas, name: string, colour: string, x: number, cy: number) {
+  const { ck } = engine;
+  const path = iconPath(ck, name);
+  if (!path) return;
+  // Lucide's shapes leave 2 of their 24 units clear on each side.
+  const box = (KIND_ICON * ICON_GRID) / (ICON_GRID - 4);
+  const k = box / ICON_GRID;
+  const paint = new ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setStyle(ck.PaintStyle.Stroke);
+  paint.setStrokeWidth(ICON_LINE);
+  paint.setStrokeCap(ck.StrokeCap.Round);
+  paint.setStrokeJoin(ck.StrokeJoin.Round);
+  paint.setColor(ck.parseColorString(colour));
+  canvas.save();
+  canvas.translate(x + 2 - 2 * k, cy - box / 2 + 2);
+  canvas.scale(k, k);
+  canvas.drawPath(path, paint);
+  canvas.restore();
+  paint.delete();
 }
 
 /** The sparkle before "Generating": a four-point star with a small one above it. */
@@ -454,7 +523,7 @@ function drawSelection(canvas: Canvas, s: Scene, ids: string[]) {
       canvas.drawRect(r, stroke);
     }
     const node = id ? findNode(tree, id) : undefined;
-    if (node?.type === "rect") {
+    if (node?.type === "rectangle" || node?.type === "frame") {
       for (const [hx, hy] of radiusHandles({ x, y, w, h })) {
         canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, fill);
         canvas.drawCircle(hx, hy, RADIUS_HANDLE / 2, stroke);
@@ -552,6 +621,76 @@ function drawOverlay(canvas: Canvas, s: Scene) {
     }
   }
   if (overlay.draft) drawPill(canvas, overlay.draft);
+  // A browser page in use: a green outline with a soft glow (as in Pen).
+  const live = store.get().browserLive;
+  const liveBox = live ? s.boxes.get(live) : undefined;
+  if (liveBox) {
+    const [x, y] = toScreen(liveBox.x, liveBox.y);
+    const r = ck.XYWHRect(x, y, liveBox.w * view.zoom, liveBox.h * view.zoom);
+    const rr = ck.RRectXY(r, 16 * view.zoom, 16 * view.zoom);
+    paint.setStyle(ck.PaintStyle.Stroke);
+    const glow = ck.MaskFilter.MakeBlur(ck.BlurStyle.Outer, 8, true);
+    paint.setMaskFilter(glow);
+    paint.setStrokeWidth(4);
+    paint.setColor(ck.Color4f(0, 199 / 255, 135 / 255, 0.35));
+    canvas.drawRRect(rr, paint);
+    paint.setMaskFilter(null);
+    glow.delete();
+    paint.setStrokeWidth(1.5);
+    paint.setColor(ck.parseColorString(SCRIPT_GREEN));
+    canvas.drawRRect(rr, paint);
+  }
+  // The path being drawn with the pen: its segments, a line on to the pointer, and its points.
+  if (overlay.pen) {
+    const pts = overlay.pen.points;
+    paint.setStyle(ck.PaintStyle.Stroke);
+    paint.setStrokeWidth(1);
+    paint.setColor(ck.parseColorString(SELECT));
+    const at = (q: { x: number; y: number }) => toScreen(q.x, q.y);
+    for (let i = 1; i < pts.length; i++) {
+      const [a, b] = [pts[i - 1]!, pts[i]!];
+      const b0 = new ck.PathBuilder();
+      b0.moveTo(...at(a)).cubicTo(...at(a.out ?? a), ...at(b.in ?? b), ...at(b));
+      const seg = b0.detachAndDelete();
+      canvas.drawPath(seg, paint);
+      seg.delete();
+    }
+    const last = pts.at(-1);
+    if (last && overlay.pen.cursor) {
+      // On to the pointer: curving away along the last point's handle, if it has one.
+      const b1 = new ck.PathBuilder();
+      b1.moveTo(...at(last)).cubicTo(...at(last.out ?? last), ...at(overlay.pen.cursor), ...at(overlay.pen.cursor));
+      const next = b1.detachAndDelete();
+      canvas.drawPath(next, paint);
+      next.delete();
+    }
+    // The last point's handles: lines out to small diamonds.
+    if (last?.in && last.out) {
+      for (const h of [last.in, last.out]) {
+        canvas.drawLine(...at(last), ...at(h), paint);
+        const [hx, hy] = at(h);
+        const d = new ck.PathBuilder();
+        d.moveTo(hx, hy - 3.5).lineTo(hx + 3.5, hy).lineTo(hx, hy + 3.5).lineTo(hx - 3.5, hy).close();
+        const diamond = d.detachAndDelete();
+        paint.setStyle(ck.PaintStyle.Fill);
+        paint.setColor(ck.parseColorString("#ffffff"));
+        canvas.drawPath(diamond, paint);
+        paint.setStyle(ck.PaintStyle.Stroke);
+        paint.setColor(ck.parseColorString(SELECT));
+        canvas.drawPath(diamond, paint);
+        diamond.delete();
+      }
+    }
+    for (const q of pts) {
+      const [x, y] = at(q);
+      paint.setStyle(ck.PaintStyle.Fill);
+      paint.setColor(ck.parseColorString("#ffffff"));
+      canvas.drawCircle(x, y, 3.5, paint);
+      paint.setStyle(ck.PaintStyle.Stroke);
+      paint.setColor(ck.parseColorString(SELECT));
+      canvas.drawCircle(x, y, 3.5, paint);
+    }
+  }
   paint.delete();
   if (overlay.editing) drawTextEditing(canvas, s);
 }
@@ -584,9 +723,20 @@ function drawCursor(canvas: Canvas, c: Cursor) {
 export function attach(canvasEl: HTMLCanvasElement): () => void {
   el = canvasEl;
   makeSurface();
+  startLivePages(schedule);
   const onResize = () => (makeSurface(), schedule());
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    // Over a page in use, the wheel scrolls the page.
+    const live = store.get().browserLive;
+    const box = live ? currentScene()?.boxes.get(live) : undefined;
+    if (live && box && !e.ctrlKey && !e.metaKey) {
+      const [px, py] = toPage(e.offsetX, e.offsetY);
+      if (px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + box.h) {
+        bridge.browser.input(live, { type: "mouseWheel", x: Math.round(px - box.x), y: Math.round(py - box.y), deltaX: -e.deltaX, deltaY: -e.deltaY });
+        return;
+      }
+    }
     const { wheelZooms, invertZoom } = getSettings();
     // Ctrl/⌘ + wheel always zooms; the plain wheel zooms only when that setting is on.
     if (e.ctrlKey || e.metaKey || wheelZooms) {

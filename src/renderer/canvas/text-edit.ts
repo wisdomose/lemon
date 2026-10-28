@@ -10,7 +10,10 @@ import { currentScene, doc, edit, engine, type Scene } from "../scene.js";
 import { store } from "../store.js";
 import { schedule, toScreen, view } from "./canvas.js";
 import { overlay } from "./overlay.js";
-import { colorOf } from "../../doc/values.js";
+import { colorOf, type RGBA } from "../../doc/values.js";
+import { textColor } from "../../text/paragraph.js";
+import { CARD, cardBody, isCard } from "../../render/draw.js";
+import type { TreeNode } from "../../doc/schema.js";
 
 type Point = { x: number; y: number };
 
@@ -20,15 +23,23 @@ const BLINK_MS = 530;
 
 let ta: HTMLTextAreaElement | null = null;
 
-const editedText = () => (overlay.editing && docStore.exists(doc, overlay.editing.id) ? (docStore.propsOf(doc, overlay.editing.id).text ?? "") : "");
+const editedText = () => (overlay.editing && docStore.exists(doc, overlay.editing.id) ? (docStore.propsOf(doc, overlay.editing.id).content ?? "") : "");
 
-/** The text's paragraph laid out as the canvas draws it, and its box (page coordinates). */
+/** The text's paragraph laid out as the canvas draws it, and its box (page coordinates); a card's is its body. */
 function laidOut(s: Scene, id: string): { para: Paragraph; box: Box } | undefined {
   const box = s.boxes.get(id);
   if (!box || !docStore.exists(doc, id)) return undefined;
   try {
-    const para = engine.text.paragraph(docStore.propsOf(doc, id), s.vars);
-    para.layout(Math.max(1, box.w));
+    const type = docStore.typeOf(doc, id) ?? "text";
+    if (isCard(type)) {
+      const body = cardBody({ id, type, props: docStore.propsOf(doc, id), children: [] } as TreeNode, box);
+      const para = engine.text.paragraph(body.props, s.vars);
+      para.layout(body.box.w);
+      return { para, box: body.box };
+    }
+    const props = docStore.propsOf(doc, id);
+    const para = engine.text.paragraph(props, s.vars);
+    para.layout((props.textGrowth ?? "auto") === "auto" ? 1e7 : Math.max(1, box.w));
     return { para, box };
   } catch {
     return undefined; // its font is still loading
@@ -65,7 +76,7 @@ function caretAt(l: { para: Paragraph; box: Box }, text: string, offset: number)
 export function startTextEdit(id: string, at?: Point): void {
   stopTextEdit();
   const s = currentScene();
-  const text = docStore.propsOf(doc, id).text ?? "";
+  const text = docStore.propsOf(doc, id).content ?? "";
   const area = document.createElement("textarea");
   area.setAttribute("aria-label", "Text");
   area.spellcheck = false;
@@ -84,7 +95,7 @@ export function startTextEdit(id: string, at?: Point): void {
   overlay.editing = { id, start: area.selectionStart, end: area.selectionEnd, since: performance.now() };
   area.addEventListener("input", () => {
     const value = area.value;
-    if (overlay.editing && docStore.exists(doc, overlay.editing.id)) edit(() => docStore.update(doc, overlay.editing!.id, { text: value }));
+    if (overlay.editing && docStore.exists(doc, overlay.editing.id)) edit(() => docStore.update(doc, overlay.editing!.id, { content: value }));
     sync();
   });
   area.addEventListener("keydown", onKey);
@@ -105,7 +116,8 @@ export function stopTextEdit(): void {
   const area = ta;
   ta = null;
   area?.remove();
-  if (docStore.exists(doc, editing.id) && !(docStore.propsOf(doc, editing.id).text ?? "").trim()) {
+  // A card stays when empty (as in Pen); an empty text goes.
+  if (docStore.exists(doc, editing.id) && !isCard(docStore.typeOf(doc, editing.id) ?? "") && !(docStore.propsOf(doc, editing.id).content ?? "").trim()) {
     edit(() => docStore.remove(doc, editing.id));
     store.set({ selection: [] });
   }
@@ -210,7 +222,10 @@ export function drawTextEditing(canvas: Canvas, s: Scene): void {
   } else if (Math.floor((performance.now() - editing.since) / BLINK_MS) % 2 === 0) {
     const c = caretAt(l, editedText(), editing.start);
     const [x, y] = toScreen(c.x, c.y);
-    paint.setColor(ck.Color4f(...colorOf(docStore.propsOf(doc, editing.id).color ?? "#000000", s.vars)));
+    const type = docStore.typeOf(doc, editing.id) ?? "text";
+    const ink = isCard(type) ? colorOf(CARD[type as keyof typeof CARD].ink, s.vars) : textColor(docStore.propsOf(doc, editing.id).fill, s.vars);
+    const caret: RGBA = ink[3] > 0 ? ink : colorOf("#000000", s.vars);
+    paint.setColor(ck.Color4f(...caret));
     canvas.drawRect(ck.XYWHRect(Math.round(x), y, 1, c.h * view.zoom), paint);
   }
   paint.delete();
