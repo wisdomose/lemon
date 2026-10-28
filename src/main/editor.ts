@@ -316,6 +316,13 @@ export class Editor implements FileTab {
     return rel.startsWith(".") || /^[A-Za-z]:/.test(rel) ? rel : `./${rel}`;
   }
 
+  /** The file was renamed on Home: it is at `to` now. */
+  renamed(to: string): void {
+    this.path = to;
+    this.tell();
+    this.scripts.sync(true);
+  }
+
   /** Where a script node's file is, beside this file. */
   scriptPath(uri: string): string | undefined {
     return this.path ? resolve(dirname(this.path), uri) : undefined;

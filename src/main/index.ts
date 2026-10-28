@@ -14,7 +14,7 @@ import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
-import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent } from "./files.js";
+import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
 import { Shell } from "./shell.js";
 import type { PageInput } from "./browser-pages.js";
 import { buildMenu } from "./menu.js";
@@ -222,6 +222,17 @@ async function main() {
   ipcMain.handle("dashboard:open-dialog", async () => void (await openDialog()));
   ipcMain.handle("dashboard:reveal", (_e, path: string) => shell.showItemInFolder(path));
   ipcMain.handle("dashboard:forget", (_e, path: string) => (forgetRecent(path), fileListChanged()));
+  // Rename renames the file on disk; an open tab follows it. Returns why it couldn't, if it couldn't.
+  ipcMain.handle("dashboard:rename", (_e, path: string, name: string) => {
+    try {
+      const to = renameDesign(path, name);
+      [...editors.values()].find((ed) => ed.path === path)?.renamed(to);
+      fileListChanged();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  });
   ipcMain.handle("dashboard:delete", async (_e, path: string) => {
     const win = window?.win;
     const ask = (o: Electron.MessageBoxOptions) => (win ? dialog.showMessageBox(win, o) : dialog.showMessageBox(o));

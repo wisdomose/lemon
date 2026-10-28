@@ -113,6 +113,9 @@ export function writeThumb(path: string, png: Uint8Array | undefined): void {
 export interface FileCard {
   path: string;
   name: string;
+  /** The folder it is in (Home shows "folder / name"); none for a draft. */
+  folder?: string;
+  draft: boolean;
   /** When the person last opened it (Recents only). */
   openedAt?: number;
   editedAt: number;
@@ -125,9 +128,12 @@ function card(path: string, openedAt?: number): FileCard | undefined {
   try {
     const st = statSync(path);
     const thumb = thumbPath(path);
+    const draft = isDraft(path);
     return {
       path,
       name: basename(path),
+      ...(draft ? {} : { folder: basename(dirname(path)) }),
+      draft,
       ...(openedAt ? { openedAt } : {}),
       editedAt: st.mtimeMs,
       createdAt: st.birthtimeMs || st.ctimeMs,
@@ -151,6 +157,24 @@ export function dashboardFiles(): { recents: FileCard[]; drafts: FileCard[] } {
     .filter((c) => !!c)
     .sort((a, b) => Math.max(b.openedAt!, b.editedAt) - Math.max(a.openedAt!, a.editedAt));
   return { recents: recent, drafts };
+}
+
+/**
+ * Renames a design file on disk (Home's Rename, as in Pen), keeping its picture and its place in
+ * Recents. Returns the new path. A name without the extension gets it.
+ */
+export function renameDesign(path: string, name: string): string {
+  const clean = name.trim();
+  if (!clean || /[\/:*?"<>|]/.test(clean)) throw new Error("That name can't be used for a file.");
+  const to = join(dirname(path), clean.toLowerCase().endsWith(EXT) ? clean : `${clean}${EXT}`);
+  if (to === path) return path;
+  if (existsSync(to)) throw new Error(`There is already a file called ${basename(to)} there.`);
+  // Recents leaves out files that aren't there any more, so it is read before the move.
+  const list = recents().map((r) => (r.path === path ? { ...r, path: to } : r));
+  renameSync(path, to);
+  if (existsSync(thumbPath(path))) renameSync(thumbPath(path), thumbPath(to));
+  writeFileSync(recentsFile(), JSON.stringify(list, null, 2));
+  return to;
 }
 
 /** Deletes a draft for good, with its picture. */

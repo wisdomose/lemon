@@ -70,6 +70,7 @@ const bridge: Bridge = {
     openDialog: () => ipcRenderer.invoke("dashboard:open-dialog"),
     reveal: (path) => ipcRenderer.invoke("dashboard:reveal", path),
     forget: (path) => ipcRenderer.invoke("dashboard:forget", path),
+    rename: (path, name) => ipcRenderer.invoke("dashboard:rename", path, name),
     deleteDraft: (path) => ipcRenderer.invoke("dashboard:delete", path),
   },
 };

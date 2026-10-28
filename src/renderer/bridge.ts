@@ -83,6 +83,8 @@ export interface Bridge {
     openDialog(): Promise<void>;
     reveal(path: string): Promise<void>;
     forget(path: string): Promise<void>;
+    /** Renames a file on disk; why it couldn't, if it couldn't. */
+    rename(path: string, name: string): Promise<string | null>;
     deleteDraft(path: string): Promise<void>;
   };
 }
@@ -189,6 +191,9 @@ export function browserBridge(): Bridge {
       async openDialog() {},
       async reveal() {},
       async forget() {},
+      async rename() {
+        return null;
+      },
       async deleteDraft() {},
     },
   };
