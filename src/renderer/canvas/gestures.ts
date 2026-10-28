@@ -52,7 +52,7 @@ interface Held {
 type Gesture =
   | { kind: "press"; at: Point; screen: Point; pick: string | null; shift: boolean; deep: boolean; fresh: boolean }
   | { kind: "marquee"; from: Point; base: string[]; deep: boolean }
-  | { kind: "move"; from: Point; held: Held[]; union: Box; live: boolean; deep: boolean }
+  | { kind: "move"; from: Point; held: Held[]; union: Box; live: boolean; deep: boolean; originals: Held[]; copying: boolean; last: Point }
   | { kind: "resize"; from: Point; corner: Corner; held: Held[]; union: Box }
   | { kind: "radius"; id: string; box: Box; corner: number }
   | { kind: "draw"; tool: Tool; from: Point; container: TreeNode }
@@ -253,16 +253,11 @@ function onMove(e: PointerEvent) {
     store.set({ hover: null });
     if (g.pick) {
       const union = unionBox(s.boxes, store.get().selection)!;
-      let held = hold(s, store.get().selection);
+      const held = hold(s, store.get().selection);
       beginChange();
-      // Alt: the drag carries copies, made where the nodes are, right after each (Pen's Alt-drag).
-      if (e.altKey && held.every((h) => movable(h.node.id))) {
-        const copies: string[] = [];
-        edit(() => held.forEach((h) => copies.push(copyInPlace(doc, h.node.id))));
-        held = held.map((h, i) => ({ ...h, node: { ...h.node, id: copies[i]! } }));
-        store.set({ selection: copies });
-      }
-      gesture = { kind: "move", from: g.at, held, union, live: false, deep: false };
+      const move: Gesture = { kind: "move", from: g.at, held, union, live: false, deep: false, originals: held, copying: false, last: g.at };
+      gesture = move;
+      setCopying(move, e.altKey);
       overlay.moving = true;
     } else gesture = { kind: "marquee", from: g.at, base: g.shift ? store.get().selection : [], deep: g.deep };
     return onMove(e);
@@ -271,7 +266,11 @@ function onMove(e: PointerEvent) {
     overlay.marquee = rect;
     const picked = boxPick(s, rect, g.from, g.deep || e.ctrlKey || e.metaKey);
     store.set({ selection: [...new Set([...g.base, ...picked])] });
-  } else if (g.kind === "move") moveTo(s, g, px, py, e.ctrlKey || e.metaKey);
+  } else if (g.kind === "move") {
+    setCopying(g, e.altKey);
+    g.last = { x: px, y: py };
+    moveTo(s, g, px, py, e.ctrlKey || e.metaKey);
+  }
   else if (g.kind === "resize") resizeTo(g, px, py, e.shiftKey, e.altKey);
   else if (g.kind === "radius") roundTo(g, px, py);
   else if (g.kind === "draw") {
@@ -353,6 +352,28 @@ function dropTarget(s: Scene, g: { held: Held[] }, px: number, py: number, deep:
   const frame = frameAt(s, px, py, movingIds(g));
   if (together && parent.type === "group" && frameAround(parents(s.tree), parent).id === frame.id) return parent;
   return frame;
+}
+
+/**
+ * Alt during a move, as in Pen: held, the drag carries copies (made right after each node, where it
+ * started) and the nodes go back; let go, the copies go and the nodes themselves move again.
+ */
+function setCopying(g: Extract<Gesture, { kind: "move" }>, on: boolean): void {
+  if (on === g.copying || !g.originals.every((h) => movable(h.node.id))) return;
+  edit(() => {
+    // What moved so far goes back to where it started.
+    if (g.live) g.held.forEach((h) => docStore.update(doc, h.node.id, { x: Math.round(h.box.x - h.parentBox.x), y: Math.round(h.box.y - h.parentBox.y) }));
+    if (on) {
+      const copies = g.originals.map((h) => copyInPlace(doc, h.node.id));
+      g.held = g.originals.map((h, i) => ({ ...h, node: { ...h.node, id: copies[i]! } }));
+    } else {
+      g.held.forEach((h) => docStore.remove(doc, h.node.id));
+      g.held = g.originals;
+    }
+  });
+  g.live = false;
+  g.copying = on;
+  store.set({ selection: g.held.map((h) => h.node.id) });
 }
 
 function moveTo(s: Scene, g: Extract<Gesture, { kind: "move" }>, px: number, py: number, deep: boolean) {
@@ -648,6 +669,7 @@ const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "e
 
 /** Handles a key meant for the canvas; returns whether it did. */
 export function canvasKey(e: KeyboardEvent): boolean {
+  if (altDuringMove(e)) return true;
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
   if (e.key === " " && !mod) {
@@ -683,7 +705,20 @@ export function canvasKey(e: KeyboardEvent): boolean {
   return false;
 }
 
+/** Alt pressed or let go while moving: switches between moving the nodes and moving copies. */
+function altDuringMove(e: KeyboardEvent): boolean {
+  const s = currentScene();
+  if (e.key !== "Alt" || gesture?.kind !== "move" || !s) return false;
+  // Alt alone would also open the window's menu bar.
+  e.preventDefault();
+  setCopying(gesture, e.type === "keydown");
+  moveTo(s, gesture, gesture.last.x, gesture.last.y, gesture.deep);
+  schedule();
+  return true;
+}
+
 export function canvasKeyUp(e: KeyboardEvent): void {
+  if (altDuringMove(e)) return;
   if (e.key === " ") (space = false), el && idleCursor(currentScene(), -1, -1);
 }
 

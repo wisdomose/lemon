@@ -60,11 +60,9 @@ export function CanvasMenu({ inLayers = false }: { inLayers?: boolean }) {
       <ContextItem label="Frame selection" keys="Ctrl Alt G" onSelect={frameSelection} />
       {/* Pen offers Ungroup when a group or frame is selected. */}
       {selection.some((id) => ["group", "frame"].includes(docStore.typeOf(doc, id) ?? "")) && <ContextItem label="Ungroup" keys="Ctrl ⌫" onSelect={ungroupSelection} />}
-      {flex ? (
-        <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />
-      ) : (
-        <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("vertical")} />
-      )}
+      {/* As in Pen: Add always, and Remove too when a frame with flex layout is selected. */}
+      <ContextItem label="Add flex layout" keys="Shift A" onSelect={() => setLayout("vertical")} />
+      {flex && <ContextItem label="Remove flex layout" keys="Shift Alt A" onSelect={() => setLayout("none")} />}
       <ContextSeparator />
       <ContextItem label="Create Component" keys="Ctrl Alt K" onSelect={makeComponents} />
       {copies && <ContextItem label="Detach instance" keys="Ctrl Alt X" onSelect={detachSelected} />}

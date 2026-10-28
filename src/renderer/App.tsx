@@ -138,6 +138,8 @@ export function App({ initial }: { initial: string }) {
           <CanvasMenu />
         </ContextRoot>
         <div className="pointer-events-none absolute inset-0 [&>*]:pointer-events-auto">
+          {/* First, so the panels cover the pins (a pin's card still goes over them). */}
+          <CommentLayer />
           <TopBar bridge={bridge} initial={initial} />
           <ToolRail panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
           {panelOpen && (
@@ -153,7 +155,6 @@ export function App({ initial }: { initial: string }) {
           <BrowserUrlField />
           <BrowserLiveBar />
           <ZoomControl />
-          <CommentLayer />
         </div>
         <SettingsHost />
         <ShortcutsDialog />

@@ -2,14 +2,14 @@
 // write in; a pin opens its thread (replies, Apply, resolve); the Comments panel takes the place of the
 // properties panel and lists the open and resolved threads. Apply hands a comment to the agent. Pins
 // show unless hidden (Shift+C, or the panel's eye).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUp, Check, Ellipsis, Eye, EyeOff, MessageCircle, Plus, RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 import { DropdownMenu as M } from "radix-ui";
 import { toast } from "sonner";
 import { addThread, reply, setResolved, threads, type CommentThread } from "../../doc/comments.js";
 import * as docStore from "../../doc/store.js";
 import { sendPrompt } from "../agent/chat.js";
-import { toScreen } from "../canvas/canvas.js";
+import { follow, toScreen } from "../canvas/canvas.js";
 import { bridge, currentScene, doc, edit } from "../scene.js";
 import { store, useEditor } from "../store.js";
 import { Island, cx } from "../ui/kit.js";
@@ -41,17 +41,32 @@ function pinAt(t: { node?: string; x: number; y: number }): { x: number; y: numb
   return box ? { x: box.x + t.x, y: box.y + t.y } : undefined;
 }
 
-/** Re-renders every frame while shown, so pins follow panning and zooming. */
-function useFrames(on: boolean): void {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!on) return;
-    let frame = requestAnimationFrame(function next() {
-      tick((n) => n + 1);
-      frame = requestAnimationFrame(next);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [on]);
+/**
+ * Something kept at a place on the page (a pin, or its card beside it): moved by the canvas as it
+ * draws, in the same frame, so it never trails panning or zooming.
+ */
+function Pinned({ to, dx = 0, dy = 0, className, children }: { to: { node?: string; x: number; y: number }; dx?: number; dy?: number; className?: string; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const target = useRef(to);
+  target.current = to;
+  useLayoutEffect(
+    () =>
+      follow(() => {
+        const el = box.current;
+        const at = pinAt(target.current);
+        if (!el) return;
+        el.style.display = at ? "" : "none";
+        if (!at) return;
+        const [x, y] = toScreen(at.x, at.y);
+        el.style.transform = `translate(${x + dx}px, ${y + dy}px)`;
+      }),
+    [dx, dy],
+  );
+  return (
+    <div ref={box} className={cx("absolute top-0 left-0", className)}>
+      {children}
+    </div>
+  );
 }
 
 /** Hands a comment (or several) to the agent, with the node it is on. */
@@ -130,29 +145,26 @@ export function CommentLayer() {
   const draft = useEditor((s) => s.commentDraft);
   const open = useEditor((s) => s.commentOpen);
   const visible = list.filter((t) => !t.resolved && (shown || tool === "comment"));
-  useFrames(visible.length > 0 || !!draft);
-  const screen = (p: { x: number; y: number } | undefined) => (p ? toScreen(p.x, p.y) : undefined);
-  const card = "fixed z-30 w-[256px] overflow-hidden rounded-[12px] border border-input bg-popover shadow-island";
-  const draftAt = draft ? screen(pinAt(draft)) : undefined;
+  // Pins sit on the canvas, under the panels (this layer comes before them); a pin's card goes over them.
+  const card = "z-30 w-[256px] overflow-hidden rounded-[12px] border border-input bg-popover shadow-island";
   return (
     <>
       {visible.map((t) => {
-        const at = screen(pinAt(t));
-        if (!at) return null;
         const isOpen = open === t.id;
         return (
-          <div key={t.id}>
-            <button
-              type="button"
-              title={t.messages.at(-1)?.text}
-              onClick={() => store.set({ commentOpen: isOpen ? null : t.id, commentDraft: null })}
-              className="fixed z-30 -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{ left: at[0], top: at[1] }}
-            >
-              <Avatar name={t.messages[0]?.author ?? me} />
-            </button>
+          <div key={t.id} className="contents">
+            <Pinned to={t}>
+              <button
+                type="button"
+                title={t.messages.at(-1)?.text}
+                onClick={() => store.set({ commentOpen: isOpen ? null : t.id, commentDraft: null })}
+                className="block -translate-x-1/2 -translate-y-1/2 rounded-full"
+              >
+                <Avatar name={t.messages[0]?.author ?? me} />
+              </button>
+            </Pinned>
             {isOpen && (
-              <div className={card} style={{ left: at[0] + 18, top: at[1] - 12 }}>
+              <Pinned to={t} dx={18} dy={-12} className={card}>
                 <div className="flex h-10 items-center gap-1.5 border-b border-input pr-2 pl-3 text-[12px] text-muted-foreground">
                   <span className="flex-1">
                     {t.messages.length} comment{t.messages.length > 1 ? "s" : ""}
@@ -179,17 +191,19 @@ export function CommentLayer() {
                   ))}
                 </div>
                 <Composer placeholder="Reply..." onSend={(text) => edit(() => reply(doc, t.id, { author: me, at: Date.now(), text }))} onCancel={() => store.set({ commentOpen: null })} />
-              </div>
+              </Pinned>
             )}
           </div>
         );
       })}
-      {draft && draftAt && (
+      {draft && (
         <>
-          <span className="fixed z-30 -translate-x-1/2 -translate-y-1/2" style={{ left: draftAt[0], top: draftAt[1] }}>
-            <Avatar name={me} />
-          </span>
-          <div className={card} style={{ left: draftAt[0] + 18, top: draftAt[1] - 12 }}>
+          <Pinned to={draft}>
+            <span className="block -translate-x-1/2 -translate-y-1/2">
+              <Avatar name={me} />
+            </span>
+          </Pinned>
+          <Pinned to={draft} dx={18} dy={-12} className={card}>
             <Composer
               placeholder="Leave feedback..."
               onSend={(text) => {
@@ -198,7 +212,7 @@ export function CommentLayer() {
               }}
               onCancel={() => store.set({ commentDraft: null })}
             />
-          </div>
+          </Pinned>
         </>
       )}
     </>

@@ -120,6 +120,16 @@ let surface: Surface | null = null;
 let queued = false;
 let fitted = false;
 
+/** Things on top of the canvas that keep to a place on the page (comment pins): placed as it draws. */
+const followers = new Set<() => void>();
+
+/** Calls `place` in every frame the canvas draws, so it moves with the view in that same frame. */
+export function follow(place: () => void): () => void {
+  followers.add(place);
+  place();
+  return () => void followers.delete(place);
+}
+
 export function schedule(): void {
   if (queued || !el) return;
   queued = true;
@@ -325,6 +335,7 @@ function draw() {
     zoomToFit(false);
     return draw();
   }
+  followers.forEach((place) => place());
   if (s) {
     const st = store.get();
     canvas.save();
