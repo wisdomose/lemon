@@ -11,7 +11,7 @@ import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
 import type { PageFrame, PageInput } from "../main/browser-pages.js";
 import type { ScriptOutput } from "../main/scripts.js";
-import type { MenuState, WindowCommand } from "../main/menu.js";
+import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -63,6 +63,12 @@ export interface Bridge {
     choose(): Promise<string | undefined>;
     reveal(uri: string): Promise<void>;
   };
+  /** The name comments are signed with (the computer's user name). */
+  who(): Promise<string>;
+  /** Reads this file's comments again. */
+  reloadComments(): Promise<void>;
+  /** A file command, as the menu runs it (the command palette). */
+  appCommand(command: AppCommand): Promise<void>;
   /** Tells the menu bar what to show checked (the chat text size). */
   menuState(state: MenuState): void;
   /** Saves an exported picture where the person chooses; whether it was saved. */
@@ -168,6 +174,11 @@ export function browserBridge(): Bridge {
       repaint() {},
     },
     menuState() {},
+    async who() {
+      return "You";
+    },
+    async reloadComments() {},
+    async appCommand() {},
     async saveExport() {
       return false;
     },

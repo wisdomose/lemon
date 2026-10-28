@@ -795,7 +795,7 @@ function ScriptSection({ node, ids }: { node: TreeNode; ids: string[] }) {
 }
 
 /** Convert to layers, as in Pen: the script node becomes a frame (no layout, same name and size) holding what it drew. */
-function convertScript(node: TreeNode) {
+export function convertScript(node: TreeNode) {
   const out = scriptOutput(node.id);
   if (!out?.ok || !store.exists(doc, node.id)) return;
   const p = store.propsOf(doc, node.id);

@@ -45,6 +45,9 @@ const bridge: Bridge = {
     repaint: () => ipcRenderer.send("browser:repaint"),
   },
   menuState: (state) => ipcRenderer.send("menu:state", state),
+  who: () => ipcRenderer.invoke("app:who"),
+  reloadComments: () => ipcRenderer.invoke("comments:reload"),
+  appCommand: (command) => ipcRenderer.invoke("app:command", command),
   saveExport: (bytes, name, ext) => ipcRenderer.invoke("export:save", bytes, name, ext),
   scripts: {
     onOutput: (fn) => {

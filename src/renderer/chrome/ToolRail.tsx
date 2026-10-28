@@ -41,6 +41,8 @@ const NoteIcon = (({ size = 16 }: { size?: number }) => (
 
 interface Item {
   tool?: Tool;
+  /** A button that opens something instead of picking a tool. */
+  open?: () => void;
   icon: LucideIcon;
   label: string;
   keys?: string;
@@ -63,7 +65,7 @@ const SHAPES: Item[] = [
   { icon: FileInput, label: "Import Figma" },
 ];
 
-/** The rail's buttons, top to bottom, with Pen's names and keys. Comment and Variables do nothing yet. */
+/** The rail's buttons, top to bottom, with Pen's names and keys. Variables does nothing yet. */
 const TOOLS: (Item & { menu?: Item[] })[] = [
   { tool: "move", icon: MousePointer2, label: "Move", keys: "V", menu: MOVES },
   { tool: "rect", icon: Square, label: "Rectangle", keys: "R", menu: SHAPES },
@@ -73,9 +75,9 @@ const TOOLS: (Item & { menu?: Item[] })[] = [
   { tool: "note", icon: NoteIcon, label: "Sticky Note", keys: "N" },
   { tool: "browser", icon: Globe, label: "Browser" },
   { tool: "hand", icon: Hand, label: "Hand", keys: "H" },
-  { icon: MessageCircle, label: "Comment", keys: "C" },
+  { tool: "comment", icon: MessageCircle, label: "Comment", keys: "C" },
   { icon: Component, label: "Variables" },
-  { icon: Keyboard, label: "Keyboard Shortcuts", keys: "⇧+/" },
+  { icon: Keyboard, label: "Keyboard Shortcuts", keys: "⇧+/", open: () => store.set({ shortcutsOpen: true }) },
 ];
 
 export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onTogglePanel: () => void }) {
@@ -102,7 +104,7 @@ export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onT
                   aria-label={t.label}
                   active={!!t.tool && t.tool === active}
                   className="text-rail-icon"
-                  onClick={() => t.tool && store.set({ tool: t.tool })}
+                  onClick={() => (t.open ? t.open() : t.tool && store.set({ tool: t.tool }))}
                 />
               </Tip>
               {tool.menu && (
@@ -144,10 +146,9 @@ export function ToolRail({ panelOpen, onTogglePanel }: { panelOpen: boolean; onT
           );
         })}
       </Island>
-      {/* Lemon has no command palette yet. */}
       <Island className="flex h-9 w-9 items-center justify-center rounded-full">
         <Tip label="Command palette" keys="Ctrl+P" side="right">
-          <IconButton icon={Ellipsis} round aria-label="Command palette" className="text-rail-icon" />
+          <IconButton icon={Ellipsis} round aria-label="Command palette" className="text-rail-icon" onClick={() => store.set({ paletteOpen: true })} />
         </Tip>
       </Island>
     </div>

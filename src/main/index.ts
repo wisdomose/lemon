@@ -5,6 +5,7 @@ import { app, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type Ipc
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
+import { userInfo } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import * as Y from "yjs";
 import { nodesOf } from "../doc/store.js";
@@ -17,7 +18,7 @@ import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
 import { Shell } from "./shell.js";
 import type { PageInput } from "./browser-pages.js";
-import { buildMenu, type MenuState } from "./menu.js";
+import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
 
@@ -237,6 +238,19 @@ async function main() {
     if (r.canceled || !r.filePath) return false;
     writeFileSync(r.filePath, bytes);
     return true;
+  });
+  // Comments: who is writing (the computer's user name), and reading them again.
+  ipcMain.handle("app:who", () => userInfo().username);
+  ipcMain.handle("comments:reload", (e) => editorOf(e)?.comments.load());
+  // The command palette's file commands, as the menu runs them.
+  ipcMain.handle("app:command", (_e, command: AppCommand) => {
+    const editor = focused();
+    if (command === "home") showDashboard();
+    else if (command === "new-file") openEditor();
+    else if (command === "open") void openDialog();
+    else if (command === "save") void editor?.save();
+    else if (command === "save-as") void editor?.saveAs();
+    else if (command === "close-tab" && editor) closeTab(editor);
   });
   // A tab's script nodes.
   ipcMain.handle("script:choose", (e) => editorOf(e)?.chooseScript());

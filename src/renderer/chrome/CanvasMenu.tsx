@@ -23,7 +23,7 @@ export function reorder(front: boolean) {
   });
 }
 
-function setLayout(layout: "vertical" | "none") {
+export function setLayout(layout: "vertical" | "none") {
   const frames = store.get().selection.filter((id) => docStore.typeOf(doc, id) === "frame");
   if (frames.length) edit(() => frames.forEach((id) => docStore.update(doc, id, { layout })));
 }

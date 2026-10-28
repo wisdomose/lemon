@@ -20,6 +20,7 @@ import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt
 import { page, type FileTab, type TabInfo } from "./shell.js";
 import { BrowserPages } from "./browser-pages.js";
 import { Scripts } from "./scripts.js";
+import { Comments } from "./comments.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
@@ -85,6 +86,8 @@ export class Editor implements FileTab {
   readonly pages: BrowserPages;
   /** The file's script nodes, run beside it. */
   readonly scripts: Scripts;
+  /** The file's comments, kept beside the app's data. */
+  readonly comments: Comments;
   /** The origin of the window's changes in this document. */
   readonly fromWindow: PersonChange;
   path: string | null;
@@ -148,6 +151,7 @@ export class Editor implements FileTab {
     this.fromWindow = fromWindow;
     this.pages = new BrowserPages(this.doc, () => (this.page.isDestroyed() ? undefined : this.page));
     this.scripts = new Scripts(this.doc, shared.sandbox, () => this.path, () => (this.page.isDestroyed() ? undefined : this.page));
+    this.comments = new Comments(this.doc);
     void this.page.loadURL(shared.pageUrl("index"));
     // The tab draws the pages and the scripts' output once it has loaded.
     this.page.on("did-finish-load", () => (this.pages.sync(), this.pages.repaint(), this.scripts.sync(), this.scripts.resend()));
@@ -172,6 +176,7 @@ export class Editor implements FileTab {
     this.running?.abort();
     this.pages.dispose();
     this.scripts.dispose();
+    this.comments.dispose();
     this.flush();
     if (this.thumbTimer) void this.redrawThumb();
     this.shared.changed();

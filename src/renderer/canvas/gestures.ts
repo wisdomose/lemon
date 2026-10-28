@@ -14,7 +14,8 @@ import { browserBar, cardHeader, isCard, runButton } from "../../render/draw.js"
 import { sendPrompt } from "../agent/chat.js";
 import { bridge } from "../scene.js";
 import { pageCursor } from "./live-pages.js";
-import { boxPick, clickPick, doubleClickPick, index, parents, unionBox } from "./pick.js";
+import { boxPick, clickPick, doubleClickPick, index, parents, pathAt, unionBox } from "./pick.js";
+import { startComment } from "../chrome/Comments.js";
 import { flowSlot, flows, frameAt, placedFreely } from "./place.js";
 import { snapBox } from "./snap.js";
 import { editingPointer, startTextEdit, stopTextEdit } from "./text-edit.js";
@@ -132,6 +133,7 @@ function idleCursor(s: Scene | undefined, sx: number, sy: number) {
   const tool = store.get().tool;
   if (space || tool === "hand") return setCursor("grab");
   if (tool === "text") return setCursor("text");
+  if (tool === "comment") return setCursor("crosshair");
   if (DRAWN.has(tool) || PLACED.has(tool) || tool === "pen") return setCursor("crosshair");
   const h = s && handleAt(s, sx, sy);
   setCursor(h ? ("corner" in h ? CURSORS[h.corner] : "pointer") : "default");
@@ -184,6 +186,8 @@ function onDown(e: PointerEvent) {
       gesture = { kind: "place", tool, at, container: frameAt(s, px, py) };
     } else if (tool === "pen") {
       penDown(at, screen);
+    } else if (tool === "comment") {
+      startComment(at, pathAt(s, px, py).at(-1)?.id ?? null);
     } else if (tool === "move" && cardPress(s, at, screen)) {
       return;
     } else if (tool === "move") {
@@ -619,7 +623,7 @@ function cardPress(s: Scene, at: Point, screen: Point): boolean {
 }
 
 // ---- Keys ------------------------------------------------------------------------------------------
-const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "ellipse", f: "frame", a: "frame", t: "text", p: "pen", n: "note" };
+const TOOL_KEYS: Record<string, Tool> = { v: "move", h: "hand", r: "rect", o: "ellipse", f: "frame", a: "frame", t: "text", p: "pen", n: "note", c: "comment" };
 
 /** Handles a key meant for the canvas; returns whether it did. */
 export function canvasKey(e: KeyboardEvent): boolean {
@@ -641,7 +645,8 @@ export function canvasKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (e.key === "Escape" && store.get().tool !== "move") {
-    store.set({ tool: "move" });
+    // Leaving the Comment tool drops an unsent comment; the pins stay.
+    store.set({ tool: "move", commentDraft: null });
     return true;
   }
   if (e.key.startsWith("Arrow") && !mod) {
@@ -687,7 +692,7 @@ function nudge(dir: "left" | "right" | "up" | "down", by: number) {
 }
 
 /** Ctrl/⌘ + ] and [: bring forward or send backward one place. */
-function step(dir: 1 | -1) {
+export function step(dir: 1 | -1) {
   const ids = store.get().selection.filter((id) => !docStore.isPart(id));
   edit(() => {
     for (const id of dir > 0 ? [...ids].reverse() : ids) {

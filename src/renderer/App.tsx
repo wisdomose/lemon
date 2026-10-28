@@ -1,5 +1,5 @@
 // The editor window: full-window canvas with the floating islands over it.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
 import { attach, schedule, setZoom, zoomStep, zoomToFit } from "./canvas/canvas.js";
 import { attachGestures, canvasKey, canvasKeyUp } from "./canvas/gestures.js";
@@ -22,10 +22,16 @@ import { BrowserLiveBar, BrowserUrlField, CardKindMenu } from "./chrome/CanvasFi
 import { pageKey } from "./canvas/live-pages.js";
 import { exportSelection, type ExportFormat } from "./export.js";
 import { sharedCommand } from "./settings.js";
+import { CommentLayer, CommentsPanel } from "./chrome/Comments.js";
+import { ShortcutsDialog } from "./chrome/ShortcutsDialog.js";
+import { CommandPalette } from "./chrome/CommandPalette.js";
 
 export function App({ initial }: { initial: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const panelOpen = useEditor((s) => s.panelOpen);
+  // The Comment tool swaps the properties panel for the comments, as in Pen.
+  const commenting = useEditor((s) => s.tool === "comment");
+  const setPanelOpen = (fn: (o: boolean) => boolean) => store.set((s) => ({ panelOpen: fn(s.panelOpen) }));
   useEffect(() => {
     const detach = [attach(canvasRef.current!), attachGestures(canvasRef.current!)];
     return () => detach.forEach((d) => d());
@@ -48,6 +54,9 @@ export function App({ initial }: { initial: string }) {
       const key = e.key.toLowerCase();
       if (canvasKey(e)) schedule();
       else if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
+      else if (mod && key === "p") (e.preventDefault(), store.set({ paletteOpen: true }));
+      else if (!mod && e.key === "?") store.set({ shortcutsOpen: true });
+      else if (!mod && e.shiftKey && key === "c") store.set((s) => ({ showComments: !s.showComments }));
       else if (mod && e.altKey && e.code === "KeyK") (e.preventDefault(), makeComponents());
       else if (mod && e.altKey && e.code === "KeyX") (e.preventDefault(), detachSelected());
       else if (mod && key === "z" && !e.shiftKey) (e.preventDefault(), history.undo());
@@ -114,13 +123,16 @@ export function App({ initial }: { initial: string }) {
               <ChatInput />
             </div>
           )}
-          <PropertiesPanel />
+          {commenting ? <CommentsPanel /> : <PropertiesPanel />}
           <CardKindMenu />
           <BrowserUrlField />
           <BrowserLiveBar />
           <ZoomControl />
+          <CommentLayer />
         </div>
         <SettingsHost />
+        <ShortcutsDialog />
+        <CommandPalette />
       </div>
       <Toaster position="bottom-center" theme="dark" />
     </TipProvider>

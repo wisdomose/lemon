@@ -23,6 +23,9 @@ export type WindowCommand =
   | "export-jpeg"
   | "export-webp";
 
+/** File commands a tab can ask for (the command palette), as the menu runs them. */
+export type AppCommand = "home" | "new-file" | "open" | "save" | "save-as" | "close-tab";
+
 /** What the menu shows checked: the window tells it (its settings live there). */
 export interface MenuState {
   chatTextSize: "small" | "medium" | "large";
