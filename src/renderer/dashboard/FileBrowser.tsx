@@ -8,7 +8,7 @@ import type { FileCard } from "../../main/files.js";
 import type { Bridge, DashboardFiles } from "../bridge.js";
 import { cx } from "../ui/kit.js";
 import { MenuContent, MenuItem, MenuSeparator } from "../ui/menu.js";
-import logoUrl from "../../../assets/logo.svg?url";
+import logoUrl from "../../../assets/icon.png?url";
 
 type Shelf = "recents" | "drafts" | "systems";
 type View = "grid" | "list";

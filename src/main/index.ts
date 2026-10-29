@@ -177,6 +177,8 @@ app.on("open-file", (e, path) => {
 async function main() {
   if (!alone) return;
   await app.whenReady();
+  // macOS uses its Dock icon instead of the native window icon.
+  app.dock?.setIcon(join(app.getAppPath(), "assets", "icon.png"));
   log("ready");
   protocol.handle(UI_SCHEME, (req) => {
     const path = join(UI_ROOT, decodeURIComponent(new URL(req.url).pathname));

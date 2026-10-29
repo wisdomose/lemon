@@ -2,4 +2,5 @@ allowBuilds:
   esbuild: true
   electron: true
   electron-winstaller: false
-  core-js: set this to true or false
+  # core-js only prints a funding banner during installation; no build is needed.
+  core-js: false
