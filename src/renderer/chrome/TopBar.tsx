@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Folder, Gift, Globe, House, Play, Plus, Share, X } from "lucide-react";
 import { PRODUCT } from "../../product.js";
-import logoUrl from "../../../assets/logo.svg?url";
+import logoUrl from "../../../assets/icon.png?url";
 import type { TabInfo, Tabs } from "../../main/shell.js";
 import { Divider, ICON, IconButton, Island, Tip, cx } from "../ui/kit.js";
 import type { Bridge } from "../bridge.js";
