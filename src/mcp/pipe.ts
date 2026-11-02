@@ -5,6 +5,8 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 
 export function pipePath(slug: string): string {
+  // A developer switch (.env.example): run a build from source beside the installed app.
+  if (process.env.LEMON_MCP_PIPE) return process.env.LEMON_MCP_PIPE;
   const user = userInfo().username.replace(/[^\w.-]/g, "_");
   return process.platform === "win32" ? `\\\\.\\pipe\\${slug}-mcp-${user}` : join(tmpdir(), `${slug}-mcp-${user}.sock`);
 }

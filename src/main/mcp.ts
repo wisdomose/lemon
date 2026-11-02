@@ -7,7 +7,6 @@ import { createServer, type Server as NetServer, type Socket } from "node:net";
 import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox, Globals } from "../sandbox/sandbox.js";
@@ -17,6 +16,7 @@ import { execute } from "../agent/execute.js";
 import { FailedScripts } from "../agent/patches.js";
 import { notRun, summarise } from "../agent/agent.js";
 import { runBrowser, browserSchema } from "../agent/browser-tool.js";
+import { INSTRUCTIONS, TOOLS } from "../mcp/tools.js";
 import { pipePath, type Hello } from "../mcp/pipe.js";
 import { EXT } from "./files.js";
 import type { Editor } from "./editor.js";
@@ -43,14 +43,6 @@ export const AGENT_NAMES: Record<string, string> = {
   kiroCLI: "Kiro",
   claudeDesktop: "Claude",
 };
-
-const INSTRUCTIONS = `This MCP server is for interacting with ${PRODUCT.name} and .pen design files (web/mobile apps and websites). Use it to read, generate, and validate designs.
-
-While ${PRODUCT.name} has a .pen file open it keeps its own copy and saves over the file: change open files only through these tools, never by writing the file.
-
-Make sure you are aware of the .pen schema and the instructions for the execute tool (read_skill).`;
-
-const EXECUTE_DESCRIPTION = `Run a JavaScript snippet against a .pen document open in ${PRODUCT.name} (Insert, Copy, Update, Replace, Move, Delete, Get, SetVariables, GetVariables, FindEmptySpace, Print, TakeScreenshot). The person sees each change on the canvas. All-or-nothing: if it throws, everything it did is removed and the result gives an editId. Use read_skill if you don't have execute documentation.`;
 
 /** What one agent has going in one document: its failed scripts, its globals and its steps. */
 interface Session {
@@ -165,27 +157,11 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
 
   const mcp = new McpServer({ name: PRODUCT.slug, version: "0.0.1" }, { instructions: INSTRUCTIONS });
 
-  mcp.registerTool(
-    "get_app_state",
-    { description: `Get info about the current state of the ${PRODUCT.name} app, current user selections and other essential information to get started on a task.`, inputSchema: {} },
-    async () => ({ content: [{ type: "text", text: appState(host) }] }),
-  );
+  mcp.registerTool("get_app_state", TOOLS.get_app_state, async () => ({ content: [{ type: "text", text: appState(host) }] }));
 
   mcp.registerTool(
     "execute",
-    {
-      description: EXECUTE_DESCRIPTION,
-      inputSchema: {
-        description: z.string().optional().describe('Shown to the user as the label of this call. Write it first, before `input` or `edits`. A short, specific phrase of 3-8 words starting with an imperative verb that says what this call does to the design, e.g. "Add pricing section with 3 tiers". No trailing period.'),
-        input: z.string().optional().describe("The JavaScript snippet to execute. Required unless `edits` is provided."),
-        editId: z.string().optional().describe("The id of the failed snippet to patch, as printed in that call's failure message. Send it only together with `edits`."),
-        edits: z
-          .array(z.object({ find: z.string().describe("Exact text in the failed snippet to replace. Must match exactly once unless `all` is true."), replace: z.string().describe("The replacement text."), all: z.boolean().optional().describe("Replace every occurrence instead of requiring a unique match.") }))
-          .optional()
-          .describe("When an execute call fails, ALWAYS retry with this instead of resending the snippet in `input`. Each edit replaces `find` with `replace` in the failed snippet, then the patched snippet re-runs from scratch. Requires `editId`; omit `input` when using it."),
-        filePath: z.string().describe(`The path of the .pen file to work on (from get_app_state); "" for the file shown.`),
-      },
-    },
+    TOOLS.execute,
     async ({ input, editId, edits, filePath }) => {
       let editor: Editor;
       try {
@@ -223,10 +199,7 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
 
   mcp.registerTool(
     "browser",
-    {
-      description: `Interact with a real website loaded in the app's integrated browser (a sidebar beside the canvas) or in a browser node on the canvas: open a URL, reproduce a page (or one element) as editable canvas layers, screenshot it, or pull its DOM/screenshot back into the conversation. Call action "load-page" before the other actions so a page is loaded.`,
-      inputSchema: { ...browserSchema.shape, filePath: z.string().describe(`The path of the .pen file whose browser to use (from get_app_state); "" for the file shown.`) },
-    },
+    TOOLS.browser,
     async ({ filePath, ...input }) => {
       let editor: Editor;
       try {
@@ -235,7 +208,7 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
         return failure(e);
       }
       const s = sessionOf(editor);
-      const r = await runBrowser(input, { pages: editor.pages, doc: editor.doc, engine: host.engine, origin: new AgentChange(agent, ++s.steps) });
+      const r = await runBrowser(browserSchema.parse(input), { pages: editor.pages, doc: editor.doc, engine: host.engine, origin: new AgentChange(agent, ++s.steps) });
       s.personEdits.take();
       return { content: r.content, ...(r.ok ? {} : { isError: true }) };
     },
