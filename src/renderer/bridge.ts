@@ -1,7 +1,7 @@
 // What a window can ask of the host. In the desktop app the preload script provides it over IPC; in a
 // plain browser (development and headless checks) a stand-in reads a saved document and fonts over HTTP
 // and has no agent.
-import type { AgentStats } from "../agent/agent.js";
+import type { AgentStats, Variants } from "../agent/agent.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team, CodexModel } from "../agent/models.js";
 import type { ProviderStatus } from "../agent/codex.js";
@@ -23,7 +23,8 @@ export interface Bridge {
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
-  runAgent(prompt: string, model: string, team?: Team, effort?: string): Promise<AgentStats[]>;
+  /** `variants`: "Let it cook" (more variations after the first design). */
+  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants): Promise<AgentStats[]>;
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: TaggedEvent) => void): void;
   canRunAgent: boolean;

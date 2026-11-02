@@ -27,6 +27,10 @@ let framesBefore: Set<string> | undefined;
 const landed = new Set<string>();
 /** A team is running: one agent finishing doesn't end the run. */
 let teamRunning = false;
+/** Seconds of this run's earlier variations ("Let it cook"); the last one's time is what's left. */
+let iteratedSeconds = 0;
+/** What the chat shows for each further variation (Pen's words). */
+const ITERATING = "Iterating more on the design…";
 
 /** The first time the agent adds a top-level frame, fits the view to it once it can be laid out (its fonts may still be loading). */
 function fitNewFrame(): void {
@@ -39,6 +43,8 @@ function fitNewFrame(): void {
 function finished(seconds: number) {
   hideCursor();
   teamRunning = false;
+  seconds = Math.max(0, seconds - iteratedSeconds);
+  iteratedSeconds = 0;
   store.set((s) => ({ agentStatus: null, chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
   push({ kind: "designed", seconds });
   schedule();
@@ -125,6 +131,17 @@ export function handleAgentEvent(e: TaggedEvent): void {
         });
       } else push({ kind: "text", text: e.text, ...tag });
       break;
+    // One design is done and the next variation starts: its time, then Pen's message, then the agent again.
+    case "iterating": {
+      iteratedSeconds += e.seconds;
+      store.set((s) => ({ chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
+      push({ kind: "designed", seconds: e.seconds });
+      push({ kind: "user", text: ITERATING });
+      const head = store.get().chat.findLast((c) => c.kind === "agent-head" && c.agent === agent);
+      if (head) push({ ...head });
+      store.set({ agentStatus: "planning" });
+      break;
+    }
     case "done":
       if (!teamRunning) finished(Math.round(e.stats.durationMs / 1000));
       else {
@@ -144,8 +161,10 @@ export function sendPrompt(text: string, forAgent?: string): void {
   if (!text.trim() || !bridge.canRunAgent || store.get().agentStatus) return;
   push({ kind: "user", text: text.trim() });
   store.set((s) => ({ agentStatus: "planning", session: s.session ?? text.trim() }));
-  const { model, team, effort } = store.get();
-  void bridge.runAgent((forAgent ?? text).trim(), model, team, effort);
+  const { model, team, effort, cook } = store.get();
+  // "Let it cook" is for one request: it goes back to no variations once sent (as in Pen).
+  if (cook.count > 1) store.set({ cook: { ...cook, count: 1 } });
+  void bridge.runAgent((forAgent ?? text).trim(), model, team, effort, cook.count > 1 ? cook : undefined);
 }
 
 // Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's

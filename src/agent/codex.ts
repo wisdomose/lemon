@@ -265,6 +265,8 @@ export async function runCodex(o: {
   /** The canvas tools by name (execute, browser); every other tool is refused. */
   tools?: Record<string, CodexTool>;
   onText?: (text: string, streamId: string) => void;
+  /** Asked when a turn is done: another message to send on the same thread, or undefined to finish. */
+  followUp?: () => string | undefined;
 }): Promise<CodexResult> {
   o.signal?.throwIfAborted();
   const connection = new CodexConnection();
@@ -318,8 +320,19 @@ export async function runCodex(o: {
       turnId = (p.turn as { id: string }).id;
     } else if (m.method === "turn/completed") {
       const turn = p.turn as { status: string; error?: { message: string } };
-      if (turn.status === "completed") complete();
-      else reject(new Error(turn.error?.message ?? `Codex turn ${turn.status}.`));
+      if (turn.status !== "completed") reject(new Error(turn.error?.message ?? `Codex turn ${turn.status}.`));
+      else {
+        const next = threadId ? o.followUp?.() : undefined;
+        if (next === undefined) complete();
+        else {
+          // The reply is the last turn's, and the step limit is for each turn.
+          result.reply = "";
+          calls = 0;
+          connection
+            .request<{ turn: { id: string } }>("turn/start", { threadId, input: [{ type: "text", text: next, text_elements: [] }], ...(o.effort ? { effort: o.effort } : {}) })
+            .then((t) => (turnId = t.turn.id), (e: unknown) => reject(e instanceof Error ? e : new Error(String(e))));
+        }
+      }
     }
   };
   o.signal?.addEventListener("abort", abort, { once: true });

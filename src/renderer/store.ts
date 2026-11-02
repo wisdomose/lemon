@@ -5,6 +5,7 @@ import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 import type { SidebarState } from "../main/browser-pages.js";
+import type { Variants } from "../agent/agent.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
 export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand" | "comment";
@@ -62,6 +63,8 @@ export interface EditorState {
   effort?: string;
   /** How many agents the next request goes to, and how they share it (the ⚡ choice). */
   team: Team;
+  /** "Let it cook" (the ▦ choice): how many variations the next request gets, and how they differ. Back to 1 once sent, as in Pen. */
+  cook: Variants;
   settingsOpen: boolean;
   /** Past conversations, newest first. */
   history: Session[];
@@ -110,6 +113,7 @@ const initial: EditorState = {
   codexModels: [],
   codexModelsState: "idle",
   team: { count: 1, mode: "split" },
+  cook: { count: 1, mode: "layout" },
   settingsOpen: false,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },

@@ -4,7 +4,7 @@
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { z } from "zod";
 import { PRODUCT } from "../product.js";
@@ -65,6 +65,8 @@ export type AgentEvent =
   | { type: "step-start"; index: number; title: string }
   | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
   | { type: "text"; text: string; streamId?: string }
+  /** A design is done and the agent goes on to the next variation ("Let it cook"); `seconds` is how long the last one took. */
+  | { type: "iterating"; seconds: number }
   | { type: "done"; stats: AgentStats }
   | { type: "error"; message: string };
 
@@ -102,8 +104,30 @@ export interface AgentOptions {
   leaveMarked?: string[];
   /** The pages of the document's browser nodes; without it the agent has no browser tool. */
   browser?: PageDriver;
+  /** "Let it cook": how many variations to design in all (1: just the one), and how they differ. */
+  variants?: Variants;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
+}
+
+/** "Let it cook", as in Pen: after the first design the agent designs more variations of it on its own. */
+export interface Variants {
+  /** Designs in all, 1–6 (1: no variations). */
+  count: number;
+  /** "layout": new variations keep the first design's style; "style": each gets a new one. */
+  mode: "layout" | "style";
+}
+
+/** Added to the request when variations will follow (what Pen asks for, in our words). */
+const FIRST_OF_VARIANTS = `This is the first of several variations. Design one focused screen, unless the person asked for a flow or for several screens, and even then keep it as small as you can. For a broad request ("a fitness tracker", "an app for a sports team") design its main screen: the one people land on first, which sets the look and the idea for the rest. Don't design the whole product. The variations after this one will try other directions for whatever you design here.`;
+
+/** The follow-up for each further variation (what Pen sends, in our words). */
+function nextVariation(mode: Variants["mode"]): string {
+  const style =
+    mode === "style"
+      ? "Give it a new style, not the first design's: take a different starting point (offered below) and set new variables, fonts and colours for it."
+      : "Keep the first design's style: the same variables, fonts and colours.";
+  return `Now design another variation of this page. Like a great product designer, find a source of inspiration that gives it depth, from your own knowledge: don't use the web for this. Study it, take it apart, and let what you learn shape the design, in whatever way you think best. Make it a completely new variation, beside the others. ${style}`;
 }
 
 /** A step that never ran (its edits didn't fit the failed script). */
@@ -350,14 +374,36 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
   mkdirSync(cwd, { recursive: true });
 
+  const startingPoints = (list: Direction[]) =>
+    list.length ? [`<starting-points>For a new design, start from: ${list.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : [];
+  /** What the agent is told of the canvas and the browser, fresh for each turn. */
+  const context = () => [`<canvas>${canvasSummary(o.doc)}</canvas>`, ...(o.browser ? [`<browser>${o.browser.summary()}</browser>`] : [])];
+  const variants = Math.max(1, Math.min(6, Math.round(o.variants?.count ?? 1)));
   const message = [
     o.prompt.trim(),
+    ...(variants > 1 ? ["", FIRST_OF_VARIANTS] : []),
     "",
-    `<canvas>${canvasSummary(o.doc)}</canvas>`,
-    ...(o.browser ? [`<browser>${o.browser.summary()}</browser>`] : []),
-    ...(directions.length ? [`<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : []),
+    ...context(),
+    ...startingPoints(directions),
     ...(o.brief ? [`<team>${o.brief}</team>`] : []),
   ].join("\n");
+  // Each further variation is another turn of the same conversation, so the agent knows what it made.
+  let variation = 1;
+  let variationStarted = started;
+  const used = directions.map((d) => d.id);
+  /** The next variation's message, once a design is done; undefined when there are no more. */
+  const nextTurn = (): string | undefined => {
+    if (variation >= variants || o.signal?.aborted) return undefined;
+    emit({ type: "iterating", seconds: Math.round((performance.now() - variationStarted) / 1000) });
+    variation++;
+    variationStarted = lastActivity = performance.now();
+    let fresh: Direction[] = [];
+    if (o.variants?.mode === "style") {
+      fresh = pickStartingPoints([...(o.recentDirections ?? []), ...used]);
+      used.push(...fresh.map((d) => d.id));
+    }
+    return [nextVariation(o.variants?.mode ?? "layout"), "", ...context(), ...startingPoints(fresh)].join("\n");
+  };
 
   const stats: AgentStats = {
     ok: false,
@@ -375,7 +421,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   try {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
-        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal,
+        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
         tools: {
           execute: {
             description: toolDescription,
@@ -401,8 +447,21 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
       const browserTool = o.browser ? [tool("browser", BROWSER_DESCRIPTION, browserSchema.shape, browserCall)] : [];
       const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool, ...browserTool] });
+      // With variations to come, the conversation stays open and each next message is sent when the
+      // design before it is done (undefined ends it). A turn can end before the conversation asks for
+      // its next message, so what's sent waits in a queue.
+      const queued: (string | undefined)[] = [];
+      let waiting: ((text: string | undefined) => void) | undefined;
+      const sendNext = (text: string | undefined) => (waiting ? (waiting(text), (waiting = undefined)) : queued.push(text));
+      const turns = async function* (): AsyncGenerator<SDKUserMessage> {
+        let text: string | undefined = message;
+        while (text !== undefined) {
+          yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+          text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
+        }
+      };
       for await (const m of query({
-        prompt: message,
+        prompt: variants > 1 ? turns() : message,
         options: {
           model,
           ...(effort ? { effort } : {}),
@@ -434,13 +493,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
           stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
           stats.apiMs = m.duration_api_ms;
           stats.turns = m.num_turns;
+          // Running totals for the whole conversation (each turn's result carries them so far).
           stats.costUsd = m.total_cost_usd;
+          stats.tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
           for (const u of Object.values(m.modelUsage)) {
             stats.tokens.input += u.inputTokens;
             stats.tokens.output += u.outputTokens;
             stats.tokens.cacheRead += u.cacheReadInputTokens;
             stats.tokens.cacheWrite += u.cacheCreationInputTokens;
           }
+          if (variants > 1) sendNext(stats.ok ? nextTurn() : undefined);
         }
       }
     }

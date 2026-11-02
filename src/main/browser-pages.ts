@@ -655,9 +655,13 @@ const scaled = (r: Electron.Rectangle, k: number): Electron.Rectangle =>
 
 /**
  * Runs in the page (it is sent as source, so it uses nothing from outside): the element `selector`
- * matches, or the body, as Pen's browser tool describes one — its path from the body, where it is on
- * the page, its own tag, and its tree with the computed styles that aren't the defaults. Null when
- * nothing matches.
+ * matches, or the body, described as Pen's browser tool describes one (its rules worked out from its
+ * replies, 2 Nov 2026). For an element: its path from the body, where it is, and its own tag; then, for
+ * an element or the whole page, its tree with the computed styles that differ from a bare element of
+ * the same tag put straight under <html> (so the page's own rules for that tag, such as a CSS reset,
+ * count as the default). Width and height are compared with a bare element in an empty frame of no
+ * size instead: that is what matches Pen (a body is listed with its width, an input without). Null
+ * when nothing matches.
  */
 function describeElement(selector: string | null): string | null {
   const el = selector === null ? document.body : document.querySelector(selector);
@@ -665,78 +669,124 @@ function describeElement(selector: string | null): string | null {
   const LIMIT = 40_000;
   const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
   const label = (e: Element) => cut(e.tagName.toLowerCase() + (e.id ? `#${e.id}` : "") + [...e.classList].slice(0, 2).map((c) => `.${c}`).join(""), 50);
-  const path: string[] = [];
-  for (let e: Element | null = el; e && e !== document.documentElement; e = e.parentElement) path.unshift(label(e));
   const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const attrs = (e: Element, skip: string[]) =>
-    [...e.attributes].filter((a) => a.name !== "style" && !skip.includes(a.name)).map((a) => ` ${a.name}="${a.value.replace(/"/g, "&quot;")}"`).join("");
-  // Left out where the value is this one: the layout properties (written first), then the look.
-  const LAYOUT: Record<string, string> = {
-    "flex-direction": "row", "flex-wrap": "nowrap", "flex-grow": "0", "flex-shrink": "1", gap: "normal",
-    "justify-content": "normal", "align-items": "normal", "grid-template-columns": "none", "grid-template-rows": "none",
+  // Only these attributes are kept (the rest, such as title, value or an SVG's geometry, are left out).
+  const KEEP = ["id", "class", "role", "name", "type", "placeholder", "href", "src", "alt"];
+  const attrs = (e: Element) =>
+    [...e.attributes]
+      .filter((a) => KEEP.includes(a.name) || a.name.startsWith("aria-"))
+      .map((a) => ` ${a.name}="${a.value.replace(/"/g, "&quot;")}"`)
+      .join("");
+  const VOID = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"];
+  const SKIP = ["script", "style", "noscript", "template", "link", "meta", "head", "title"];
+  const sides = (f: (side: string) => string) => ["top", "right", "bottom", "left"].map(f);
+  // The properties that can be listed, in the order they are written.
+  const PROPS = [
+    "display", "flex-direction", "flex-wrap", "gap", "justify-content", "align-items", "position", "z-index", "flex-grow", "align-self",
+    "grid-template-columns", "grid-template-rows", "translate", "rotate", "scale", "transform",
+    "background-color", "background-image", "background-size", "background-position", "background-repeat",
+    ...sides((s) => `border-${s}-width`), ...sides((s) => `border-${s}-color`), ...sides((s) => `border-${s}-style`),
+    "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius",
+    "box-shadow", "opacity", "filter", "backdrop-filter", "mix-blend-mode", "outline-width", "outline-style", "outline-color",
+    "color", "font-family", "font-size", "font-weight", "font-style", "letter-spacing", "line-height", "text-align", "text-indent",
+    "white-space", "text-decoration", "text-transform", "object-fit", "overflow-x", "overflow-y",
+    "width", "height", "min-width", "max-width", ...sides((s) => `padding-${s}`), ...sides((s) => `margin-${s}`),
+  ];
+  const value = (s: CSSStyleDeclaration, k: string) => s.getPropertyValue(k === "text-decoration" ? "text-decoration-line" : k);
+  const SIZES = ["width", "height"];
+  // An empty frame of no size, for the sizes.
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:0;height:0;border:0;visibility:hidden";
+  document.documentElement.appendChild(frame);
+  const bare = frame.contentDocument!;
+  bare.open();
+  bare.write("<!doctype html><html><head></head><body></body></html>");
+  bare.close();
+  // A bare element's values, read and then taken out again at once (nothing is drawn in between).
+  const refs = new Map<string, Record<string, string>>();
+  const refOf = (e: Element) => {
+    const key = `${e.namespaceURI} ${e.localName}`;
+    let ref = refs.get(key);
+    if (!ref) {
+      const made = document.createElementNS(e.namespaceURI, e.localName);
+      document.documentElement.appendChild(made);
+      const s = getComputedStyle(made);
+      ref = Object.fromEntries(PROPS.map((k) => [k, value(s, k)]));
+      made.remove();
+      const sized = bare.createElementNS(e.namespaceURI, e.localName);
+      bare.body.appendChild(sized);
+      const t = frame.contentWindow!.getComputedStyle(sized);
+      for (const k of SIZES) ref[k] = value(t, k);
+      sized.remove();
+      refs.set(key, ref);
+    }
+    return ref;
   };
-  const LOOK: Record<string, string> = {
-    "border-top-left-radius": "0px", "border-top-right-radius": "0px", "border-bottom-right-radius": "0px", "border-bottom-left-radius": "0px",
-    "background-color": "rgba(0, 0, 0, 0)", "background-image": "none",
-    "padding-top": "0px", "padding-right": "0px", "padding-bottom": "0px", "padding-left": "0px",
-    "margin-top": "0px", "margin-right": "0px", "margin-bottom": "0px", "margin-left": "0px",
-    "text-align": "start", "white-space": "normal", "overflow-x": "visible", "overflow-y": "visible", opacity: "1",
-    "box-shadow": "none", "letter-spacing": "normal", "text-transform": "none", "text-decoration-line": "none", "z-index": "auto",
-  };
-  const SKIP = ["script", "style", "noscript", "template", "link", "meta"];
-  const styleOf = (e: Element, parent: CSSStyleDeclaration | undefined) => {
+  const styleOf = (e: Element) => {
     const s = getComputedStyle(e);
+    const ref = refOf(e);
     const out: string[] = [];
-    const add = (k: string, v: string) => v && out.push(`${k}: ${v}`);
-    if (s.display !== "block") add("display", s.display);
-    for (const [k, d] of Object.entries(LAYOUT)) if (s.getPropertyValue(k) !== d) add(k, s.getPropertyValue(k));
-    add("position", s.position);
-    if (s.position !== "static") for (const k of ["top", "right", "bottom", "left"]) if (s.getPropertyValue(k) !== "auto") add(k, s.getPropertyValue(k));
-    for (const [k, d] of Object.entries(LOOK)) if (s.getPropertyValue(k) !== d) add(k, s.getPropertyValue(k));
-    for (const side of ["top", "right", "bottom", "left"]) {
-      const w = s.getPropertyValue(`border-${side}-width`);
-      if (w !== "0px" && s.getPropertyValue(`border-${side}-style`) !== "none") add(`border-${side}`, `${w} ${s.getPropertyValue(`border-${side}-style`)} ${s.getPropertyValue(`border-${side}-color`)}`);
+    for (const k of PROPS) {
+      const v = value(s, k);
+      const differs = v !== ref[k];
+      let shown = differs;
+      if (k === "display") shown = v !== "block" && (differs || v.startsWith("inline"));
+      else if (k === "position") shown = v !== "absolute";
+      // Overflow is listed when it is hidden or scrolls, even where that is the default (an SVG's), but
+      // not the "clip" pictures and form fields have by default.
+      else if (k === "overflow-x" || k === "overflow-y") shown = v === "hidden" || v === "scroll";
+      else if (k === "width" || k === "height" || k === "min-width") shown = differs && v !== "auto";
+      if (shown && v) out.push(`${k}: ${v}`);
     }
-    if (!parent || s.fontFamily !== parent.fontFamily) add("font-family", s.fontFamily);
-    add("color", s.color);
-    add("font-size", s.fontSize);
-    add("font-weight", s.fontWeight);
-    add("line-height", s.lineHeight);
-    if (s.display !== "inline" && s.display !== "contents") {
-      if (s.width !== "auto") add("width", s.width);
-      if (s.height !== "auto") add("height", s.height);
-    }
-    return { style: s, text: out.join("; ") };
+    return out.join("; ");
   };
+  /** The element's own text: its text nodes, spaces run together. */
+  const textOf = (n: Node) =>
+    [...n.childNodes]
+      .filter((c) => c.nodeType === Node.TEXT_NODE && /\S/.test(c.textContent ?? ""))
+      .map((c) => escape(c.textContent!.replace(/\s+/g, " ")))
+      .join("");
   let size = 0;
-  const tree = (e: Element, parent: CSSStyleDeclaration | undefined): string => {
+  const tree = (e: Element): string => {
     const tag = e.tagName.toLowerCase();
     if (SKIP.includes(tag) || size > LIMIT) return "";
-    // A drawing's geometry is long and says little about the design.
-    const inSvg = e instanceof SVGElement && tag !== "svg";
-    const { style, text } = styleOf(e, parent);
-    const open = `<${tag}${attrs(e, inSvg ? ["d", "points"] : [])}${text ? ` style="${text.replace(/"/g, "'")}"` : ""}>`;
+    const style = styleOf(e);
+    const open = `<${tag}${attrs(e)}${style ? ` style="${style.replace(/"/g, "'")}"` : ""}`;
     size += open.length;
+    if (VOID.includes(tag)) return `${open} />`;
     let inner = "";
     for (const child of e.childNodes) {
       if (child.nodeType === Node.TEXT_NODE) {
-        const t = child.textContent?.replace(/\s+/g, " ").trim();
-        if (t) (inner += escape(t)), (size += t.length);
-      } else if (child.nodeType === Node.ELEMENT_NODE) inner += tree(child as Element, style);
+        if (!/\S/.test(child.textContent ?? "")) continue;
+        const t = escape(child.textContent!.replace(/\s+/g, " "));
+        inner += t;
+        size += t.length;
+      } else if (child.nodeType === Node.ELEMENT_NODE) inner += tree(child as Element);
     }
-    return `${open}${inner}</${tag}>`;
+    return `${open}>${inner}</${tag}>`;
   };
+  let styled: string;
+  try {
+    styled = tree(el);
+  } finally {
+    frame.remove();
+  }
+  if (size > LIMIT) styled = `${styled.slice(0, LIMIT)}\n…(cut: the element is too big to read whole; query a smaller part of it)`;
+  const lines = [`Styled tree for ${label(el)}:`, styled];
+  // The whole page is just its tree; an element comes with where it is.
+  if (selector === null) return lines.join("\n");
+  const path: string[] = [];
+  for (let e: Element | null = el; e && e !== document.documentElement; e = e.parentElement) path.unshift(label(e));
   const r = el.getBoundingClientRect();
   const px = (v: number) => `${Math.round(v)}px`;
   const tag = el.tagName.toLowerCase();
-  const styled = tree(el, el.parentElement ? getComputedStyle(el.parentElement) : undefined);
   return [
     `DOM Path: ${path.join(" > ")}`,
     `Position: top=${px(r.top)}, left=${px(r.left)}, width=${px(r.width)}, height=${px(r.height)}`,
-    `HTML Element: <${tag}${attrs(el, [])}></${tag}>`,
+    `HTML Element: ${VOID.includes(tag) ? `<${tag}${attrs(el)} />` : `<${tag}${attrs(el)}>${textOf(el)}</${tag}>`}`,
     "",
-    `Styled tree for ${label(el)}:`,
-    size > LIMIT ? `${styled.slice(0, LIMIT)}\n…(cut: the element is too big to read whole; query a smaller part of it)` : styled,
+    ...lines,
   ].join("\n");
 }
 

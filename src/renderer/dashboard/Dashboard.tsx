@@ -82,8 +82,10 @@ function PromptStarter({ onHide }: { onHide: () => void }) {
     if (!p || !p.hasText || !bridge.canRunAgent) return;
     const noun = KINDS[kind]!.noun;
     const forAgent = noun ? `${p.forAgent}\n\n(What to design: ${noun}.)` : p.forAgent;
-    const { model, team, effort } = store.get();
-    void bridge.dashboard.newFile({ text: p.shown, forAgent, model, team, effort });
+    const { model, team, effort, cook } = store.get();
+    void bridge.dashboard.newFile({ text: p.shown, forAgent, model, team, effort, ...(cook.count > 1 ? { cook } : {}) });
+    // "Let it cook" is for one request (as in Pen).
+    if (cook.count > 1) store.set({ cook: { ...cook, count: 1 } });
   };
   return (
     <section className="relative">

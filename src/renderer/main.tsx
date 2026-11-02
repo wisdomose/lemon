@@ -36,6 +36,7 @@ const start = await bridge.startPrompt();
 if (start) {
   if (start.model) store.set({ model: start.model, effort: start.effort });
   if (start.team) store.set({ team: start.team });
+  if (start.cook) store.set({ cook: start.cook });
   sendPrompt(start.text, start.forAgent);
 }
 if (q.get("view")) {
