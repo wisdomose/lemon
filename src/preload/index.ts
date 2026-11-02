@@ -52,6 +52,12 @@ const bridge: Bridge = {
   },
   menuState: (state) => ipcRenderer.send("menu:state", state),
   selection: (ids) => ipcRenderer.send("editor:selection", ids),
+  mcp: {
+    page: () => ipcRenderer.invoke("mcp:page"),
+    setServers: (text) => ipcRenderer.invoke("mcp:set-servers", text),
+    setClient: (id, on) => ipcRenderer.invoke("mcp:set-client", id, on),
+    copyConfig: () => ipcRenderer.invoke("mcp:copy-config"),
+  },
   who: () => ipcRenderer.invoke("app:who"),
   reloadComments: () => ipcRenderer.invoke("comments:reload"),
   appCommand: (command) => ipcRenderer.invoke("app:command", command),

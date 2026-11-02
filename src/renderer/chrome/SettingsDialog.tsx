@@ -1,13 +1,15 @@
 // The Settings window: a 1100 × 696 dialog with a section list on the left, as in the reference.
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Dialog as D, Switch as S } from "radix-ui";
-import { Bot, MessageSquare, Moon, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
+import { Bot, Check, Copy, MessageSquare, Minus, Moon, Plus, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
 import { PRODUCT } from "../../product.js";
 import { MODELS } from "../../agent/models.js";
 import type { ProviderStatus } from "../../agent/codex.js";
 import { bridge } from "../bridge.js";
 import { setSetting, useSettings, type Settings } from "../settings.js";
-import { cx } from "../ui/kit.js";
+import { Tip, cx } from "../ui/kit.js";
+import { MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage } from "../../mcp/settings.js";
 
 type Page = "general" | "agents" | "names" | "chat" | "mcp";
 const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
@@ -75,7 +77,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {page === "agents" && <Agents claude={claude} codex={codex} onCodex={setCodex} />}
             {page === "names" && <Placeholder title="Agent Names" text="Choose the names agents show on their cursors. Coming with parallel agents." />}
             {page === "chat" && <ChatPage />}
-            {page === "mcp" && <Placeholder title="MCP" text="Give agents extra tools from MCP servers, and let other AI tools design in this app. Not built yet." />}
+            {page === "mcp" && <Mcp />}
           </div>
         </D.Content>
       </D.Portal>
@@ -87,9 +89,9 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 const H1 = ({ children }: { children: ReactNode }) => <h1 className="mb-[33px] text-[24px] leading-8 font-semibold text-foreground">{children}</h1>;
 const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-[19px] mb-[7px] text-[14px] font-semibold text-foreground first:mt-0">{children}</h2>;
 
-function Row({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
+function Row({ label, note, tall, children }: { label: string; note?: string; tall?: boolean; children: ReactNode }) {
   return (
-    <div className="flex min-h-[41px] items-center border-b border-row-line py-[9px] last:border-b-0">
+    <div className={cx("flex items-center border-b border-row-line py-[9px] last:border-b-0", tall ? "min-h-[45px]" : "min-h-[41px]")}>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] text-foreground">{label}</div>
         {note && <div className="mt-0.5 text-[12px] text-muted-foreground">{note}</div>}
@@ -101,10 +103,14 @@ function Row({ label, note, children }: { label: string; note?: string; children
 
 function Toggle<K extends keyof Settings>({ k }: { k: K }) {
   const s = useSettings();
+  return <Switch checked={s[k] as boolean} onChange={(v) => setSetting(k, v as Settings[K])} />;
+}
+
+function Switch({ checked, onChange }: { checked: boolean; onChange: (on: boolean) => void }) {
   return (
     <S.Root
-      checked={s[k] as boolean}
-      onCheckedChange={(v) => setSetting(k, v as Settings[K])}
+      checked={checked}
+      onCheckedChange={onChange}
       className="relative h-4 w-7 rounded-full bg-switch-off transition-colors duration-150 data-[state=checked]:bg-foreground"
     >
       <S.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-muted-foreground transition-transform duration-150 data-[state=checked]:translate-x-[14px] data-[state=checked]:bg-background" />
@@ -250,6 +256,118 @@ function ChatPage() {
     <>
       <H1>Chat</H1>
       <Row label="Notify when agents finish"><Toggle k="notifyWhenDone" /></Row>
+    </>
+  );
+}
+
+/** Settings → MCP, as Pen's: servers for the app's own agents, and outside agents allowed to design here. */
+function Mcp() {
+  const [page, setPage] = useState<McpPage>();
+  const [text, setText] = useState("");
+  const [problem, setProblem] = useState<string>();
+  useEffect(() => {
+    void bridge.mcp.page().then((p) => {
+      if (!p) return;
+      setPage(p);
+      setText(p.servers);
+    });
+  }, []);
+  if (!page) return <H1>MCP</H1>;
+  const saved = page.servers;
+  const save = async (next: string) => {
+    const r = await bridge.mcp.setServers(next);
+    if (typeof r === "string") return (setProblem(r), false);
+    setProblem(undefined);
+    setPage(r);
+    setText(r.servers);
+    return true;
+  };
+  // A popular server is added (or taken out) and saved at once, as in Pen.
+  const servers = (() => {
+    try {
+      return parseServers(saved);
+    } catch {
+      return {};
+    }
+  })();
+  const togglePopular = async (name: string) => {
+    const { label, config } = POPULAR_SERVERS[name]!;
+    const next = { ...servers };
+    const adding = !(name in next);
+    if (adding) next[name] = config;
+    else delete next[name];
+    if (await save(JSON.stringify({ mcpServers: next }, null, 2))) toast.success(`${adding ? "Added" : "Removed"} ${label}`);
+  };
+  const setClient = async (id: string, on: boolean) => setPage(await bridge.mcp.setClient(id, on));
+  return (
+    <>
+      <H1>MCP</H1>
+      <H2>Add MCP servers to {PRODUCT.name}</H2>
+      <p className="-mt-1 mb-[13px] text-[12px] text-muted-foreground">Give the agents on the canvas tools from your own MCP servers.</p>
+      <div className="rounded-[10px] bg-popover">
+        <textarea
+          value={text}
+          spellCheck={false}
+          onChange={(e) => (setText(e.target.value), setProblem(undefined))}
+          className="block h-[160px] min-h-[80px] w-full resize-y bg-transparent px-4 py-3 font-mono text-[12px] leading-[19px] text-foreground outline-none"
+        />
+        <div className="flex h-11 items-center gap-1 px-[13px] text-[12px]">
+          <span className="mr-1 text-muted-foreground">Popular</span>
+          {Object.entries(POPULAR_SERVERS).map(([name, p]) => {
+            const added = name in servers;
+            const button = (
+              <button
+                key={name}
+                type="button"
+                onClick={() => void togglePopular(name)}
+                className="group flex h-7 items-center gap-1.5 rounded-[6px] px-2 font-semibold text-foreground hover:bg-foreground/5"
+              >
+                {added ? (
+                  <>
+                    <Check size={12} strokeWidth={1.5} className="text-muted-foreground group-hover:hidden" />
+                    <Minus size={12} strokeWidth={1.5} className="hidden text-muted-foreground group-hover:block" />
+                  </>
+                ) : (
+                  <Plus size={12} strokeWidth={1.5} className="text-muted-foreground" />
+                )}
+                {p.label}
+              </button>
+            );
+            return added ? <Tip key={name} label={`Remove ${p.label}`}>{button}</Tip> : button;
+          })}
+          <button type="button" onClick={() => (setText(saved), setProblem(undefined))} className="ml-auto h-7 rounded-[6px] px-2 text-foreground hover:bg-foreground/5">
+            Reset
+          </button>
+          <button
+            type="button"
+            disabled={text === saved}
+            onClick={() => void save(text)}
+            className="h-7 rounded-[6px] bg-foreground px-2.5 font-semibold text-background disabled:bg-foreground/20 disabled:text-muted-foreground"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+      {problem && <p className="mt-2 text-[12px] text-red-400">{problem}</p>}
+      <div className="mt-[33px]" />
+      <H2>Use {PRODUCT.name} from other agents</H2>
+      <p className="-mt-1 mb-[15px] text-[12px] text-muted-foreground">
+        Let external agents like Claude Code design in {PRODUCT.name} through its MCP server. Turned-on tools are configured each time {PRODUCT.name} starts.
+      </p>
+      {MCP_CLIENTS.map((c) => (
+        <Row key={c.id} tall label={c.label} {...(page.problems[c.id] ? { note: page.problems[c.id] } : {})}>
+          <Switch checked={!!page.clients[c.id]} onChange={(on) => void setClient(c.id, on)} />
+        </Row>
+      ))}
+      <Row tall label="Other MCP clients">
+        <button
+          type="button"
+          onClick={() => void bridge.mcp.copyConfig().then(() => toast.success("Copied MCP config"))}
+          className="flex h-7 items-center gap-1.5 rounded-[6px] border border-input px-2.5 text-[12px] font-semibold text-foreground hover:bg-foreground/5"
+        >
+          <Copy size={12} strokeWidth={1.5} /> Copy MCP config
+        </button>
+      </Row>
     </>
   );
 }

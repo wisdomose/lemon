@@ -13,6 +13,7 @@ import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/
 import type { Importable, PageShot } from "../agent/browser-tool.js";
 import type { ScriptOutput } from "../main/scripts.js";
 import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
+import { EMPTY_SERVERS, type McpPage } from "../mcp/settings.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -85,6 +86,15 @@ export interface Bridge {
   selection(ids: string[]): void;
   /** Saves an exported picture where the person chooses; whether it was saved. */
   saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
+  /** Settings → MCP: servers for the app's agents, and outside agents allowed to design here. */
+  mcp: {
+    page(): Promise<McpPage | undefined>;
+    /** Saves the servers' text; why not, when it isn't valid. */
+    setServers(text: string): Promise<McpPage | string>;
+    setClient(id: string, on: boolean): Promise<McpPage>;
+    /** Puts the connector's config for any other MCP client on the clipboard. */
+    copyConfig(): Promise<void>;
+  };
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
     get(): Promise<Tabs>;
@@ -197,6 +207,19 @@ export function browserBridge(): Bridge {
     },
     menuState() {},
     selection() {},
+    mcp: {
+      // As a new install has it, so the page can be checked here.
+      async page() {
+        return { servers: EMPTY_SERVERS, clients: {}, problems: {} };
+      },
+      async setServers() {
+        return "Open the desktop app to change MCP settings.";
+      },
+      setClient() {
+        return Promise.reject(new Error("Open the desktop app to change MCP settings."));
+      },
+      async copyConfig() {},
+    },
     async who() {
       return "You";
     },

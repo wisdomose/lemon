@@ -1,7 +1,7 @@
 // Electron's main process: owns the window (shell.ts: Home and a tab per open file), the documents (one
 // per file tab, editor.ts), the fonts and the agents. Tabs show their document and receive every change
 // as a Yjs update.
-import { app, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -21,6 +21,7 @@ import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-p
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import { startMcpServer } from "./mcp.js";
+import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
 
@@ -51,6 +52,8 @@ const log = logTo(env.LEMON_LOG);
 /** File tabs, by the id of their page (each page's messages are routed to its editor). */
 const editors = new Map<number, Editor>();
 let shared: Shared | undefined;
+/** Settings → MCP (set up once the app is ready; developer runs have none). */
+let mcpSettings: McpSettingsStore | undefined;
 /** The window; it opens with the first file or with Home, and the app quits when it closes. */
 let window: Shell | undefined;
 
@@ -201,6 +204,15 @@ async function main() {
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
   ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants) => editorOf(e)?.runAgent(prompt, model, team, effort, variants));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
+  ipcMain.handle("mcp:page", () => mcpSettings?.page());
+  ipcMain.handle("mcp:set-servers", (_e, text: string) => {
+    try {
+      return mcpSettings!.setServers(text);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  });
+  ipcMain.handle("mcp:set-client", (_e, id: string, on: boolean) => mcpSettings!.setClient(id, on));
   ipcMain.on("editor:selection", (e, ids: string[]) => {
     const editor = editorOf(e);
     if (editor) editor.selection = ids;
@@ -329,6 +341,16 @@ async function main() {
 
   // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
   if (developer) return developerRun(env.LEMON_OPEN);
+  // Settings → MCP. Outside agents turned on there get the connector in their config, again on each start:
+  // the app's executable in Node mode, running connector.js from beside this file.
+  const launch: Launch = {
+    command: process.execPath,
+    args: (agent) => [join(import.meta.dirname, "connector.js"), "--agent", agent],
+    env: { ELECTRON_RUN_AS_NODE: "1", ...(env.LEMON_MCP_PIPE ? { LEMON_MCP_PIPE: env.LEMON_MCP_PIPE } : {}) },
+  };
+  mcpSettings = new McpSettingsStore(join(app.getPath("userData"), "mcp.json"), launch, log);
+  mcpSettings.applyAll();
+  ipcMain.handle("mcp:copy-config", () => clipboard.writeText(copyableConfig(launch)));
   // Outside agents (Claude Code, Codex…) design in the open files through the MCP server.
   const stopMcp = startMcpServer({
     engine,
