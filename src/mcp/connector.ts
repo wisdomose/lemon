@@ -11,6 +11,7 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { PRODUCT } from "../product.js";
 import { pipePath, type Hello } from "./pipe.js";
 import { INSTRUCTIONS, TOOLS, type ToolName } from "./tools.js";
+import { answerLocally } from "./content.js";
 
 const TRIES = 3;
 const RETRY_MS = 1000;
@@ -83,6 +84,8 @@ function reachApp(): Promise<Client> {
 const server = new McpServer({ name: PRODUCT.slug, version: "1.0.0" }, { instructions: INSTRUCTIONS });
 for (const name of Object.keys(TOOLS) as ToolName[]) {
   server.registerTool(name, TOOLS[name], async (args: Record<string, unknown>) => {
+    const local = answerLocally(name, args);
+    if (local) return local;
     const client = await reachApp();
     // Designing can take a while (layout, pictures): far longer than the client's default wait.
     return (await client.callTool({ name, arguments: args }, undefined, { timeout: CALL_TIMEOUT_MS })) as { content: [] };

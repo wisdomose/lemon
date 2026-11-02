@@ -14,7 +14,7 @@ const filePath = z.string().describe("An optional file path to access a .pen fil
 
 export const TOOLS = {
   execute: {
-    description: "Use get_app_state if you don't have execute documentation",
+    description: "Use read_skill if you don't have execute documentation",
     annotations: { title: `Edit ${PRODUCT.name} design`, readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     inputSchema: {
       description: z
@@ -67,6 +67,29 @@ Usage:
       querySelector: z.string().optional().describe('A CSS selector executed in the page. Required when target is "query".'),
       target: z.enum(["full-page", "selection", "query"]).optional().describe("What to act on (default full-page)."),
       url: z.string().optional().describe('An http(s) or file URL to load. Used when action is "load-page".'),
+    },
+  },
+  get_style: {
+    description: `Load visual style archetypes for working with .pen files. Styles describe fonts, colours, composition and imagery to design with. Styles do not save variables, they only provide reference values.
+
+Usage:
+1. get_style(): list available styles
+2. get_style({ name }): load a style`,
+    annotations: { title: `Get ${PRODUCT.name} style`, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      name: z.string().optional().describe("Style name from the listing"),
+      params: z.record(z.string(), z.unknown()).optional().describe("Key-value pairs for a style's params (no style takes any yet)"),
+    },
+  },
+  read_skill: {
+    description: `Read the skill that teaches how to design on the ${PRODUCT.name} canvas.
+
+Usage:
+1. read_skill(): returns the skill's SKILL.md
+2. read_skill({ path }): read a file referenced from SKILL.md (e.g. "execute.md", "pen-schema.md")`,
+    annotations: { title: `Read ${PRODUCT.name} skill`, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      path: z.string().optional().describe("Relative path of a file referenced from SKILL.md. Omit to read SKILL.md itself."),
     },
   },
 } as const;

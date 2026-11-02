@@ -17,6 +17,7 @@ import { FailedScripts } from "../agent/patches.js";
 import { notRun, summarise } from "../agent/agent.js";
 import { runBrowser, browserSchema } from "../agent/browser-tool.js";
 import { INSTRUCTIONS, TOOLS } from "../mcp/tools.js";
+import { answerLocally } from "../mcp/content.js";
 import { pipePath, type Hello } from "../mcp/pipe.js";
 import { EXT } from "./files.js";
 import type { Editor } from "./editor.js";
@@ -157,6 +158,8 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
 
   const mcp = new McpServer({ name: PRODUCT.slug, version: "0.0.1" }, { instructions: INSTRUCTIONS });
 
+  mcp.registerTool("read_skill", TOOLS.read_skill, async (args) => answerLocally("read_skill", args)!);
+  mcp.registerTool("get_style", TOOLS.get_style, async (args) => answerLocally("get_style", args)!);
   mcp.registerTool("get_app_state", TOOLS.get_app_state, async () => ({ content: [{ type: "text", text: appState(host) }] }));
 
   mcp.registerTool(
