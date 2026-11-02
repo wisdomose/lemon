@@ -335,6 +335,7 @@ async function main() {
     changed: fileListChanged,
     tabsChanged: () => window?.tell(),
     window: () => window?.win,
+    mcpServers: () => mcpSettings?.servers() ?? {},
   };
   // The menu bar before any window opens (the app may start on the Dashboard alone).
   refreshMenu();

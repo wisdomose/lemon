@@ -21,6 +21,7 @@ import type { Globals } from "../sandbox/sandbox.js";
 import { runCodex, type CodexTool } from "./codex.js";
 import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
+import { forClaude, serverNames, type PersonServers } from "./mcp-servers.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
@@ -106,6 +107,8 @@ export interface AgentOptions {
   browser?: PageDriver;
   /** "Let it cook": how many variations to design in all (1: just the one), and how they differ. */
   variants?: Variants;
+  /** MCP servers the person added in Settings → MCP: their tools are the agent's too. */
+  mcpServers?: PersonServers;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
@@ -422,6 +425,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
         system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
+        ...(o.mcpServers ? { mcpServers: o.mcpServers } : {}),
         tools: {
           execute: {
             description: toolDescription,
@@ -467,9 +471,10 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
           ...(effort ? { effort } : {}),
           systemPrompt: INSTRUCTIONS,
           tools: [], // no built-in tools at all
-          mcpServers: { [PRODUCT.slug]: server },
+          // The person's servers from Settings → MCP, beside the canvas tools; every tool of theirs is allowed.
+          mcpServers: { ...forClaude(o.mcpServers ?? {}), [PRODUCT.slug]: server },
           strictMcpConfig: true, // ignore MCP servers configured on this machine
-          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : [])],
+          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : []), ...serverNames(o.mcpServers ?? {}).map((n) => `mcp__${n}`)],
           permissionMode: "dontAsk", // anything not allowed above is refused, never asked
           settingSources: [], // ignore the person's Claude settings and memory files
           persistSession: false,

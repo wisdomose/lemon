@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { CodexModel } from "./models.js";
 import { PRODUCT } from "../product.js";
+import { forCodex, serverNames, type PersonServers } from "./mcp-servers.js";
 
 interface RpcMessage {
   id?: number | string;
@@ -267,6 +268,8 @@ export async function runCodex(o: {
   onText?: (text: string, streamId: string) => void;
   /** Asked when a turn is done: another message to send on the same thread, or undefined to finish. */
   followUp?: () => string | undefined;
+  /** MCP servers the person added in Settings → MCP; their tools are allowed too. */
+  mcpServers?: PersonServers;
 }): Promise<CodexResult> {
   o.signal?.throwIfAborted();
   const connection = new CodexConnection();
@@ -343,13 +346,15 @@ export async function runCodex(o: {
     mkdirSync(cwd, { recursive: true });
     // Disable inherited integrations explicitly: table overrides otherwise merge with user settings.
     const { config } = await connection.request<{ config: { mcp_servers?: Record<string, unknown> } }>("config/read", { includeLayers: false });
+    const personServers = serverNames(o.mcpServers ?? {});
     const thread = await connection.request<{ thread: { id: string } }>("thread/start", {
       ...(o.model === "codex" ? {} : { model: o.model.replace(/^codex:/, "") }),
       cwd, ephemeral: true, approvalPolicy: "never", sandbox: "read-only",
       baseInstructions: o.system,
-      developerInstructions: o.tools?.browser
-        ? "Use only execute to work on the canvas, and browser to use the web pages of its browser nodes. Never use shell, files, other web access, or external integrations."
-        : "Use only execute to work on the canvas. Never use shell, files, web, or external integrations.",
+      developerInstructions: (o.tools?.browser
+        ? "Use only execute to work on the canvas, and browser to use the web pages of its browser nodes. Never use shell, files, other web access, or external integrations"
+        : "Use only execute to work on the canvas. Never use shell, files, web, or external integrations") +
+        (personServers.length ? ` other than the MCP servers the person added (${personServers.join(", ")}), whose tools you may use.` : "."),
       config: {
         "features.shell_tool": false, "features.hooks": false,
         "features.plugins": false, "features.remote_plugin": false, "features.apps": false,
@@ -359,6 +364,8 @@ export async function runCodex(o: {
         "agents.enabled": false, "tools.view_image": false, "web_search": "disabled",
         "project_doc_max_bytes": 0,
         ...Object.fromEntries(Object.keys(config.mcp_servers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])),
+        // The person's servers from Settings → MCP, on over any of the same name above.
+        ...forCodex(o.mcpServers ?? {}),
       },
       dynamicTools: Object.entries(o.tools ?? {}).map(([name, t]) => ({ type: "function", name, description: t.description, inputSchema: t.inputSchema })),
     });
