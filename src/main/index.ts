@@ -20,6 +20,7 @@ import { Shell } from "./shell.js";
 import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-pages.js";
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
+import { startMcpServer } from "./mcp.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
 
@@ -200,6 +201,10 @@ async function main() {
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
   ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants) => editorOf(e)?.runAgent(prompt, model, team, effort, variants));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
+  ipcMain.on("editor:selection", (e, ids: string[]) => {
+    const editor = editorOf(e);
+    if (editor) editor.selection = ids;
+  });
   ipcMain.handle("claude:status", () => claudeStatus());
   // Ask the local Codex server for public account metadata only.
   ipcMain.handle("codex:status", () => codexStatus());
@@ -324,6 +329,16 @@ async function main() {
 
   // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
   if (developer) return developerRun(env.LEMON_OPEN);
+  // Outside agents (Claude Code, Codex…) design in the open files through the MCP server.
+  const stopMcp = startMcpServer({
+    engine,
+    sandbox,
+    shown: focused,
+    editors: () => [...editors.values()],
+    open: (path) => openEditor(path),
+    log,
+  });
+  app.on("will-quit", stopMcp);
   const files = [...pending, ...designFiles(process.argv.slice(1))];
   if (env.LEMON_OPEN) files.push(env.LEMON_OPEN);
   if (files.length) await openPaths(files);

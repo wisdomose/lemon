@@ -23,6 +23,13 @@ if (historyUrl) {
 await boot();
 const firstScene = await laidOut();
 bridge.onAgentEvent(handleAgentEvent);
+// The host knows the selection, for outside agents (MCP get_app_state).
+let sentSelection = store.get().selection;
+bridge.selection(sentSelection);
+store.subscribe(() => {
+  const now = store.get().selection;
+  if (now !== sentSelection) bridge.selection((sentSelection = now));
+});
 
 // Headless checks set up a state from the address: ?view=x,y,zoom&select=id&tab=layers&chat=events.jsonl
 const q = new URLSearchParams(location.search);

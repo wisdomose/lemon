@@ -81,6 +81,8 @@ export interface Bridge {
   appCommand(command: AppCommand): Promise<void>;
   /** Tells the menu bar what to show checked (the chat text size). */
   menuState(state: MenuState): void;
+  /** The canvas's selection, for outside agents asking what the person has selected (MCP get_app_state). */
+  selection(ids: string[]): void;
   /** Saves an exported picture where the person chooses; whether it was saved. */
   saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
@@ -194,6 +196,7 @@ export function browserBridge(): Bridge {
       },
     },
     menuState() {},
+    selection() {},
     async who() {
       return "You";
     },

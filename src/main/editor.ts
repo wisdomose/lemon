@@ -101,6 +101,8 @@ export class Editor implements FileTab {
   private thumbTimer: NodeJS.Timeout | undefined;
   /** Nothing has been changed since the window opened on a new file. */
   pristine: boolean;
+  /** The canvas's selected node ids, as the window reports them (for outside agents). */
+  selection: string[] = [];
 
   /** Opens `path` (a design file, or a raw .yjs state for developer captures), or a new file. */
   constructor(

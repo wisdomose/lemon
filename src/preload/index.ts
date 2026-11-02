@@ -51,6 +51,7 @@ const bridge: Bridge = {
     importable: (mode) => ipcRenderer.invoke("browser:importable", mode),
   },
   menuState: (state) => ipcRenderer.send("menu:state", state),
+  selection: (ids) => ipcRenderer.send("editor:selection", ids),
   who: () => ipcRenderer.invoke("app:who"),
   reloadComments: () => ipcRenderer.invoke("comments:reload"),
   appCommand: (command) => ipcRenderer.invoke("app:command", command),

@@ -131,7 +131,7 @@ function nextVariation(mode: Variants["mode"]): string {
 }
 
 /** A step that never ran (its edits didn't fit the failed script). */
-function notRun(message: string, globals: Globals): ExecuteResult {
+export function notRun(message: string, globals: Globals): ExecuteResult {
   return {
     ok: false,
     error: { name: "EditError", message },
@@ -146,7 +146,7 @@ function notRun(message: string, globals: Globals): ExecuteResult {
   };
 }
 
-function summarise(r: ExecuteResult, editId?: string): string {
+export function summarise(r: ExecuteResult, editId?: string): string {
   const lines: string[] = [];
   if (!r.ok) {
     lines.push(`FAILED — nothing from this script was kept.`);
