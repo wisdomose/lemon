@@ -262,7 +262,8 @@ export async function runCodex(o: {
   model: string;
   effort?: string;
   signal?: AbortSignal;
-  tool?: CodexTool;
+  /** The canvas tools by name (execute, browser); every other tool is refused. */
+  tools?: Record<string, CodexTool>;
   onText?: (text: string, streamId: string) => void;
 }): Promise<CodexResult> {
   o.signal?.throwIfAborted();
@@ -290,12 +291,12 @@ export async function runCodex(o: {
     if (m.method === "item/tool/call" && m.id !== undefined) {
       const id = m.id;
       // Reject every unregistered tool, including any future server-initiated approval flow.
-      if (p.tool !== "execute" || !o.tool || ++calls > 60 || o.signal?.aborted) {
+      const tool = typeof p.tool === "string" && Object.hasOwn(o.tools ?? {}, p.tool) ? o.tools![p.tool] : undefined;
+      if (!tool || ++calls > 60 || o.signal?.aborted) {
         connection.send({ id, result: { success: false, contentItems: [{ type: "inputText", text: "Tool unavailable or step limit reached." }] } });
         if (calls > 60) { reject(new Error("Codex reached the 60-step limit.")); connection.close(); }
         return;
       }
-      const tool = o.tool;
       const call = Promise.resolve().then(() => tool.call(p.arguments)).then((r) => {
         connection.send({ id, result: {
           success: !r.isError,
@@ -305,7 +306,7 @@ export async function runCodex(o: {
       activeCalls.add(call);
       void call.finally(() => activeCalls.delete(call));
     } else if (m.id !== undefined && m.method) {
-      connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits the canvas execute tool." } });
+      connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits its canvas tools." } });
     } else if (m.method === "item/agentMessage/delta") {
       const text = typeof p.delta === "string" ? p.delta : "";
       result.reply += text;
@@ -333,7 +334,9 @@ export async function runCodex(o: {
       ...(o.model === "codex" ? {} : { model: o.model.replace(/^codex:/, "") }),
       cwd, ephemeral: true, approvalPolicy: "never", sandbox: "read-only",
       baseInstructions: o.system,
-      developerInstructions: "Use only execute to work on the canvas. Never use shell, files, web, or external integrations.",
+      developerInstructions: o.tools?.browser
+        ? "Use only execute to work on the canvas, and browser to use the web pages of its browser nodes. Never use shell, files, other web access, or external integrations."
+        : "Use only execute to work on the canvas. Never use shell, files, web, or external integrations.",
       config: {
         "features.shell_tool": false, "features.hooks": false,
         "features.plugins": false, "features.remote_plugin": false, "features.apps": false,
@@ -344,7 +347,7 @@ export async function runCodex(o: {
         "project_doc_max_bytes": 0,
         ...Object.fromEntries(Object.keys(config.mcp_servers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])),
       },
-      dynamicTools: o.tool ? [{ type: "function", name: "execute", description: o.tool.description, inputSchema: o.tool.inputSchema }] : [],
+      dynamicTools: Object.entries(o.tools ?? {}).map(([name, t]) => ({ type: "function", name, description: t.description, inputSchema: t.inputSchema })),
     });
     threadId = thread.thread.id;
     o.signal?.throwIfAborted();

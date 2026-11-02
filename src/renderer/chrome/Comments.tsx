@@ -15,6 +15,7 @@ import { bridge, currentScene, doc, edit } from "../scene.js";
 import { store, useEditor } from "../store.js";
 import { Island, cx } from "../ui/kit.js";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
+import { useRightInset } from "./BrowserSidebar.js";
 
 /** The name comments are signed with. */
 let me = "You";
@@ -317,8 +318,9 @@ export function CommentsPanel() {
   const resolved = list.filter((t) => t.resolved);
   const rows = tab === "open" ? open : resolved;
   const icon = "flex h-7 w-7 items-center justify-center rounded-[6px] text-foreground hover:bg-foreground/5";
+  const right = useRightInset();
   return (
-    <Island data-comments data-comment-ui className="absolute top-[59px] right-2 bottom-[9px] flex flex-col overflow-hidden" style={{ width: COMMENTS_PANEL_WIDTH }}>
+    <Island data-comments data-comment-ui className="absolute top-[59px] bottom-[9px] flex flex-col overflow-hidden" style={{ width: COMMENTS_PANEL_WIDTH, right }}>
       <div className="flex h-[44px] shrink-0 items-center gap-1 pr-2 pl-3">
         <span className="flex-1 text-[13px] font-semibold text-popover-foreground">Comments</span>
         <button type="button" aria-label={shown ? "Hide comments" : "Show comments"} onClick={() => store.set({ showComments: !shown })} className={icon}>

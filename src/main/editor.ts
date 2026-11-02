@@ -350,7 +350,7 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, onEvent })];
     if (this.running === running) this.running = undefined;

@@ -17,7 +17,7 @@ import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
 import { Shell } from "./shell.js";
-import type { PageInput } from "./browser-pages.js";
+import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-pages.js";
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import type { Team } from "../agent/models.js";
@@ -222,6 +222,12 @@ async function main() {
   ipcMain.on("browser:input", (e, id: string, ev: PageInput) => editorOf(e)?.pages.input(id, ev));
   ipcMain.handle("browser:command", (e, id: string, what: "reload" | "back" | "forward") => editorOf(e)?.pages.command(id, what));
   ipcMain.on("browser:repaint", (e) => editorOf(e)?.pages.repaint());
+  ipcMain.handle("browser:sidebar", (e, action: SidebarAction, arg?: unknown) => editorOf(e)?.pages.sidebar(action, arg));
+  ipcMain.handle("browser:importable", (e, mode: "full" | "pick") => editorOf(e)?.pages.importable(SIDEBAR, mode === "pick" ? PICKED : undefined));
+  ipcMain.handle("browser:capture", (e, mode: "full" | "visible" | "pick") => {
+    const pages = editorOf(e)?.pages;
+    return pages?.capture(SIDEBAR, mode === "pick" ? PICKED : undefined, mode === "full");
+  });
   // The menu shows the window's settings (chat text size) checked.
   ipcMain.on("menu:state", (_e, state: MenuState) => {
     if (state.chatTextSize === menuState.chatTextSize) return;

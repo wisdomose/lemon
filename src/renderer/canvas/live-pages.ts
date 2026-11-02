@@ -2,6 +2,7 @@
 // the host sends, for drawing inside their browser nodes.
 import type { Image } from "canvaskit-wasm";
 import { bridge, engine } from "../scene.js";
+import type { PageFrame } from "../../main/browser-pages.js";
 
 interface Held {
   width: number;
@@ -15,6 +16,18 @@ interface Held {
 const held = new Map<string, Held>();
 /** The page cursors, by browser node (Electron's names). */
 const cursors = new Map<string, string>();
+
+/** Others drawing a page themselves (the browser sidebar): told each changed part as it arrives. */
+const frameListeners = new Set<(id: string, f: PageFrame) => void>();
+export function onPageFrame(fn: (id: string, f: PageFrame) => void): () => void {
+  frameListeners.add(fn);
+  return () => frameListeners.delete(fn);
+}
+
+/** A page's whole picture as held now (BGRA), for drawing it afresh. */
+export function heldPage(id: string): { width: number; height: number; pixels: Uint8Array } | undefined {
+  return held.get(id);
+}
 
 /** Bumped whenever a page's picture changes, so the recorded document is drawn again. */
 export let pagesVersion = 0;
@@ -34,6 +47,7 @@ export function startLivePages(changed: () => void): void {
     for (let r = 0; r < f.h; r++) h.pixels.set(f.pixels.subarray(r * row, (r + 1) * row), ((f.y + r) * h.width + f.x) * 4);
     h.stale = true;
     pagesVersion++;
+    for (const fn of frameListeners) fn(id, f);
     changed();
   });
   bridge.browser.onClosed((id) => {

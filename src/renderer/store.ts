@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
+import type { SidebarState } from "../main/browser-pages.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
 export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand" | "comment";
@@ -28,6 +29,8 @@ export type ChatItem = (
       title: string;
       state: "running" | "ok" | "failed";
       script?: string;
+      /** A browser call's input (JSON), shown instead of a script. */
+      input?: string;
       output?: string;
       pictures?: { url: string; width: number; height: number }[];
     }
@@ -80,6 +83,10 @@ export interface EditorState {
   paletteOpen: boolean;
   /** The left column (panel and chat box), Ctrl+\. */
   panelOpen: boolean;
+  /** The integrated browser (the sidebar), as the host last told it; null until then. */
+  sidebar: SidebarState | null;
+  /** The sidebar's element picker is on: a click in its page picks the element there. */
+  browserPicking: boolean;
 }
 
 export interface Session {
@@ -115,6 +122,8 @@ const initial: EditorState = {
   shortcutsOpen: false,
   paletteOpen: false,
   panelOpen: true,
+  sidebar: null,
+  browserPicking: false,
 };
 
 let state = initial;

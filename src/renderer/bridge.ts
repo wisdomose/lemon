@@ -9,7 +9,8 @@ import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
-import type { PageFrame, PageInput } from "../main/browser-pages.js";
+import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/browser-pages.js";
+import type { Importable, PageShot } from "../agent/browser-tool.js";
 import type { ScriptOutput } from "../main/scripts.js";
 import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
 import { PRODUCT } from "../product.js";
@@ -55,6 +56,14 @@ export interface Bridge {
     command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
     /** Every page sends its whole picture again. */
     repaint(): void;
+    /** The integrated browser (the sidebar): what it shows, whenever that changes. */
+    onSidebar(fn: (state: SidebarState) => void): void;
+    /** Acts on the sidebar; "state" answers with what it shows now. */
+    sidebar(action: SidebarAction, arg?: unknown): Promise<SidebarState | undefined>;
+    /** A picture of the sidebar's page: all of it, what shows, or the picked element. */
+    capture(mode: "full" | "visible" | "pick"): Promise<PageShot | undefined>;
+    /** The sidebar's page (or its picked element) as .pen layers, for Import. */
+    importable(mode: "full" | "pick"): Promise<Importable | undefined>;
   };
   /** This file's script nodes: what each shows, and choosing or finding its file. */
   scripts: {
@@ -172,6 +181,16 @@ export function browserBridge(): Bridge {
       input() {},
       async command() {},
       repaint() {},
+      onSidebar() {},
+      async sidebar() {
+        return undefined;
+      },
+      async capture() {
+        return undefined;
+      },
+      async importable() {
+        return undefined;
+      },
     },
     menuState() {},
     async who() {

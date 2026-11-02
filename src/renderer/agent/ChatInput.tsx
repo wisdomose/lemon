@@ -12,6 +12,9 @@ import type { TreeNode } from "../../doc/schema.js";
 import type { ChipRef } from "./prompt-doc.js";
 import { sendPrompt } from "./chat.js";
 
+/** A prompt's reference to the element picked in the browser sidebar (the agent reads it with target "selection"). */
+const BROWSER_SELECTION = "browser-selection";
+
 export function ChatInput() {
   const footer = useRef<HTMLDivElement>(null);
   const status = useEditor((s) => s.agentStatus);
@@ -21,8 +24,15 @@ export function ChatInput() {
   const nodes = tree ? selection.map((id) => findNode(tree, id)).filter((n) => !!n) : [];
   const one = (n: TreeNode) => ({ id: n.id, name: n.props.name ?? n.type[0]!.toUpperCase() + n.type.slice(1), kind: n.type });
   // Several selected nodes share one chip, "3 nodes", as in the reference.
-  const ref: ChipRef | null =
-    nodes.length > 1 ? { id: nodes.map((n) => n.id).join(","), name: `${nodes.length} nodes`, kind: "nodes", members: nodes.map(one) } : nodes[0] ? one(nodes[0]) : null;
+  // An element picked in the browser sidebar is the reference while it is picked (as in Pen).
+  const pick = useEditor((s) => (s.sidebar?.url ? s.sidebar.pick : null));
+  const ref: ChipRef | null = pick
+    ? { id: BROWSER_SELECTION, name: pick.crumbs[pick.index]?.tag ?? "element", kind: "browser" }
+    : nodes.length > 1
+      ? { id: nodes.map((n) => n.id).join(","), name: `${nodes.length} nodes`, kind: "nodes", members: nodes.map(one) }
+      : nodes[0]
+        ? one(nodes[0])
+        : null;
   const editor = useRef<PromptEditorHandle>(null);
   const [canSend, setCanSend] = useState(false);
   const send = () => {

@@ -1,5 +1,6 @@
 // Designer agents share canvas execution, rollback, and events across Claude and Codex.
-// Each provider uses its own local login and receives only the canvas execute tool.
+// Each provider uses its own local login and receives only the canvas tools: execute, and browser when
+// the document's browser nodes can be driven.
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,10 +18,14 @@ import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { FailedScripts } from "./patches.js";
 import type { Globals } from "../sandbox/sandbox.js";
-import { runCodex } from "./codex.js";
+import { runCodex, type CodexTool } from "./codex.js";
+import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
+const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
+/** A browser call's card in the chat (as in Pen). */
+const BROWSER_STEP_TITLE = "Used the browser";
 /** How often the script being written is re-read for where it will work next. */
 const READ_EVERY_MS = 100;
 
@@ -42,6 +47,8 @@ export interface StepRecord {
 export interface StepDetail {
   script: string;
   output: string;
+  /** A browser call's input (JSON), shown instead of a script. */
+  input?: string;
   pictures: { id: string; png: Uint8Array; width: number; height: number }[];
 }
 
@@ -93,6 +100,8 @@ export interface AgentOptions {
   globals?: Globals;
   /** Frames whose "being built" mark the team owns: this agent leaves them marked when it ends. */
   leaveMarked?: string[];
+  /** The pages of the document's browser nodes; without it the agent has no browser tool. */
+  browser?: PageDriver;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
@@ -194,7 +203,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         // The same step written again (the model's reply was restarted): drop what the first try landed.
         void live.get(writing.index)?.cancel();
         live.delete(writing.index);
-      }
+      } else if (ev.content_block.type === "tool_use") blocksInMessage++;
     } else if (ev.type === "content_block_delta") {
       if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
       writing.json += ev.delta.partial_json;
@@ -309,6 +318,33 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         ...(r.ok ? {} : { isError: true }),
       };
     };
+  // A browser call is a step of its own in the chat, as in Pen ("Used the browser").
+  const browserCall = async (input: z.infer<typeof browserSchema>) => {
+    const index = steps.length + 1;
+    const t0 = performance.now();
+    thought();
+    emit({ type: "step-start", index, title: BROWSER_STEP_TITLE });
+    const r = await runBrowser(input, { pages: o.browser!, doc: o.doc, engine: o.engine, origin: originOf(index) });
+    personEdits.take();
+    const totalMs = performance.now() - t0;
+    const step: StepRecord = {
+      index,
+      title: BROWSER_STEP_TITLE,
+      ok: r.ok,
+      ...(r.ok ? {} : { error: r.content.map((c) => (c.type === "text" ? c.text : "")).join("") }),
+      issues: 0,
+      issueKinds: {},
+      pictures: r.pictures.length,
+      scriptChars: 0,
+      timings: { totalMs, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    steps.push(step);
+    const output = r.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    emit({ type: "step-end", step, detail: { script: "", input: JSON.stringify(input, null, 2), output, pictures: r.pictures }, frames: [] });
+    lastActivity = performance.now();
+    return { content: r.content, ...(r.ok ? {} : { isError: true }) };
+  };
   const abort = new AbortController();
   o.signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
@@ -318,6 +354,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     o.prompt.trim(),
     "",
     `<canvas>${canvasSummary(o.doc)}</canvas>`,
+    ...(o.browser ? [`<browser>${o.browser.summary()}</browser>`] : []),
     ...(directions.length ? [`<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : []),
     ...(o.brief ? [`<team>${o.brief}</team>`] : []),
   ].join("\n");
@@ -339,11 +376,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
         system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal,
-        tool: {
-          description: toolDescription,
-          inputSchema: z.toJSONSchema(toolSchema),
-          // Validate external arguments before touching the document, just like the Claude SDK.
-          call: (input) => executeCall(toolSchema.parse(input)),
+        tools: {
+          execute: {
+            description: toolDescription,
+            inputSchema: z.toJSONSchema(toolSchema),
+            // Validate external arguments before touching the document, just like the Claude SDK.
+            call: (input) => executeCall(toolSchema.parse(input)),
+          },
+          ...(o.browser
+            ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
+            : {}),
         },
         onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
       });
@@ -357,7 +399,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options.
       const effort = o.effort === "low" || o.effort === "medium" || o.effort === "high" || o.effort === "xhigh" || o.effort === "max" ? o.effort : undefined;
       const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
-      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool] });
+      const browserTool = o.browser ? [tool("browser", BROWSER_DESCRIPTION, browserSchema.shape, browserCall)] : [];
+      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool, ...browserTool] });
       for await (const m of query({
         prompt: message,
         options: {
@@ -367,7 +410,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
           tools: [], // no built-in tools at all
           mcpServers: { [PRODUCT.slug]: server },
           strictMcpConfig: true, // ignore MCP servers configured on this machine
-          allowedTools: [TOOL_NAME],
+          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : [])],
           permissionMode: "dontAsk", // anything not allowed above is refused, never asked
           settingSources: [], // ignore the person's Claude settings and memory files
           persistSession: false,

@@ -43,6 +43,12 @@ const bridge: Bridge = {
     input: (id, ev) => ipcRenderer.send("browser:input", id, ev),
     command: (id, what) => ipcRenderer.invoke("browser:command", id, what),
     repaint: () => ipcRenderer.send("browser:repaint"),
+    onSidebar: (fn) => {
+      ipcRenderer.on("browser:sidebar", (_e, state) => fn(state));
+    },
+    sidebar: (action, arg) => ipcRenderer.invoke("browser:sidebar", action, arg),
+    capture: (mode) => ipcRenderer.invoke("browser:capture", mode),
+    importable: (mode) => ipcRenderer.invoke("browser:importable", mode),
   },
   menuState: (state) => ipcRenderer.send("menu:state", state),
   who: () => ipcRenderer.invoke("app:who"),

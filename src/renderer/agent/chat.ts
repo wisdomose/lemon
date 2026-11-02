@@ -105,6 +105,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
       updateStep(agent, e.step.index, {
         state: e.step.ok ? "ok" : "failed",
         script: e.detail.script,
+        ...(e.detail.input ? { input: e.detail.input } : {}),
         output: e.detail.output,
         pictures: e.detail.pictures.map((p) => ({ url: pngUrl(p.png), width: p.width, height: p.height })),
       });
