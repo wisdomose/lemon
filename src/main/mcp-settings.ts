@@ -14,9 +14,13 @@ export type { McpPage, McpSettings };
 /** How the connector is started: the app's executable in Node mode, running connector.js. */
 export interface Launch {
   command: string;
-  args: (agent: string) => string[];
+  /** connector.js */
+  script: string;
   env: Record<string, string>;
 }
+
+/** The connector's arguments for one agent (main/mcp.ts names it by its --agent flag). */
+export const argsFor = (l: Launch, agent: string) => [l.script, "--agent", agent];
 
 // ---- Outside agents' config files ------------------------------------------------------------------
 const home = homedir();
@@ -26,14 +30,14 @@ const claudeDesktopDir =
 
 /** Where each agent keeps its MCP servers, and how an entry is written there. */
 const FILES: Record<string, { path: string; key: string; entry: (l: Launch, agent: string) => Record<string, unknown> } | { path: string; toml: true }> = {
-  claudeCodeCLI: { path: join(home, ".claude.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: l.args(a), env: l.env, type: "stdio" }) },
+  claudeCodeCLI: { path: join(home, ".claude.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: argsFor(l, a), env: l.env, type: "stdio" }) },
   codexCLI: { path: join(home, ".codex", "config.toml"), toml: true },
-  geminiCLI: { path: join(home, ".gemini", "settings.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: l.args(a), env: l.env }) },
-  antigravity: { path: join(home, ".gemini", "antigravity", "mcp_config.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: l.args(a), env: l.env }) },
+  geminiCLI: { path: join(home, ".gemini", "settings.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: argsFor(l, a), env: l.env }) },
+  antigravity: { path: join(home, ".gemini", "antigravity", "mcp_config.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: argsFor(l, a), env: l.env }) },
   // OpenCode waits 30 s for a call by default; designing can take longer.
-  openCodeCLI: { path: join(home, ".config", "opencode", "opencode.json"), key: "mcp", entry: (l, a) => ({ type: "local", command: [l.command, ...l.args(a)], environment: l.env, enabled: true, timeout: 600_000 }) },
-  kiroCLI: { path: join(home, ".kiro", "settings", "mcp.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: l.args(a), env: l.env }) },
-  claudeDesktop: { path: join(claudeDesktopDir, "claude_desktop_config.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: l.args(a), env: l.env }) },
+  openCodeCLI: { path: join(home, ".config", "opencode", "opencode.json"), key: "mcp", entry: (l, a) => ({ type: "local", command: [l.command, ...argsFor(l, a)], environment: l.env, enabled: true, timeout: 600_000 }) },
+  kiroCLI: { path: join(home, ".kiro", "settings", "mcp.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: argsFor(l, a), env: l.env }) },
+  claudeDesktop: { path: join(claudeDesktopDir, "claude_desktop_config.json"), key: "mcpServers", entry: (l, a) => ({ command: l.command, args: argsFor(l, a), env: l.env }) },
 };
 
 const NAME = PRODUCT.slug;
@@ -55,7 +59,7 @@ export function tomlEntry(name: string, l: Launch, agent: string): string {
   return [
     `[mcp_servers.${name}]`,
     `command = ${str(l.command)}`,
-    `args = [ ${l.args(agent).map(str).join(", ")} ]`,
+    `args = [ ${argsFor(l, agent).map(str).join(", ")} ]`,
     "",
     `[mcp_servers.${name}.env]`,
     ...Object.entries(l.env).map(([k, v]) => `${k} = ${str(v)}`),
@@ -95,7 +99,8 @@ export function configure(agent: string, on: boolean, launch: Launch): void {
 
 /** The JSON that "Copy MCP config" gives, for any other MCP client. */
 export function copyableConfig(launch: Launch): string {
-  return JSON.stringify({ mcpServers: { [NAME]: { command: launch.command, args: launch.args("other"), env: launch.env } } }, null, 2);
+  // As Pen's: one server on one line, named, with no agent given.
+  return JSON.stringify({ name: NAME, transport: "stdio", command: launch.command, args: [launch.script], env: launch.env });
 }
 
 // ---- The settings file ------------------------------------------------------------------------------

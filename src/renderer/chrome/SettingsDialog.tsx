@@ -9,7 +9,7 @@ import type { ProviderStatus } from "../../agent/codex.js";
 import { bridge } from "../bridge.js";
 import { setSetting, useSettings, type Settings } from "../settings.js";
 import { Tip, cx } from "../ui/kit.js";
-import { MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage } from "../../mcp/settings.js";
+import { EMPTY_SERVERS, MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage } from "../../mcp/settings.js";
 
 type Page = "general" | "agents" | "names" | "chat" | "mcp";
 const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
@@ -260,11 +260,21 @@ function ChatPage() {
   );
 }
 
+/** How long Reset waits for its confirmation. */
+const CONFIRM_MS = 3000;
+
 /** Settings → MCP, as Pen's: servers for the app's own agents, and outside agents allowed to design here. */
 function Mcp() {
   const [page, setPage] = useState<McpPage>();
   const [text, setText] = useState("");
   const [problem, setProblem] = useState<string>();
+  // Reset asks once more ("Confirm reset"), as in Pen, and stops asking after a moment.
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), CONFIRM_MS);
+    return () => clearTimeout(t);
+  }, [confirming]);
   useEffect(() => {
     void bridge.mcp.page().then((p) => {
       if (!p) return;
@@ -335,8 +345,20 @@ function Mcp() {
             );
             return added ? <Tip key={name} label={`Remove ${p.label}`}>{button}</Tip> : button;
           })}
-          <button type="button" onClick={() => (setText(saved), setProblem(undefined))} className="ml-auto h-7 rounded-[6px] px-2 text-foreground hover:bg-foreground/5">
-            Reset
+          {/* Reset puts back the empty list and saves it, as Pen's. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirming) return setConfirming(true);
+              setConfirming(false);
+              void save(EMPTY_SERVERS).then((ok) => ok && toast.success("MCP servers reset"));
+            }}
+            className={cx(
+              "ml-auto h-7 rounded-[6px] px-2",
+              confirming ? "border border-red-500/60 text-red-400 hover:bg-red-500/10" : "text-foreground hover:bg-foreground/5",
+            )}
+          >
+            {confirming ? "Confirm reset" : "Reset"}
           </button>
           <button
             type="button"
@@ -362,7 +384,7 @@ function Mcp() {
       <Row tall label="Other MCP clients">
         <button
           type="button"
-          onClick={() => void bridge.mcp.copyConfig().then(() => toast.success("Copied MCP config"))}
+          onClick={() => void bridge.mcp.copyConfig().then(() => toast.success("Copied MCP config to clipboard"))}
           className="flex h-7 items-center gap-1.5 rounded-[6px] border border-input px-2.5 text-[12px] font-semibold text-foreground hover:bg-foreground/5"
         >
           <Copy size={12} strokeWidth={1.5} /> Copy MCP config

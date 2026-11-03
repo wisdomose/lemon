@@ -346,7 +346,7 @@ async function main() {
   // the app's executable in Node mode, running connector.js from beside this file.
   const launch: Launch = {
     command: process.execPath,
-    args: (agent) => [join(import.meta.dirname, "connector.js"), "--agent", agent],
+    script: join(import.meta.dirname, "connector.js"),
     env: { ELECTRON_RUN_AS_NODE: "1", ...(env.LEMON_MCP_PIPE ? { LEMON_MCP_PIPE: env.LEMON_MCP_PIPE } : {}) },
   };
   mcpSettings = new McpSettingsStore(join(app.getPath("userData"), "mcp.json"), launch, log);

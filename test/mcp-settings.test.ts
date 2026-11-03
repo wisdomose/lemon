@@ -15,7 +15,8 @@ beforeAll(async () => {
   m = await import("../src/main/mcp-settings.js");
 });
 
-const launch: Launch = { command: "C:\\Apps\\Lemon\\lemon.exe", args: (a) => ["C:\\Apps\\Lemon\\connector.js", "--agent", a], env: { ELECTRON_RUN_AS_NODE: "1" } };
+const launch: Launch = { command: "C:\\Apps\\Lemon\\lemon.exe", script: "C:\\Apps\\Lemon\\connector.js", env: { ELECTRON_RUN_AS_NODE: "1" } };
+const args = (a: string) => [launch.script, "--agent", a];
 
 describe("an outside agent's config", () => {
   it("gets the connector beside what is there, and loses it again", () => {
@@ -25,7 +26,7 @@ describe("an outside agent's config", () => {
     const on = JSON.parse(readFileSync(path, "utf8"));
     expect(on.theme).toBe("dark");
     expect(on.mcpServers.pencil).toEqual({ command: "pen.exe" });
-    expect(on.mcpServers.lemon).toEqual({ command: launch.command, args: launch.args("claudeCodeCLI"), env: launch.env, type: "stdio" });
+    expect(on.mcpServers.lemon).toEqual({ command: launch.command, args: args("claudeCodeCLI"), env: launch.env, type: "stdio" });
     m.configure("claudeCodeCLI", false, launch);
     expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ theme: "dark", mcpServers: { pencil: { command: "pen.exe" } } });
   });
@@ -33,7 +34,7 @@ describe("an outside agent's config", () => {
   it("writes OpenCode's own shape, and makes the file when there is none", () => {
     m.configure("openCodeCLI", true, launch);
     const entry = JSON.parse(readFileSync(join(home, ".config", "opencode", "opencode.json"), "utf8")).mcp.lemon;
-    expect(entry).toMatchObject({ type: "local", command: [launch.command, ...launch.args("openCodeCLI")], environment: launch.env, enabled: true });
+    expect(entry).toMatchObject({ type: "local", command: [launch.command, ...args("openCodeCLI")], environment: launch.env, enabled: true });
   });
 
   it("leaves a file that isn't plain JSON alone", () => {
@@ -58,6 +59,14 @@ describe("an outside agent's config", () => {
     expect(on).toContain('[mcp_servers.lemon.env]\nELECTRON_RUN_AS_NODE = "1"');
     m.configure("codexCLI", false, launch);
     expect(readFileSync(path, "utf8").trimEnd()).toBe(theirs.trimEnd());
+  });
+});
+
+describe("Copy MCP config", () => {
+  it("gives one named stdio server on one line, with no agent, as Pen's", () => {
+    const text = m.copyableConfig(launch);
+    expect(text).not.toContain("\n");
+    expect(JSON.parse(text)).toEqual({ name: "lemon", transport: "stdio", command: launch.command, args: [launch.script], env: launch.env });
   });
 });
 
