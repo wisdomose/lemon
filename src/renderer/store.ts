@@ -33,6 +33,8 @@ export type ChatItem = (
       /** A browser call's input (JSON), shown instead of a script. */
       input?: string;
       output?: string;
+      /** The output is Markdown (an added server's tool), shown formatted as in Pen. */
+      markdown?: boolean;
       pictures?: { url: string; width: number; height: number }[];
     }
   | { kind: "text"; text: string; streamId?: string }

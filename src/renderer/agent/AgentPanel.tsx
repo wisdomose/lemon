@@ -263,7 +263,12 @@ function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {
               <img src={p.url} alt="" className="w-full rounded-md border border-line" />
             </div>
           ))}
-          {step.output && <pre className="max-h-[220px] overflow-auto px-3 py-3 font-sans whitespace-pre-wrap text-foreground">{step.output}</pre>}
+          {step.output &&
+            (step.markdown ? (
+              <div className="chat-md max-h-[220px] overflow-auto px-3 py-3 text-foreground" dangerouslySetInnerHTML={{ __html: markdown(step.output) }} />
+            ) : (
+              <pre className="max-h-[220px] overflow-auto px-3 py-3 font-sans whitespace-pre-wrap text-foreground">{step.output}</pre>
+            ))}
           {(step.script || step.input) && (
             <div className="border-t border-input px-3 py-3">
               <div className="mb-1 text-[11px] tracking-wide text-muted-foreground uppercase">{step.input ? "Input" : "Script"}</div>

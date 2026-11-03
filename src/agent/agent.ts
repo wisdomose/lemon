@@ -18,13 +18,15 @@ import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { FailedScripts } from "./patches.js";
 import type { Globals } from "../sandbox/sandbox.js";
-import { runCodex, type CodexTool } from "./codex.js";
+import { runCodex, type CodexTool, type ToolResultContent } from "./codex.js";
 import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
 import { forClaude, serverNames, type PersonServers } from "./mcp-servers.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
+/** Where the numbers of the cards for an added server's tools start (apart from the canvas steps). */
+const SERVER_STEP_BASE = 100_000;
 /** A browser call's card in the chat (as in Pen). */
 const BROWSER_STEP_TITLE = "Used the browser";
 /** How often the script being written is re-read for where it will work next. */
@@ -50,6 +52,8 @@ export interface StepDetail {
   output: string;
   /** A browser call's input (JSON), shown instead of a script. */
   input?: string;
+  /** The output is Markdown (an added server's tool), shown formatted. */
+  markdown?: boolean;
   pictures: { id: string; png: Uint8Array; width: number; height: number }[];
 }
 
@@ -230,7 +234,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         // The same step written again (the model's reply was restarted): drop what the first try landed.
         void live.get(writing.index)?.cancel();
         live.delete(writing.index);
-      } else if (ev.content_block.type === "tool_use") blocksInMessage++;
+      // Only the canvas tools are numbered steps (an added server's tool gets a card of its own).
+      } else if (ev.content_block.type === "tool_use" && ev.content_block.name === BROWSER_TOOL_NAME) blocksInMessage++;
     } else if (ev.type === "content_block_delta") {
       if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
       writing.json += ev.delta.partial_json;
@@ -345,6 +350,37 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         ...(r.ok ? {} : { isError: true }),
       };
     };
+  // A call to a tool of a server the person added (Settings → MCP) gets a card as in Pen: the tool's
+  // own name, its result as Markdown, and what it was sent. Those cards are numbered apart from the
+  // canvas steps, which the live script reading counts.
+  const serverCalls = new Map<string, { index: number; title: string; input: unknown; t0: number }>();
+  let serverSteps = 0;
+  const serverToolStart = (id: string, tool: string, input: unknown) => {
+    thought();
+    const index = SERVER_STEP_BASE + ++serverSteps;
+    serverCalls.set(id, { index, title: tool, input, t0: performance.now() });
+    emit({ type: "step-start", index, title: tool });
+  };
+  const serverToolEnd = (id: string, ok: boolean, content: ToolResultContent[]) => {
+    const call = serverCalls.get(id);
+    if (!call) return;
+    serverCalls.delete(id);
+    const output = content.flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n\n");
+    const step: StepRecord = {
+      index: call.index,
+      title: call.title,
+      ok,
+      ...(ok ? {} : { error: output }),
+      issues: 0,
+      issueKinds: {},
+      pictures: 0,
+      scriptChars: 0,
+      timings: { totalMs: performance.now() - call.t0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    emit({ type: "step-end", step, detail: { script: "", input: JSON.stringify(call.input ?? {}, null, 2), output, pictures: [], markdown: true }, frames: [] });
+    lastActivity = performance.now();
+  };
   // A browser call is a step of its own in the chat, as in Pen ("Used the browser").
   const browserCall = async (input: z.infer<typeof browserSchema>) => {
     const index = steps.length + 1;
@@ -438,6 +474,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
             : {}),
         },
         onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+        onServerTool: (e) => ("tool" in e ? serverToolStart(e.id, e.tool, e.input) : serverToolEnd(e.id, e.ok, e.content)),
       });
       stats.ok = true;
       stats.reply = result.reply;
@@ -491,7 +528,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
               thought();
               emit({ type: "text", text: block.text });
               lastActivity = performance.now();
+            } else if (block.type === "tool_use" && block.name.startsWith("mcp__") && block.name !== TOOL_NAME && block.name !== BROWSER_TOOL_NAME) {
+              // mcp__<server>__<tool>: the card is titled with the tool's own name, as in Pen.
+              serverToolStart(block.id, block.name.replace(/^mcp__.+?__/, ""), block.input);
             }
+          }
+        } else if (m.type === "user" && !m.parent_tool_use_id && Array.isArray(m.message.content)) {
+          for (const block of m.message.content) {
+            if (block.type !== "tool_result" || !serverCalls.has(block.tool_use_id)) continue;
+            const content: ToolResultContent[] = typeof block.content === "string" ? [{ type: "text", text: block.content }] : ((block.content ?? []) as ToolResultContent[]);
+            serverToolEnd(block.tool_use_id, !block.is_error, content);
           }
         } else if (m.type === "result") {
           stats.ok = m.subtype === "success" && !m.is_error;

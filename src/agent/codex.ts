@@ -48,6 +48,9 @@ export function codexBinary(): string {
   return exe;
 }
 
+/** One piece of an MCP tool's result, as servers send it. */
+export type ToolResultContent = { type: string; text?: string; data?: string; mimeType?: string };
+
 /** A local JSON-lines connection, with request deadlines and deterministic process cleanup. */
 export class CodexConnection {
   private child: ChildProcessWithoutNullStreams;
@@ -266,6 +269,8 @@ export async function runCodex(o: {
   /** The canvas tools by name (execute, browser); every other tool is refused. */
   tools?: Record<string, CodexTool>;
   onText?: (text: string, streamId: string) => void;
+  /** A call to a tool of an MCP server the person added starts, and ends (Codex runs those itself). */
+  onServerTool?: (e: { id: string; tool: string; input: unknown } | { id: string; ok: boolean; content: ToolResultContent[] }) => void;
   /** Asked when a turn is done: another message to send on the same thread, or undefined to finish. */
   followUp?: () => string | undefined;
   /** MCP servers the person added in Settings → MCP; their tools are allowed too. */
@@ -312,6 +317,15 @@ export async function runCodex(o: {
       void call.finally(() => activeCalls.delete(call));
     } else if (m.id !== undefined && m.method) {
       connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits its canvas tools." } });
+    } else if ((m.method === "item/started" || m.method === "item/completed") && (p.item as { type?: string })?.type === "mcpToolCall") {
+      const item = p.item as { id: string; tool: string; arguments: unknown; status: string; result: { content: ToolResultContent[] } | null; error: { message: string } | null };
+      if (m.method === "item/started") o.onServerTool?.({ id: item.id, tool: item.tool, input: item.arguments });
+      else
+        o.onServerTool?.({
+          id: item.id,
+          ok: item.status === "completed" && !item.error,
+          content: item.error ? [{ type: "text", text: item.error.message }] : (item.result?.content ?? []),
+        });
     } else if (m.method === "item/agentMessage/delta") {
       const text = typeof p.delta === "string" ? p.delta : "";
       result.reply += text;

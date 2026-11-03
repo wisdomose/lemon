@@ -112,6 +112,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
         state: e.step.ok ? "ok" : "failed",
         script: e.detail.script,
         ...(e.detail.input ? { input: e.detail.input } : {}),
+        ...(e.detail.markdown ? { markdown: true } : {}),
         output: e.detail.output,
         pictures: e.detail.pictures.map((p) => ({ url: pngUrl(p.png), width: p.width, height: p.height })),
       });

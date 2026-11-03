@@ -1,5 +1,5 @@
-// A small Markdown subset for the agent's replies: paragraphs, bullet and numbered lists, **bold**,
-// *italic* and `code`. Everything is HTML-escaped first, so nothing the agent writes becomes markup.
+// A small Markdown subset for the agent's replies and tool results: headings, paragraphs, bullet and
+// numbered lists, **bold**, *italic* and `code`. Everything is HTML-escaped first, so nothing the agent writes becomes markup.
 
 const escape = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -24,6 +24,14 @@ export function markdown(text: string): string {
     list = undefined;
   };
   for (const line of text.split("\n")) {
+    const heading = /^\s*(#{1,3})\s+(.*)$/.exec(line);
+    if (heading) {
+      flushPara();
+      closeList();
+      const level = heading[1]!.length;
+      out.push(`<h${level}>${inline(heading[2]!)}</h${level}>`);
+      continue;
+    }
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
     const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
     const item = bullet ?? numbered;

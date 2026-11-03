@@ -260,6 +260,15 @@ function ChatPage() {
   );
 }
 
+/** The servers' text laid out as Pen saves it (two-space JSON); left as typed when it isn't JSON. */
+function formatted(text: string): string {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
 /** How long Reset waits for its confirmation. */
 const CONFIRM_MS = 3000;
 
@@ -384,7 +393,7 @@ function Mcp() {
           <button
             type="button"
             disabled={text === saved}
-            onClick={() => void save(text)}
+            onClick={() => void save(formatted(text)).then((ok) => ok && toast.success("MCP servers saved"))}
             className="h-7 rounded-[6px] bg-foreground px-2.5 font-semibold text-background disabled:bg-foreground/20 disabled:text-muted-foreground"
           >
             Save
