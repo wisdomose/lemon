@@ -9,6 +9,7 @@ import logoUrl from "../../../assets/logo.svg?url";
 import type { TabInfo, Tabs } from "../../main/shell.js";
 import { Divider, ICON, IconButton, Island, Tip, cx } from "../ui/kit.js";
 import type { Bridge } from "../bridge.js";
+import { useEditor } from "../store.js";
 
 /** The window's tabs, kept current. */
 function useTabs(bridge: Bridge): Tabs {
@@ -23,6 +24,7 @@ function useTabs(bridge: Bridge): Tabs {
 export function TopBar({ bridge, initial }: { bridge: Bridge; initial: string }) {
   const { tabs, active } = useTabs(bridge);
   const home = active === "home";
+  const sidebarOpen = useEditor((s) => !!s.sidebar?.open);
   return (
     <>
       <Island data-topbar className="absolute left-2 top-2 flex h-[42px] items-center rounded-full pr-2 pl-3">
@@ -55,7 +57,7 @@ export function TopBar({ bridge, initial }: { bridge: Bridge; initial: string })
               <IconButton icon={Play} aria-label="Present" />
             </Tip>
             <Tip label="Open a webpage and reproduce it on the canvas">
-              <IconButton icon={Globe} aria-label="Browser" />
+              <IconButton icon={Globe} aria-label="Browser" active={sidebarOpen} onClick={() => void bridge.browser.sidebar(sidebarOpen ? "hide" : "show")} />
             </Tip>
             <Divider className="ml-1 mr-2" />
           </>

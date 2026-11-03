@@ -44,7 +44,11 @@ function devFonts(): Plugin {
 
 export default defineConfig({
   main: {
-    build: { sourcemap: true },
+    // The MCP connector outside agents start (src/mcp/connector.ts) is built beside the main process.
+    build: {
+      sourcemap: true,
+      rollupOptions: { input: { index: join(import.meta.dirname, "src/main/index.ts"), connector: join(import.meta.dirname, "src/mcp/connector.ts") } },
+    },
   },
   preload: {
     // Sandboxed windows need a single CommonJS preload file with nothing left to import.

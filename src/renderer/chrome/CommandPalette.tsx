@@ -97,6 +97,7 @@ import { detachSelected, goToMain, makeComponents, unmakeComponent } from "../co
 import { exportSelection } from "../export.js";
 import { cx } from "../ui/kit.js";
 import { clipboardCommand, duplicateSelection, frameSelection, groupSelection, pasteToReplace, ungroupSelection } from "../editing.js";
+import { toggleSidebar } from "./BrowserSidebar.js";
 
 interface Action {
   group: string;
@@ -276,7 +277,7 @@ function actions(): Action[] {
     a("View", "Show components", Component, { run: () => store.set({ tab: "components", panelOpen: true }) }),
     a("View", "Show libraries", Library, { run: () => store.set({ tab: "libraries", panelOpen: true }) }),
     a("View", "Show variables panel", Diamond, { blocked: NOT_YET }),
-    a("View", "Show browser panel", Globe, { blocked: NOT_YET }),
+    a("View", "Show browser panel", Globe, { run: () => toggleSidebar(true) }),
 
     a("Tools", "Eyedropper", Pipette, { keys: "I", blocked: NOT_YET }),
     a("Tools", "Move tool", MousePointer2, { keys: "V", run: tool("move") }),

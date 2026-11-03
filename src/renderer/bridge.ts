@@ -1,7 +1,7 @@
 // What a window can ask of the host. In the desktop app the preload script provides it over IPC; in a
 // plain browser (development and headless checks) a stand-in reads a saved document and fonts over HTTP
 // and has no agent.
-import type { AgentStats } from "../agent/agent.js";
+import type { AgentStats, Variants } from "../agent/agent.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team, CodexModel } from "../agent/models.js";
 import type { ProviderStatus } from "../agent/codex.js";
@@ -9,9 +9,11 @@ import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
 import type { Tabs } from "../main/shell.js";
-import type { PageFrame, PageInput } from "../main/browser-pages.js";
+import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/browser-pages.js";
+import type { Importable, PageShot } from "../agent/browser-tool.js";
 import type { ScriptOutput } from "../main/scripts.js";
 import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
+import { EMPTY_SERVERS, type McpPage, type ServerStatus } from "../mcp/settings.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -22,7 +24,8 @@ export interface Bridge {
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
-  runAgent(prompt: string, model: string, team?: Team, effort?: string): Promise<AgentStats[]>;
+  /** `variants`: "Let it cook" (more variations after the first design). */
+  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants): Promise<AgentStats[]>;
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: TaggedEvent) => void): void;
   canRunAgent: boolean;
@@ -55,6 +58,14 @@ export interface Bridge {
     command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
     /** Every page sends its whole picture again. */
     repaint(): void;
+    /** The integrated browser (the sidebar): what it shows, whenever that changes. */
+    onSidebar(fn: (state: SidebarState) => void): void;
+    /** Acts on the sidebar; "state" answers with what it shows now. */
+    sidebar(action: SidebarAction, arg?: unknown): Promise<SidebarState | undefined>;
+    /** A picture of the sidebar's page: all of it, what shows, or the picked element. */
+    capture(mode: "full" | "visible" | "pick"): Promise<PageShot | undefined>;
+    /** The sidebar's page (or its picked element) as .pen layers, for Import. */
+    importable(mode: "full" | "pick"): Promise<Importable | undefined>;
   };
   /** This file's script nodes: what each shows, and choosing or finding its file. */
   scripts: {
@@ -71,8 +82,24 @@ export interface Bridge {
   appCommand(command: AppCommand): Promise<void>;
   /** Tells the menu bar what to show checked (the chat text size). */
   menuState(state: MenuState): void;
+  /** The canvas's selection, for outside agents asking what the person has selected (MCP get_app_state). */
+  selection(ids: string[]): void;
   /** Saves an exported picture where the person chooses; whether it was saved. */
   saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
+  /** Settings → MCP: servers for the app's agents, and outside agents allowed to design here. */
+  mcp: {
+    page(): Promise<McpPage | undefined>;
+    /** Saves the servers' text; why not, when it isn't valid. */
+    setServers(text: string): Promise<McpPage | string>;
+    setClient(id: string, on: boolean): Promise<McpPage>;
+    /** Puts the connector's config for any other MCP client on the clipboard. */
+    copyConfig(): Promise<void>;
+    /** Each added server's sign-in, by name. */
+    signInStatus(): Promise<Record<string, ServerStatus>>;
+    /** Opens the server's sign-in in the browser; answers once it's done (or failed). */
+    signIn(name: string): Promise<Record<string, ServerStatus>>;
+    signOut(name: string): Promise<Record<string, ServerStatus>>;
+  };
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
     get(): Promise<Tabs>;
@@ -172,8 +199,41 @@ export function browserBridge(): Bridge {
       input() {},
       async command() {},
       repaint() {},
+      onSidebar() {},
+      async sidebar() {
+        return undefined;
+      },
+      async capture() {
+        return undefined;
+      },
+      async importable() {
+        return undefined;
+      },
     },
     menuState() {},
+    selection() {},
+    mcp: {
+      // As a new install has it, so the page can be checked here.
+      async page() {
+        return { servers: EMPTY_SERVERS, clients: {}, problems: {} };
+      },
+      async setServers() {
+        return "Open the desktop app to change MCP settings.";
+      },
+      setClient() {
+        return Promise.reject(new Error("Open the desktop app to change MCP settings."));
+      },
+      async copyConfig() {},
+      async signInStatus() {
+        return {};
+      },
+      async signIn() {
+        return {};
+      },
+      async signOut() {
+        return {};
+      },
+    },
     async who() {
       return "You";
     },

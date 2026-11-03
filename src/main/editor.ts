@@ -13,8 +13,9 @@ import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import { AGENTS, type Team } from "../agent/models.js";
-import { runAgent, type AgentStats } from "../agent/agent.js";
+import { runAgent, type AgentStats, type Variants } from "../agent/agent.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
+import type { ServerSignIns } from "../agent/mcp-servers.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 import { page, type FileTab, type TabInfo } from "./shell.js";
@@ -38,6 +39,8 @@ export interface StartPrompt {
   effort?: string;
   /** Several agents (from the Dashboard's ⚡ choice). */
   team?: Team;
+  /** More variations after the first design (the Dashboard's ▦ choice, "Let it cook"). */
+  cook?: Variants;
 }
 
 export type SaveState = "saved" | "saving" | "error";
@@ -77,6 +80,8 @@ export interface Shared {
   tabsChanged: () => void;
   /** The window, for dialogs. */
   window: () => BaseWindow | undefined;
+  /** The MCP servers the person added in Settings → MCP, with their sign-ins, for the agents. */
+  signIns?: ServerSignIns;
 }
 
 export class Editor implements FileTab {
@@ -99,6 +104,8 @@ export class Editor implements FileTab {
   private thumbTimer: NodeJS.Timeout | undefined;
   /** Nothing has been changed since the window opened on a new file. */
   pristine: boolean;
+  /** The canvas's selected node ids, as the window reports them (for outside agents). */
+  selection: string[] = [];
 
   /** Opens `path` (a design file, or a raw .yjs state for developer captures), or a new file. */
   constructor(
@@ -335,7 +342,7 @@ export class Editor implements FileTab {
 
   // ---- The agent -----------------------------------------------------------------------------------
   /** Runs one agent, or a team of them (`team.count` > 1), on this tab's document. */
-  async runAgent(prompt: string, model?: string, team?: Team, effort?: string): Promise<AgentStats[]> {
+  async runAgent(prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants): Promise<AgentStats[]> {
     this.running?.abort();
     const running = (this.running = new AbortController());
     const { engine, sandbox, log } = this.shared;
@@ -350,9 +357,9 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
-      team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, onEvent })];
+      team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;
     return stats;
   }

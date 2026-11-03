@@ -1,7 +1,7 @@
 // Electron's main process: owns the window (shell.ts: Home and a tab per open file), the documents (one
 // per file tab, editor.ts), the fonts and the agents. Tabs show their document and receive every change
 // as a Yjs update.
-import { app, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, clipboard, dialog, ipcMain, net, protocol, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -17,10 +17,14 @@ import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
 import { Shell } from "./shell.js";
-import type { PageInput } from "./browser-pages.js";
+import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-pages.js";
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
+import { startMcpServer } from "./mcp.js";
+import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
+import { McpAuth } from "./mcp-auth.js";
 import type { Team } from "../agent/models.js";
+import type { Variants } from "../agent/agent.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -49,6 +53,10 @@ const log = logTo(env.LEMON_LOG);
 /** File tabs, by the id of their page (each page's messages are routed to its editor). */
 const editors = new Map<number, Editor>();
 let shared: Shared | undefined;
+/** Settings → MCP (set up once the app is ready; developer runs have none). */
+let mcpSettings: McpSettingsStore | undefined;
+/** Sign-ins to the MCP servers added there that want one. */
+let mcpAuth: McpAuth | undefined;
 /** The window; it opens with the first file or with Home, and the app quits when it closes. */
 let window: Shell | undefined;
 
@@ -197,8 +205,37 @@ async function main() {
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string) => editorOf(e)?.runAgent(prompt, model, team, effort));
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants) => editorOf(e)?.runAgent(prompt, model, team, effort, variants));
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
+  ipcMain.handle("mcp:page", () => mcpSettings?.page());
+  ipcMain.handle("mcp:set-servers", (_e, text: string) => {
+    try {
+      return mcpSettings!.setServers(text);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  });
+  ipcMain.handle("mcp:set-client", (_e, id: string, on: boolean) => mcpSettings!.setClient(id, on));
+  // Signing in to an added server: its page opens in the browser; the answer comes once it's done.
+  const urlOf = (name: string) => {
+    const url = mcpSettings?.servers()[name]?.url;
+    if (typeof url !== "string") throw new Error(`"${name}" isn't a server with a url.`);
+    return url;
+  };
+  ipcMain.handle("mcp:sign-in-status", () => mcpAuth?.status(mcpSettings?.servers() ?? {}) ?? {});
+  ipcMain.handle("mcp:sign-in", async (_e, name: string) => {
+    try {
+      await mcpAuth!.signIn(urlOf(name));
+    } catch {
+      // The row shows why.
+    }
+    return mcpAuth!.status(mcpSettings!.servers());
+  });
+  ipcMain.handle("mcp:sign-out", (_e, name: string) => (mcpAuth!.signOut(urlOf(name)), mcpAuth!.status(mcpSettings!.servers())));
+  ipcMain.on("editor:selection", (e, ids: string[]) => {
+    const editor = editorOf(e);
+    if (editor) editor.selection = ids;
+  });
   ipcMain.handle("claude:status", () => claudeStatus());
   // Ask the local Codex server for public account metadata only.
   ipcMain.handle("codex:status", () => codexStatus());
@@ -222,6 +259,12 @@ async function main() {
   ipcMain.on("browser:input", (e, id: string, ev: PageInput) => editorOf(e)?.pages.input(id, ev));
   ipcMain.handle("browser:command", (e, id: string, what: "reload" | "back" | "forward") => editorOf(e)?.pages.command(id, what));
   ipcMain.on("browser:repaint", (e) => editorOf(e)?.pages.repaint());
+  ipcMain.handle("browser:sidebar", (e, action: SidebarAction, arg?: unknown) => editorOf(e)?.pages.sidebar(action, arg));
+  ipcMain.handle("browser:importable", (e, mode: "full" | "pick") => editorOf(e)?.pages.importable(SIDEBAR, mode === "pick" ? PICKED : undefined));
+  ipcMain.handle("browser:capture", (e, mode: "full" | "visible" | "pick") => {
+    const pages = editorOf(e)?.pages;
+    return pages?.capture(SIDEBAR, mode === "pick" ? PICKED : undefined, mode === "full");
+  });
   // The menu shows the window's settings (chat text size) checked.
   ipcMain.on("menu:state", (_e, state: MenuState) => {
     if (state.chatTextSize === menuState.chatTextSize) return;
@@ -311,12 +354,44 @@ async function main() {
     changed: fileListChanged,
     tabsChanged: () => window?.tell(),
     window: () => window?.win,
+    // The agents' added servers, with their sign-ins (asked for as an agent starts, as in Pen).
+    signIns: {
+      wanted: async () => (mcpAuth && mcpSettings ? mcpAuth.wanted(mcpSettings.servers()) : []),
+      signIn: (url) => mcpAuth!.signInForAgent(url),
+      servers: async () => (mcpAuth && mcpSettings ? mcpAuth.forAgents(mcpSettings.servers()) : {}),
+    },
   };
   // The menu bar before any window opens (the app may start on the Dashboard alone).
   refreshMenu();
 
   // Developer runs: a scripted prompt on an empty document, or a capture of a saved one.
   if (developer) return developerRun(env.LEMON_OPEN);
+  // Settings → MCP. Outside agents turned on there get the connector in their config, again on each start:
+  // the app's executable in Node mode, running connector.js from beside this file.
+  const launch: Launch = {
+    command: process.execPath,
+    script: join(import.meta.dirname, "connector.js"),
+    env: { ELECTRON_RUN_AS_NODE: "1", ...(env.LEMON_MCP_PIPE ? { LEMON_MCP_PIPE: env.LEMON_MCP_PIPE } : {}) },
+  };
+  mcpSettings = new McpSettingsStore(join(app.getPath("userData"), "mcp.json"), launch, log);
+  mcpSettings.applyAll();
+  mcpAuth = new McpAuth(
+    join(app.getPath("userData"), "mcp-sign-ins"),
+    { available: () => safeStorage.isEncryptionAvailable(), encrypt: (t) => safeStorage.encryptString(t), decrypt: (b) => safeStorage.decryptString(b) },
+    (url) => void shell.openExternal(url),
+    log,
+  );
+  ipcMain.handle("mcp:copy-config", () => clipboard.writeText(copyableConfig(launch)));
+  // Outside agents (Claude Code, Codex…) design in the open files through the MCP server.
+  const stopMcp = startMcpServer({
+    engine,
+    sandbox,
+    shown: focused,
+    editors: () => [...editors.values()],
+    open: (path) => openEditor(path),
+    log,
+  });
+  app.on("will-quit", stopMcp);
   const files = [...pending, ...designFiles(process.argv.slice(1))];
   if (env.LEMON_OPEN) files.push(env.LEMON_OPEN);
   if (files.length) await openPaths(files);
@@ -340,7 +415,10 @@ async function developerRun(open: string | undefined) {
       // LEMON_TEAM="3 split" (or "2 side") sends the prompt to several agents.
       const [count, mode] = (env.LEMON_TEAM ?? "").split(/\s+/);
       const team = count ? { count: Number(count), mode: mode === "side" ? ("side" as const) : ("split" as const) } : undefined;
-      const all = await editor.runAgent(env.LEMON_PROMPT, undefined, team);
+      // LEMON_VARIANTS="2 layout" (or "3 style") lets it cook.
+      const [n, how] = (env.LEMON_VARIANTS ?? "").split(/\s+/);
+      const variants = n ? { count: Number(n), mode: how === "style" ? ("style" as const) : ("layout" as const) } : undefined;
+      const all = await editor.runAgent(env.LEMON_PROMPT, undefined, team, undefined, variants);
       for (const stats of all) {
         console.log(JSON.stringify({ ok: stats.ok, seconds: Math.round(stats.durationMs / 1000), steps: stats.steps.length, costUsd: stats.costUsd, reply: stats.reply }));
       }

@@ -1,9 +1,10 @@
 // Designer agents share canvas execution, rollback, and events across Claude and Codex.
-// Each provider uses its own local login and receives only the canvas execute tool.
+// Each provider uses its own local login and receives only the canvas tools: execute, and browser when
+// the document's browser nodes can be driven.
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { z } from "zod";
 import { PRODUCT } from "../product.js";
@@ -17,10 +18,18 @@ import { exists, nodesOf, toTree } from "../doc/store.js";
 import { partialField, scriptTarget, type Target } from "./live-script.js";
 import { FailedScripts } from "./patches.js";
 import type { Globals } from "../sandbox/sandbox.js";
-import { runCodex } from "./codex.js";
+import { runCodex, type CodexTool, type ToolResultContent } from "./codex.js";
+import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
+import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
+import { POPULAR_SERVERS } from "../mcp/settings.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
+const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
+/** Where the numbers of the cards for an added server's tools start (apart from the canvas steps). */
+const SERVER_STEP_BASE = 100_000;
+/** A browser call's card in the chat (as in Pen). */
+const BROWSER_STEP_TITLE = "Used the browser";
 /** How often the script being written is re-read for where it will work next. */
 const READ_EVERY_MS = 100;
 
@@ -42,6 +51,10 @@ export interface StepRecord {
 export interface StepDetail {
   script: string;
   output: string;
+  /** A browser call's input (JSON), shown instead of a script. */
+  input?: string;
+  /** The output is Markdown (an added server's tool), shown formatted. */
+  markdown?: boolean;
   pictures: { id: string; png: Uint8Array; width: number; height: number }[];
 }
 
@@ -58,6 +71,8 @@ export type AgentEvent =
   | { type: "step-start"; index: number; title: string }
   | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
   | { type: "text"; text: string; streamId?: string }
+  /** A design is done and the agent goes on to the next variation ("Let it cook"); `seconds` is how long the last one took. */
+  | { type: "iterating"; seconds: number }
   | { type: "done"; stats: AgentStats }
   | { type: "error"; message: string };
 
@@ -93,12 +108,46 @@ export interface AgentOptions {
   globals?: Globals;
   /** Frames whose "being built" mark the team owns: this agent leaves them marked when it ends. */
   leaveMarked?: string[];
+  /** The pages of the document's browser nodes; without it the agent has no browser tool. */
+  browser?: PageDriver;
+  /** "Let it cook": how many variations to design in all (1: just the one), and how they differ. */
+  variants?: Variants;
+  /** MCP servers the person added in Settings → MCP: their tools are the agent's too. */
+  mcpServers?: PersonServers;
+  /** The added servers with their sign-ins: those wanting one are signed in to as the agent starts. */
+  signIns?: ServerSignIns;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
 
+/** "Let it cook", as in Pen: after the first design the agent designs more variations of it on its own. */
+export interface Variants {
+  /** Designs in all, 1–6 (1: no variations). */
+  count: number;
+  /** "layout": new variations keep the first design's style; "style": each gets a new one. */
+  mode: "layout" | "style";
+}
+
+/** Added to the request when variations will follow (what Pen asks for, in our words). */
+const FIRST_OF_VARIANTS = `This is the first of several variations. Design one focused screen, unless the person asked for a flow or for several screens, and even then keep it as small as you can. For a broad request ("a fitness tracker", "an app for a sports team") design its main screen: the one people land on first, which sets the look and the idea for the rest. Don't design the whole product. The variations after this one will try other directions for whatever you design here.`;
+
+/** The follow-up for each further variation (what Pen sends, in our words). */
+function nextVariation(mode: Variants["mode"]): string {
+  const style =
+    mode === "style"
+      ? "Give it a new style, not the first design's: take a different starting point (offered below) and set new variables, fonts and colours for it."
+      : "Keep the first design's style: the same variables, fonts and colours.";
+  return `Now design another variation of this page. Like a great product designer, find a source of inspiration that gives it depth, from your own knowledge: don't use the web for this. Study it, take it apart, and let what you learn shape the design, in whatever way you think best. Make it a completely new variation, beside the others. ${style}`;
+}
+
+/** The promise, or a rejection as soon as the run is stopped. */
+function untilAborted<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return Promise.race([p, new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(new Error("Stopped.")), { once: true }))]);
+}
+
 /** A step that never ran (its edits didn't fit the failed script). */
-function notRun(message: string, globals: Globals): ExecuteResult {
+export function notRun(message: string, globals: Globals): ExecuteResult {
   return {
     ok: false,
     error: { name: "EditError", message },
@@ -113,7 +162,7 @@ function notRun(message: string, globals: Globals): ExecuteResult {
   };
 }
 
-function summarise(r: ExecuteResult, editId?: string): string {
+export function summarise(r: ExecuteResult, editId?: string): string {
   const lines: string[] = [];
   if (!r.ok) {
     lines.push(`FAILED — nothing from this script was kept.`);
@@ -194,7 +243,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         // The same step written again (the model's reply was restarted): drop what the first try landed.
         void live.get(writing.index)?.cancel();
         live.delete(writing.index);
-      }
+      // Only the canvas tools are numbered steps (an added server's tool gets a card of its own).
+      } else if (ev.content_block.type === "tool_use" && ev.content_block.name === BROWSER_TOOL_NAME) blocksInMessage++;
     } else if (ev.type === "content_block_delta") {
       if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
       writing.json += ev.delta.partial_json;
@@ -309,18 +359,103 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         ...(r.ok ? {} : { isError: true }),
       };
     };
+  // A call to a tool of a server the person added (Settings → MCP) gets a card as in Pen: the tool's
+  // own name, its result as Markdown, and what it was sent. Those cards are numbered apart from the
+  // canvas steps, which the live script reading counts.
+  const serverCalls = new Map<string, { index: number; title: string; input: unknown; t0: number }>();
+  let serverSteps = 0;
+  const serverToolStart = (id: string, tool: string, input: unknown) => {
+    thought();
+    const index = SERVER_STEP_BASE + ++serverSteps;
+    serverCalls.set(id, { index, title: tool, input, t0: performance.now() });
+    emit({ type: "step-start", index, title: tool });
+  };
+  const serverToolEnd = (id: string, ok: boolean, content: ToolResultContent[]) => {
+    const call = serverCalls.get(id);
+    if (!call) return;
+    serverCalls.delete(id);
+    const output = content.flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n\n");
+    serverStepEnd(call.index, call.title, ok, output, call.t0, JSON.stringify(call.input ?? {}, null, 2));
+  };
+  /** Ends an added server's card (a tool call, or a sign-in): its result as Markdown. */
+  const serverStepEnd = (index: number, title: string, ok: boolean, output: string, t0: number, input?: string) => {
+    const step: StepRecord = {
+      index,
+      title,
+      ok,
+      ...(ok ? {} : { error: output }),
+      issues: 0,
+      issueKinds: {},
+      pictures: 0,
+      scriptChars: 0,
+      timings: { totalMs: performance.now() - t0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    emit({ type: "step-end", step, detail: { script: "", ...(input ? { input } : {}), output, pictures: [], markdown: true }, frames: [] });
+    lastActivity = performance.now();
+  };
+  // A browser call is a step of its own in the chat, as in Pen ("Used the browser").
+  const browserCall = async (input: z.infer<typeof browserSchema>) => {
+    const index = steps.length + 1;
+    const t0 = performance.now();
+    thought();
+    emit({ type: "step-start", index, title: BROWSER_STEP_TITLE });
+    const r = await runBrowser(input, { pages: o.browser!, doc: o.doc, engine: o.engine, origin: originOf(index) });
+    personEdits.take();
+    const totalMs = performance.now() - t0;
+    const step: StepRecord = {
+      index,
+      title: BROWSER_STEP_TITLE,
+      ok: r.ok,
+      ...(r.ok ? {} : { error: r.content.map((c) => (c.type === "text" ? c.text : "")).join("") }),
+      issues: 0,
+      issueKinds: {},
+      pictures: r.pictures.length,
+      scriptChars: 0,
+      timings: { totalMs, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    steps.push(step);
+    const output = r.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    emit({ type: "step-end", step, detail: { script: "", input: JSON.stringify(input, null, 2), output, pictures: r.pictures }, frames: [] });
+    lastActivity = performance.now();
+    return { content: r.content, ...(r.ok ? {} : { isError: true }) };
+  };
   const abort = new AbortController();
   o.signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
   mkdirSync(cwd, { recursive: true });
 
+  const startingPoints = (list: Direction[]) =>
+    list.length ? [`<starting-points>For a new design, start from: ${list.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : [];
+  /** What the agent is told of the canvas and the browser, fresh for each turn. */
+  const context = () => [`<canvas>${canvasSummary(o.doc)}</canvas>`, ...(o.browser ? [`<browser>${o.browser.summary()}</browser>`] : [])];
+  const variants = Math.max(1, Math.min(6, Math.round(o.variants?.count ?? 1)));
   const message = [
     o.prompt.trim(),
+    ...(variants > 1 ? ["", FIRST_OF_VARIANTS] : []),
     "",
-    `<canvas>${canvasSummary(o.doc)}</canvas>`,
-    ...(directions.length ? [`<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : []),
+    ...context(),
+    ...startingPoints(directions),
     ...(o.brief ? [`<team>${o.brief}</team>`] : []),
   ].join("\n");
+  // Each further variation is another turn of the same conversation, so the agent knows what it made.
+  let variation = 1;
+  let variationStarted = started;
+  const used = directions.map((d) => d.id);
+  /** The next variation's message, once a design is done; undefined when there are no more. */
+  const nextTurn = (): string | undefined => {
+    if (variation >= variants || o.signal?.aborted) return undefined;
+    emit({ type: "iterating", seconds: Math.round((performance.now() - variationStarted) / 1000) });
+    variation++;
+    variationStarted = lastActivity = performance.now();
+    let fresh: Direction[] = [];
+    if (o.variants?.mode === "style") {
+      fresh = pickStartingPoints([...(o.recentDirections ?? []), ...used]);
+      used.push(...fresh.map((d) => d.id));
+    }
+    return [nextVariation(o.variants?.mode ?? "layout"), "", ...context(), ...startingPoints(fresh)].join("\n");
+  };
 
   const stats: AgentStats = {
     ok: false,
@@ -335,17 +470,46 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     model,
   };
 
+  // Added servers that want a sign-in open it in the browser as the agent starts, as Pen's do. The
+  // agent waits for each (its card says so) and starts with the servers that are signed in.
+  let personServers: PersonServers = o.mcpServers ?? {};
+  if (o.signIns) {
+    for (const { name, url } of await o.signIns.wanted()) {
+      if (o.signal?.aborted) break;
+      const label = POPULAR_SERVERS[name]?.label ?? name;
+      const title = `Sign in to ${label}`;
+      const index = SERVER_STEP_BASE + ++serverSteps;
+      const t0 = performance.now();
+      emit({ type: "step-start", index, title });
+      try {
+        await untilAborted(o.signIns.signIn(url), o.signal);
+        serverStepEnd(index, title, true, `Signed in to ${label} in the browser.`, t0);
+      } catch (e) {
+        const why = e instanceof Error ? e.message : String(e);
+        serverStepEnd(index, title, false, `${why} Going on without ${label}; sign in to it from Settings → MCP.`, t0);
+      }
+    }
+    personServers = await o.signIns.servers();
+  }
+
   try {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
-        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal,
-        tool: {
-          description: toolDescription,
-          inputSchema: z.toJSONSchema(toolSchema),
-          // Validate external arguments before touching the document, just like the Claude SDK.
-          call: (input) => executeCall(toolSchema.parse(input)),
+        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
+        mcpServers: personServers,
+        tools: {
+          execute: {
+            description: toolDescription,
+            inputSchema: z.toJSONSchema(toolSchema),
+            // Validate external arguments before touching the document, just like the Claude SDK.
+            call: (input) => executeCall(toolSchema.parse(input)),
+          },
+          ...(o.browser
+            ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
+            : {}),
         },
         onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+        onServerTool: (e) => ("tool" in e ? serverToolStart(e.id, e.tool, e.input) : serverToolEnd(e.id, e.ok, e.content)),
       });
       stats.ok = true;
       stats.reply = result.reply;
@@ -357,17 +521,32 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options.
       const effort = o.effort === "low" || o.effort === "medium" || o.effort === "high" || o.effort === "xhigh" || o.effort === "max" ? o.effort : undefined;
       const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
-      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool] });
+      const browserTool = o.browser ? [tool("browser", BROWSER_DESCRIPTION, browserSchema.shape, browserCall)] : [];
+      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool, ...browserTool] });
+      // With variations to come, the conversation stays open and each next message is sent when the
+      // design before it is done (undefined ends it). A turn can end before the conversation asks for
+      // its next message, so what's sent waits in a queue.
+      const queued: (string | undefined)[] = [];
+      let waiting: ((text: string | undefined) => void) | undefined;
+      const sendNext = (text: string | undefined) => (waiting ? (waiting(text), (waiting = undefined)) : queued.push(text));
+      const turns = async function* (): AsyncGenerator<SDKUserMessage> {
+        let text: string | undefined = message;
+        while (text !== undefined) {
+          yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+          text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
+        }
+      };
       for await (const m of query({
-        prompt: message,
+        prompt: variants > 1 ? turns() : message,
         options: {
           model,
           ...(effort ? { effort } : {}),
           systemPrompt: INSTRUCTIONS,
           tools: [], // no built-in tools at all
-          mcpServers: { [PRODUCT.slug]: server },
+          // The person's servers from Settings → MCP, beside the canvas tools; every tool of theirs is allowed.
+          mcpServers: { ...forClaude(personServers), [PRODUCT.slug]: server },
           strictMcpConfig: true, // ignore MCP servers configured on this machine
-          allowedTools: [TOOL_NAME],
+          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : []), ...serverNames(personServers).map((n) => `mcp__${n}`)],
           permissionMode: "dontAsk", // anything not allowed above is refused, never asked
           settingSources: [], // ignore the person's Claude settings and memory files
           persistSession: false,
@@ -384,20 +563,32 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
               thought();
               emit({ type: "text", text: block.text });
               lastActivity = performance.now();
+            } else if (block.type === "tool_use" && block.name.startsWith("mcp__") && block.name !== TOOL_NAME && block.name !== BROWSER_TOOL_NAME) {
+              // mcp__<server>__<tool>: the card is titled with the tool's own name, as in Pen.
+              serverToolStart(block.id, block.name.replace(/^mcp__.+?__/, ""), block.input);
             }
+          }
+        } else if (m.type === "user" && !m.parent_tool_use_id && Array.isArray(m.message.content)) {
+          for (const block of m.message.content) {
+            if (block.type !== "tool_result" || !serverCalls.has(block.tool_use_id)) continue;
+            const content: ToolResultContent[] = typeof block.content === "string" ? [{ type: "text", text: block.content }] : ((block.content ?? []) as ToolResultContent[]);
+            serverToolEnd(block.tool_use_id, !block.is_error, content);
           }
         } else if (m.type === "result") {
           stats.ok = m.subtype === "success" && !m.is_error;
           stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
           stats.apiMs = m.duration_api_ms;
           stats.turns = m.num_turns;
+          // Running totals for the whole conversation (each turn's result carries them so far).
           stats.costUsd = m.total_cost_usd;
+          stats.tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
           for (const u of Object.values(m.modelUsage)) {
             stats.tokens.input += u.inputTokens;
             stats.tokens.output += u.outputTokens;
             stats.tokens.cacheRead += u.cacheReadInputTokens;
             stats.tokens.cacheWrite += u.cacheCreationInputTokens;
           }
+          if (variants > 1) sendNext(stats.ok ? nextTurn() : undefined);
         }
       }
     }

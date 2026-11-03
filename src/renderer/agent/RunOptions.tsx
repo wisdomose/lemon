@@ -1,6 +1,6 @@
 // The prompt footer's run options: parallel agents (⚡) and "let it cook" variants (▦). Layout measured
 // from the reference: a 300px popover over the chat box, 6px above the footer row, chips 44px wide.
-// Parallel agents work (team.ts); variants don't exist yet, so their choices are shown but disabled.
+// Parallel agents work (team.ts), and so do variants (agent.ts, "Let it cook").
 import { useState, type ReactNode, type RefObject } from "react";
 import { Popover as P } from "radix-ui";
 import { LayoutGrid, Zap } from "lucide-react";
@@ -115,17 +115,20 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
   );
 }
 
-/** A choice in "Let it cook": filled grey when picked, outlined otherwise (Pen, 26 Oct 2026 screenshot). */
-function CookOption({ children, selected, disabled }: { children: ReactNode; selected?: boolean; disabled?: boolean }) {
+/**
+ * A choice in "Let it cook": filled grey when picked, outlined otherwise, and dimmed when it can't be
+ * picked (the modes, while there are no variations) — Pen, 26 Oct and 2 Nov 2026 screenshots.
+ */
+function CookOption({ children, selected, disabled, onClick }: { children: ReactNode; selected?: boolean; disabled?: boolean; onClick?: () => void }) {
   return (
     <button
       type="button"
       disabled={disabled}
-      title={disabled ? "Coming with Let it cook" : undefined}
+      onClick={onClick}
       className={cx(
         "flex h-8 items-center justify-center rounded-[8px] text-[12px]",
         selected ? "bg-input font-semibold text-foreground" : "border border-input text-muted-foreground",
-        disabled && "cursor-not-allowed",
+        disabled && "cursor-not-allowed border-input/50 text-muted-foreground/50",
       )}
     >
       {children}
@@ -136,17 +139,26 @@ function CookOption({ children, selected, disabled }: { children: ReactNode; sel
 const COOK_LABEL = "text-[10px] leading-[14px] font-semibold tracking-wide text-muted-foreground uppercase";
 
 /**
- * "Let it cook": the iteration mode and how many variants, measured from Pen (260px wide). Variants
- * aren't built yet, so only the defaults are picked and the rest can't be chosen.
+ * "Let it cook": the iteration mode and how many variants, measured from Pen (260px wide). With
+ * variants the agent designs more variations after the first, each in its own turn (agent/agent.ts);
+ * the button then shows the count in Pen's blue. The count goes back to "Don't iterate" once a request
+ * is sent; the mode is kept.
  */
 export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> }) {
+  const cook = useEditor((s) => s.cook);
+  const set = (patch: Partial<typeof cook>) => store.set((s) => ({ cook: { ...s.cook, ...patch } }));
+  const on = cook.count > 1;
   return (
     <OptionPopover
       anchor={anchor}
       className="w-[260px] px-[13px] pt-[9px] pb-[10px]"
       trigger={(open) => (
-        <button type="button" aria-label="Let it cook" className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", open && "bg-foreground/5")}>
-          <LayoutGrid size={12} strokeWidth={1.5} /> 1x
+        <button
+          type="button"
+          aria-label="Let it cook"
+          className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", on && "text-[#8485f2]", open && "bg-foreground/5")}
+        >
+          <LayoutGrid size={12} strokeWidth={1.5} /> {cook.count}x
         </button>
       )}
     >
@@ -159,14 +171,20 @@ export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> 
       </div>
       <div className={cx(COOK_LABEL, "mt-[12px]")}>Iteration mode</div>
       <div className="mt-[7px] grid grid-cols-2 gap-1">
-        <CookOption selected>Layout</CookOption>
-        <CookOption disabled>Style</CookOption>
+        <CookOption selected={on && cook.mode === "layout"} disabled={!on} onClick={() => set({ mode: "layout" })}>
+          Layout
+        </CookOption>
+        <CookOption selected={on && cook.mode === "style"} disabled={!on} onClick={() => set({ mode: "style" })}>
+          Style
+        </CookOption>
       </div>
       <div className={cx(COOK_LABEL, "mt-[13px]")}>Variants</div>
       <div className="mt-[7px] grid grid-cols-2 gap-x-1 gap-y-1">
-        <CookOption selected>Don’t iterate</CookOption>
+        <CookOption selected={!on} onClick={() => set({ count: 1 })}>
+          Don’t iterate
+        </CookOption>
         {[2, 3, 4, 5, 6].map((n) => (
-          <CookOption key={n} disabled>
+          <CookOption key={n} selected={cook.count === n} onClick={() => set({ count: n })}>
             {n}
           </CookOption>
         ))}

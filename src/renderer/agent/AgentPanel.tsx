@@ -9,6 +9,7 @@ import { cx } from "../ui/kit.js";
 import { clearHistory, formatDuration, newSession, openSession, sendPrompt } from "./chat.js";
 import { DropdownMenu as M } from "radix-ui";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
+import { MessageText } from "./links.js";
 
 // Our own example prompts and tips, laid out as Pen lays out its empty state.
 const EXAMPLES = [
@@ -174,7 +175,9 @@ function Item({ item }: { item: ChatItem }) {
   switch (item.kind) {
     case "user":
       return (
-        <div className="ml-[52px] rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">{item.text}</div>
+        <div className="ml-[52px] rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">
+          <MessageText text={item.text} />
+        </div>
       );
     case "agent-head":
       return (
@@ -260,11 +263,16 @@ function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {
               <img src={p.url} alt="" className="w-full rounded-md border border-line" />
             </div>
           ))}
-          {step.output && <pre className="max-h-[220px] overflow-auto px-3 py-3 font-sans whitespace-pre-wrap text-foreground">{step.output}</pre>}
-          {step.script && (
+          {step.output &&
+            (step.markdown ? (
+              <div className="chat-md max-h-[220px] overflow-auto px-3 py-3 text-foreground" dangerouslySetInnerHTML={{ __html: markdown(step.output) }} />
+            ) : (
+              <pre className="max-h-[220px] overflow-auto px-3 py-3 font-sans whitespace-pre-wrap text-foreground">{step.output}</pre>
+            ))}
+          {(step.script || step.input) && (
             <div className="border-t border-input px-3 py-3">
-              <div className="mb-1 text-[11px] tracking-wide text-muted-foreground uppercase">Script</div>
-              <pre className="max-h-[260px] overflow-auto font-mono text-[12px] whitespace-pre text-[#60a5fa]">{step.script}</pre>
+              <div className="mb-1 text-[11px] tracking-wide text-muted-foreground uppercase">{step.input ? "Input" : "Script"}</div>
+              <pre className="max-h-[260px] overflow-auto font-mono text-[12px] whitespace-pre text-[#60a5fa]">{step.input ?? step.script}</pre>
             </div>
           )}
         </div>

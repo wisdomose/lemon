@@ -87,6 +87,7 @@ import {
   shared,
 } from "./panel-parts.js";
 import { shownUrl } from "./CanvasFields.js";
+import { useRightInset } from "./BrowserSidebar.js";
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
@@ -133,6 +134,7 @@ const WEIGHT_NAMES: Record<number, string> = {
 
 export function PropertiesPanel() {
   const selection = useEditor((s) => s.selection);
+  const right = useRightInset();
   useEditor((s) => s.docVersion);
   const scene = currentScene();
   const ids = scene ? selection.filter((id) => findNode(scene.tree, id)) : [];
@@ -217,7 +219,7 @@ export function PropertiesPanel() {
     );
 
   return (
-    <Island data-props className="absolute top-[59px] right-2 bottom-[9px] flex w-[221px] flex-col overflow-hidden">
+    <Island data-props className="absolute top-[59px] bottom-[9px] flex w-[221px] flex-col overflow-hidden" style={{ right }}>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-line pt-2 pr-[13px] pb-2 pl-[11px]">
           <div className="flex h-6 items-center gap-2 text-[11px] text-foreground">

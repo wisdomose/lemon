@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "window",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "scripts/serve-window.ts", "5173"],
+      "port": 5173
+    }
+  ]
+}

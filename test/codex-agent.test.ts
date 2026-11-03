@@ -17,11 +17,11 @@ describe("Codex canvas integration", () => {
     const doc = new Y.Doc();
     const events: AgentEvent[] = [];
     provider.mockImplementation(async (o) => {
-      expect(() => o.tool!.call({ title: 42 })).toThrow();
-      const failed = await o.tool!.call({ title: "Failed step", script: 'Insert(document, { type: "frame", name: "Discard" }); throw new Error("undo");' });
+      expect(() => o.tools!.execute!.call({ title: 42 })).toThrow();
+      const failed = await o.tools!.execute!.call({ title: "Failed step", script: 'Insert(document, { type: "frame", name: "Discard" }); throw new Error("undo");' });
       expect(failed.isError).toBe(true);
       expect(toTree(doc).children).toHaveLength(0);
-      const valid = await o.tool!.call({ title: "Draw frame", script: 'Insert(document, { type: "frame", name: "Keep", width: 200, height: 100, placeholder: true });' });
+      const valid = await o.tools!.execute!.call({ title: "Draw frame", script: 'Insert(document, { type: "frame", name: "Keep", width: 200, height: 100, placeholder: true });' });
       expect(valid.isError).toBeUndefined();
       o.onText?.("Done", "reply");
       return response;
@@ -42,9 +42,9 @@ describe("Codex canvas integration", () => {
     provider.mockImplementation(async (o) => {
       expect(o.model).toBe("codex");
       expect(o.effort).toBe("ultra");
-      if (!o.tool) { planning++; return { ...response, reply: plan }; }
+      if (!o.tools) { planning++; return { ...response, reply: plan }; }
       building++;
-      const r = await o.tool.call({ title: "Build part", script: 'Insert(mine, { type: "rectangle", width: 10, height: 10 });' });
+      const r = await o.tools.execute!.call({ title: "Build part", script: 'Insert(mine, { type: "rectangle", width: 10, height: 10 });' });
       expect(r.isError).toBeUndefined();
       return response;
     });

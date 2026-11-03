@@ -4,6 +4,8 @@
 export interface Edit {
   find: string;
   replace: string;
+  /** Replace every occurrence instead of requiring a unique match. */
+  all?: boolean;
 }
 
 /** Failed scripts by edit id, kept until a patched version succeeds. */
@@ -25,6 +27,10 @@ export class FailedScripts {
     for (const [i, e] of edits.entries()) {
       const at = script.indexOf(e.find);
       if (!e.find || at < 0) throw new Error(`Edit ${i + 1}: \`find\` doesn't match the script${i ? " as patched by the edits before it" : ""}.`);
+      if (e.all) {
+        script = script.replaceAll(e.find, () => e.replace);
+        continue;
+      }
       if (script.indexOf(e.find, at + 1) >= 0) throw new Error(`Edit ${i + 1}: \`find\` matches more than once; include more of the surrounding text.`);
       script = script.slice(0, at) + e.replace + script.slice(at + e.find.length);
     }

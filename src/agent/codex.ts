@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { CodexModel } from "./models.js";
 import { PRODUCT } from "../product.js";
+import { forCodex, serverNames, type PersonServers } from "./mcp-servers.js";
 
 interface RpcMessage {
   id?: number | string;
@@ -46,6 +47,9 @@ export function codexBinary(): string {
   if (!existsSync(exe)) throw new Error(`Codex is missing from this copy of ${PRODUCT.name} (${exe}). Reinstall ${PRODUCT.name}.`);
   return exe;
 }
+
+/** One piece of an MCP tool's result, as servers send it. */
+export type ToolResultContent = { type: string; text?: string; data?: string; mimeType?: string };
 
 /** A local JSON-lines connection, with request deadlines and deterministic process cleanup. */
 export class CodexConnection {
@@ -262,8 +266,15 @@ export async function runCodex(o: {
   model: string;
   effort?: string;
   signal?: AbortSignal;
-  tool?: CodexTool;
+  /** The canvas tools by name (execute, browser); every other tool is refused. */
+  tools?: Record<string, CodexTool>;
   onText?: (text: string, streamId: string) => void;
+  /** A call to a tool of an MCP server the person added starts, and ends (Codex runs those itself). */
+  onServerTool?: (e: { id: string; tool: string; input: unknown } | { id: string; ok: boolean; content: ToolResultContent[] }) => void;
+  /** Asked when a turn is done: another message to send on the same thread, or undefined to finish. */
+  followUp?: () => string | undefined;
+  /** MCP servers the person added in Settings → MCP; their tools are allowed too. */
+  mcpServers?: PersonServers;
 }): Promise<CodexResult> {
   o.signal?.throwIfAborted();
   const connection = new CodexConnection();
@@ -290,12 +301,12 @@ export async function runCodex(o: {
     if (m.method === "item/tool/call" && m.id !== undefined) {
       const id = m.id;
       // Reject every unregistered tool, including any future server-initiated approval flow.
-      if (p.tool !== "execute" || !o.tool || ++calls > 60 || o.signal?.aborted) {
+      const tool = typeof p.tool === "string" && Object.hasOwn(o.tools ?? {}, p.tool) ? o.tools![p.tool] : undefined;
+      if (!tool || ++calls > 60 || o.signal?.aborted) {
         connection.send({ id, result: { success: false, contentItems: [{ type: "inputText", text: "Tool unavailable or step limit reached." }] } });
         if (calls > 60) { reject(new Error("Codex reached the 60-step limit.")); connection.close(); }
         return;
       }
-      const tool = o.tool;
       const call = Promise.resolve().then(() => tool.call(p.arguments)).then((r) => {
         connection.send({ id, result: {
           success: !r.isError,
@@ -305,7 +316,16 @@ export async function runCodex(o: {
       activeCalls.add(call);
       void call.finally(() => activeCalls.delete(call));
     } else if (m.id !== undefined && m.method) {
-      connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits the canvas execute tool." } });
+      connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits its canvas tools." } });
+    } else if ((m.method === "item/started" || m.method === "item/completed") && (p.item as { type?: string })?.type === "mcpToolCall") {
+      const item = p.item as { id: string; tool: string; arguments: unknown; status: string; result: { content: ToolResultContent[] } | null; error: { message: string } | null };
+      if (m.method === "item/started") o.onServerTool?.({ id: item.id, tool: item.tool, input: item.arguments });
+      else
+        o.onServerTool?.({
+          id: item.id,
+          ok: item.status === "completed" && !item.error,
+          content: item.error ? [{ type: "text", text: item.error.message }] : (item.result?.content ?? []),
+        });
     } else if (m.method === "item/agentMessage/delta") {
       const text = typeof p.delta === "string" ? p.delta : "";
       result.reply += text;
@@ -317,8 +337,19 @@ export async function runCodex(o: {
       turnId = (p.turn as { id: string }).id;
     } else if (m.method === "turn/completed") {
       const turn = p.turn as { status: string; error?: { message: string } };
-      if (turn.status === "completed") complete();
-      else reject(new Error(turn.error?.message ?? `Codex turn ${turn.status}.`));
+      if (turn.status !== "completed") reject(new Error(turn.error?.message ?? `Codex turn ${turn.status}.`));
+      else {
+        const next = threadId ? o.followUp?.() : undefined;
+        if (next === undefined) complete();
+        else {
+          // The reply is the last turn's, and the step limit is for each turn.
+          result.reply = "";
+          calls = 0;
+          connection
+            .request<{ turn: { id: string } }>("turn/start", { threadId, input: [{ type: "text", text: next, text_elements: [] }], ...(o.effort ? { effort: o.effort } : {}) })
+            .then((t) => (turnId = t.turn.id), (e: unknown) => reject(e instanceof Error ? e : new Error(String(e))));
+        }
+      }
     }
   };
   o.signal?.addEventListener("abort", abort, { once: true });
@@ -329,11 +360,15 @@ export async function runCodex(o: {
     mkdirSync(cwd, { recursive: true });
     // Disable inherited integrations explicitly: table overrides otherwise merge with user settings.
     const { config } = await connection.request<{ config: { mcp_servers?: Record<string, unknown> } }>("config/read", { includeLayers: false });
+    const personServers = serverNames(o.mcpServers ?? {});
     const thread = await connection.request<{ thread: { id: string } }>("thread/start", {
       ...(o.model === "codex" ? {} : { model: o.model.replace(/^codex:/, "") }),
       cwd, ephemeral: true, approvalPolicy: "never", sandbox: "read-only",
       baseInstructions: o.system,
-      developerInstructions: "Use only execute to work on the canvas. Never use shell, files, web, or external integrations.",
+      developerInstructions: (o.tools?.browser
+        ? "Use only execute to work on the canvas, and browser to use the web pages of its browser nodes. Never use shell, files, other web access, or external integrations"
+        : "Use only execute to work on the canvas. Never use shell, files, web, or external integrations") +
+        (personServers.length ? ` other than the MCP servers the person added (${personServers.join(", ")}), whose tools you may use.` : "."),
       config: {
         "features.shell_tool": false, "features.hooks": false,
         "features.plugins": false, "features.remote_plugin": false, "features.apps": false,
@@ -343,8 +378,10 @@ export async function runCodex(o: {
         "agents.enabled": false, "tools.view_image": false, "web_search": "disabled",
         "project_doc_max_bytes": 0,
         ...Object.fromEntries(Object.keys(config.mcp_servers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])),
+        // The person's servers from Settings → MCP, on over any of the same name above.
+        ...forCodex(o.mcpServers ?? {}),
       },
-      dynamicTools: o.tool ? [{ type: "function", name: "execute", description: o.tool.description, inputSchema: o.tool.inputSchema }] : [],
+      dynamicTools: Object.entries(o.tools ?? {}).map(([name, t]) => ({ type: "function", name, description: t.description, inputSchema: t.inputSchema })),
     });
     threadId = thread.thread.id;
     o.signal?.throwIfAborted();

@@ -25,6 +25,7 @@ import { sharedCommand } from "./settings.js";
 import { CommentLayer, CommentsPanel } from "./chrome/Comments.js";
 import { ShortcutsDialog } from "./chrome/ShortcutsDialog.js";
 import { CommandPalette } from "./chrome/CommandPalette.js";
+import { BrowserSidebar, startSidebar } from "./chrome/BrowserSidebar.js";
 import { duplicateSelection, frameSelection, groupSelection, onCopy, onPaste, pasteToReplace, ungroupSelection } from "./editing.js";
 
 export function App({ initial }: { initial: string }) {
@@ -35,6 +36,7 @@ export function App({ initial }: { initial: string }) {
   const setPanelOpen = (fn: (o: boolean) => boolean) => store.set((s) => ({ panelOpen: fn(s.panelOpen) }));
   useEffect(() => {
     const detach = [attach(canvasRef.current!), attachGestures(canvasRef.current!)];
+    startSidebar();
     return () => detach.forEach((d) => d());
   }, []);
   useEffect(() => {
@@ -155,6 +157,8 @@ export function App({ initial }: { initial: string }) {
           <BrowserUrlField />
           <BrowserLiveBar />
           <ZoomControl />
+          {/* After the panels and the zoom pill: expanded, it covers them (as in Pen). */}
+          <BrowserSidebar />
         </div>
         <SettingsHost />
         <ShortcutsDialog />

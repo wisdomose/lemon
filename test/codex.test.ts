@@ -68,7 +68,7 @@ describe("Codex provider", () => {
       send({ id: "call", method: "item/tool/call", params: { tool: "execute", arguments: { title: "Draw", script: "draw()" } } });
     });
     const call = vi.fn().mockResolvedValue({ isError: true, content: [{ type: "text", text: "Fix script" }, { type: "image", mimeType: "image/png", data: "cG5n" }] });
-    const result = runCodex({ system: "Design", prompt: "A page", model: "codex:custom", effort: "ultra", tool: { description: "Canvas", inputSchema: {}, call } });
+    const result = runCodex({ system: "Design", prompt: "A page", model: "codex:custom", effort: "ultra", tools: { execute: { description: "Canvas", inputSchema: {}, call } } });
     await vi.waitFor(() => expect(peer.received.some((m) => m.id === "call")).toBe(true));
     expect(call).toHaveBeenCalledWith({ title: "Draw", script: "draw()" });
     expect(peer.received.find((m) => m.id === "call")!.result).toEqual({ success: false, contentItems: [{ type: "inputText", text: "Fix script" }, { type: "inputImage", imageUrl: "data:image/png;base64,cG5n" }] });
@@ -103,9 +103,9 @@ describe("Codex provider", () => {
 
   it("reports invalid tool arguments without crashing the connection", async () => {
     const peer = server((send) => send({ id: "invalid", method: "item/tool/call", params: { tool: "execute", arguments: { title: 42 } } }));
-    const result = runCodex({ system: "", prompt: "", model: "codex", tool: {
+    const result = runCodex({ system: "", prompt: "", model: "codex", tools: { execute: {
       description: "Canvas", inputSchema: {}, call: () => { throw new Error("Invalid title"); },
-    } });
+    } } });
     await vi.waitFor(() => expect(peer.received.find((m) => m.id === "invalid")).toBeDefined());
     expect(peer.received.find((m) => m.id === "invalid")!.result).toEqual({ success: false, contentItems: [{ type: "inputText", text: "Error: Invalid title" }] });
     peer.send({ method: "turn/completed", params: { turn: { status: "completed" } } });
@@ -119,7 +119,7 @@ describe("Codex provider", () => {
     server((send) => send({ id: "slow", method: "item/tool/call", params: { tool: "execute", arguments: {} } }));
     const abort = new AbortController();
     let settled = false;
-    const result = runCodex({ system: "", prompt: "", model: "codex", signal: abort.signal, tool: { description: "Canvas", inputSchema: {}, call } });
+    const result = runCodex({ system: "", prompt: "", model: "codex", signal: abort.signal, tools: { execute: { description: "Canvas", inputSchema: {}, call } } });
     const rejected = expect(result).rejects.toThrow("cancelled");
     void result.finally(() => { settled = true; }).catch(() => {});
     await vi.waitFor(() => expect(call).toHaveBeenCalledOnce());

@@ -10,7 +10,7 @@ const bridge: Bridge = {
   pushDocUpdate: (update) => ipcRenderer.send("doc:push", update),
   fontCatalogue: () => ipcRenderer.invoke("fonts:catalogue"),
   loadFont: (face) => ipcRenderer.invoke("fonts:load", face),
-  runAgent: (prompt, model, team, effort) => ipcRenderer.invoke("agent:run", prompt, model, team, effort),
+  runAgent: (prompt, model, team, effort, variants) => ipcRenderer.invoke("agent:run", prompt, model, team, effort, variants),
   stopAgent: () => ipcRenderer.invoke("agent:stop"),
   onAgentEvent: (fn) => {
     ipcRenderer.on("agent:event", (_e, event) => fn(event));
@@ -43,8 +43,24 @@ const bridge: Bridge = {
     input: (id, ev) => ipcRenderer.send("browser:input", id, ev),
     command: (id, what) => ipcRenderer.invoke("browser:command", id, what),
     repaint: () => ipcRenderer.send("browser:repaint"),
+    onSidebar: (fn) => {
+      ipcRenderer.on("browser:sidebar", (_e, state) => fn(state));
+    },
+    sidebar: (action, arg) => ipcRenderer.invoke("browser:sidebar", action, arg),
+    capture: (mode) => ipcRenderer.invoke("browser:capture", mode),
+    importable: (mode) => ipcRenderer.invoke("browser:importable", mode),
   },
   menuState: (state) => ipcRenderer.send("menu:state", state),
+  selection: (ids) => ipcRenderer.send("editor:selection", ids),
+  mcp: {
+    page: () => ipcRenderer.invoke("mcp:page"),
+    setServers: (text) => ipcRenderer.invoke("mcp:set-servers", text),
+    setClient: (id, on) => ipcRenderer.invoke("mcp:set-client", id, on),
+    copyConfig: () => ipcRenderer.invoke("mcp:copy-config"),
+    signInStatus: () => ipcRenderer.invoke("mcp:sign-in-status"),
+    signIn: (name) => ipcRenderer.invoke("mcp:sign-in", name),
+    signOut: (name) => ipcRenderer.invoke("mcp:sign-out", name),
+  },
   who: () => ipcRenderer.invoke("app:who"),
   reloadComments: () => ipcRenderer.invoke("comments:reload"),
   appCommand: (command) => ipcRenderer.invoke("app:command", command),

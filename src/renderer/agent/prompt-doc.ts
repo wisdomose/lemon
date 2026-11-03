@@ -59,7 +59,7 @@ export function followSelection(state: EditorState, ref: ChipRef | null, focused
   const live = liveChip(state.doc);
   if (live) {
     if (!ref) return state.tr.delete(live.pos, live.pos + 1);
-    if (live.node.attrs.id === ref.id) return null;
+    if (live.node.attrs.id === ref.id && live.node.attrs.name === ref.name) return null;
     return state.tr.setNodeMarkup(live.pos, undefined, { ...ref });
   }
   if (!ref) return null;
