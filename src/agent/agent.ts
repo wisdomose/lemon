@@ -23,6 +23,7 @@ import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from 
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
 import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
 import { POPULAR_SERVERS } from "../mcp/settings.js";
+import { claudeContent, type Attachment } from "./attachments.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
@@ -112,6 +113,8 @@ export interface AgentOptions {
   browser?: PageDriver;
   /** "Let it cook": how many variations to design in all (1: just the one), and how they differ. */
   variants?: Variants;
+  /** Files attached to the prompt; the agent gets them before it. */
+  attachments?: Attachment[];
   /** MCP servers the person added in Settings → MCP: their tools are the agent's too. */
   mcpServers?: PersonServers;
   /** The added servers with their sign-ins: those wanting one are signed in to as the agent starts. */
@@ -495,7 +498,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   try {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
-        system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
+        system: INSTRUCTIONS, prompt: message, attachments: o.attachments, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
         mcpServers: personServers,
         tools: {
           execute: {
@@ -525,19 +528,23 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool, ...browserTool] });
       // With variations to come, the conversation stays open and each next message is sent when the
       // design before it is done (undefined ends it). A turn can end before the conversation asks for
-      // its next message, so what's sent waits in a queue.
+      // its next message, so what's sent waits in a queue. Attachments need a message of blocks, which
+      // only this form takes.
+      const attachments = o.attachments ?? [];
+      const streamed = variants > 1 || attachments.length > 0;
       const queued: (string | undefined)[] = [];
       let waiting: ((text: string | undefined) => void) | undefined;
       const sendNext = (text: string | undefined) => (waiting ? (waiting(text), (waiting = undefined)) : queued.push(text));
       const turns = async function* (): AsyncGenerator<SDKUserMessage> {
-        let text: string | undefined = message;
+        yield { type: "user", message: { role: "user", content: attachments.length ? claudeContent(attachments, message) : message }, parent_tool_use_id: null };
+        let text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
         while (text !== undefined) {
           yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
           text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
         }
       };
       for await (const m of query({
-        prompt: variants > 1 ? turns() : message,
+        prompt: streamed ? turns() : message,
         options: {
           model,
           ...(effort ? { effort } : {}),
@@ -588,7 +595,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
             stats.tokens.cacheRead += u.cacheReadInputTokens;
             stats.tokens.cacheWrite += u.cacheCreationInputTokens;
           }
-          if (variants > 1) sendNext(stats.ok ? nextTurn() : undefined);
+          if (streamed) sendNext(stats.ok ? nextTurn() : undefined);
         }
       }
     }

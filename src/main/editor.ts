@@ -14,6 +14,7 @@ import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
 import { AGENTS, type Team } from "../agent/models.js";
 import { runAgent, type AgentStats, type Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
 import type { ServerSignIns } from "../agent/mcp-servers.js";
 import { thumbnail } from "../render/thumbnail.js";
@@ -342,7 +343,7 @@ export class Editor implements FileTab {
 
   // ---- The agent -----------------------------------------------------------------------------------
   /** Runs one agent, or a team of them (`team.count` > 1), on this tab's document. */
-  async runAgent(prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants): Promise<AgentStats[]> {
+  async runAgent(prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]): Promise<AgentStats[]> {
     this.running?.abort();
     const running = (this.running = new AbortController());
     const { engine, sandbox, log } = this.shared;
@@ -357,7 +358,7 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;
