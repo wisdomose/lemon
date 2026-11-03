@@ -97,7 +97,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
         landed.clear();
         store.set((s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
       }
-      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model, store.get().codexModels), ...tag });
+      push({ kind: "agent-head", name: e.name, model: modelLabel(e.model, store.get().codexModels, store.get().providers), ...tag });
       break;
     case "thought":
       push({ kind: "thought", seconds: e.seconds, ...tag });

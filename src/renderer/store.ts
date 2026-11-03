@@ -2,6 +2,7 @@
 // by React through useSyncExternalStore; the canvas reads it directly.
 import { useSyncExternalStore } from "react";
 import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
+import type { ProviderRecord } from "../agent/providers.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 import type { SidebarState } from "../main/browser-pages.js";
@@ -76,8 +77,10 @@ export interface EditorState {
   codexModels: CodexModel[];
   codexModelsState: "idle" | "loading" | "ready" | "error";
   codexModelsError?: string;
-  /** Selected Codex effort; undefined delegates to the model's server-side default. */
+  /** Selected reasoning effort (Claude or Codex); undefined delegates to the model's own default. */
   effort?: string;
+  /** The AI providers (built-ins with their key state, then this person's own). */
+  providers: ProviderRecord[];
   /** How many agents the next request goes to, and how they share it (the ⚡ choice). */
   team: Team;
   /** "Let it cook" (the ▦ choice): how many variations the next request gets, and how they differ. Back to 1 once sent, as in Pen. */
@@ -85,6 +88,8 @@ export interface EditorState {
   /** Files attached to the prompt being written ("+" → Add image or file, paste, drop). */
   attachments: PendingAttachment[];
   settingsOpen: boolean;
+  /** The page an "open settings" ask wants (the model picker's provider rows); read once on open. */
+  settingsPage: { page: "agents"; provider?: string } | null;
   /** Past conversations, newest first. */
   history: Session[];
   /** The file this window shows. */
@@ -131,10 +136,12 @@ const initial: EditorState = {
   model: DEFAULT_MODEL,
   codexModels: [],
   codexModelsState: "idle",
+  providers: [],
   team: { count: 1, mode: "split" },
   cook: { count: 1, mode: "layout" },
   attachments: [],
   settingsOpen: false,
+  settingsPage: null,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
   cardMenu: null,

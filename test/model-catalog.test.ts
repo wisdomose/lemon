@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CodexModel } from "../src/agent/models.js";
 import { bridge } from "../src/renderer/bridge.js";
 import { store } from "../src/renderer/store.js";
-import { refreshCodexModels } from "../src/renderer/agent/model-catalog.js";
+import { effortChoices, refreshCodexModels } from "../src/renderer/agent/model-catalog.js";
 
 vi.mock("../src/renderer/bridge.js", () => ({ bridge: { codexModels: vi.fn() } }));
 const fetchModels = vi.mocked(bridge.codexModels);
@@ -55,5 +55,34 @@ describe("model catalog refresh", () => {
     await refreshCodexModels();
     expect(store.get().effort).toBeUndefined();
     expect(store.get().model).toBe(model.id);
+  });
+
+  it("keeps a Claude effort when the Codex catalog refreshes (opening the model picker)", async () => {
+    store.set({ model: "claude-opus-5-5", effort: "low" });
+    fetchModels.mockResolvedValue([model]);
+    await refreshCodexModels();
+    expect(store.get().effort).toBe("low");
+  });
+});
+
+describe("effort choices", () => {
+  const sdk = ["low", "medium", "high", "xhigh"];
+  it("offers the SDK's levels for Claude, ticking what the SDK sends when none is chosen", () => {
+    expect(effortChoices("claude-opus-5-5", [])).toEqual({ levels: sdk, fallback: "medium" });
+    expect(effortChoices("claude-fable-5-1", [])).toEqual({ levels: sdk, fallback: "high" });
+  });
+
+  it("offers a Codex model's own levels with its default", () => {
+    expect(effortChoices(model.id, [model])).toEqual({ levels: ["ultra"], fallback: "ultra" });
+    expect(effortChoices("codex", [model]).levels).toEqual([]);
+  });
+
+  it("offers them for Anthropic-type providers (built-in or custom) but not OpenAI Completions ones", () => {
+    expect(effortChoices("prov:zai:glm-5.3", [])).toEqual({ levels: sdk, fallback: "high" });
+    expect(effortChoices("prov:deepseek:deepseek-chat", []).levels).toEqual([]);
+    const custom = { id: "c1", name: "Z.AI 2", apiType: "anthropic-messages" as const, baseUrl: "https://api.z.ai/api/anthropic", models: [{ id: "GLM-5.3", contextWindow: 0, maxTokens: 0 }] };
+    expect(effortChoices("prov:c1:GLM-5.3", [], [custom]).levels).toEqual(sdk);
+    expect(effortChoices("prov:c1:GLM-5.3", [], [{ ...custom, apiType: "openai-completions" }]).levels).toEqual([]);
+    expect(effortChoices("prov:gone:x", []).levels).toEqual([]);
   });
 });

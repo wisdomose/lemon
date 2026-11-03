@@ -17,6 +17,7 @@ import { runAgent, type AgentStats, type Variants } from "../agent/agent.js";
 import type { Attachment } from "../agent/attachments.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
 import type { ServerSignIns } from "../agent/mcp-servers.js";
+import { resolveProviderModel } from "./provider-store.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 import { page, type FileTab, type TabInfo } from "./shell.js";
@@ -358,7 +359,8 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const provider = model?.startsWith("prov:") ? resolveProviderModel(model) : undefined;
+    const base = { doc: this.doc, engine, sandbox, prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(provider ? { provider } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;

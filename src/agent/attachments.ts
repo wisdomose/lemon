@@ -51,6 +51,27 @@ export function claudeContent(attachments: Attachment[], text: string) {
 }
 
 /**
+ * A Chat Completions message's content (OpenAI-type providers): the attachments, then the prompt.
+ * Pictures go as pictures only to a model that reads them, and a PDF only by name, as for Codex.
+ */
+export function chatContent(attachments: Attachment[], text: string, images: boolean) {
+  return [
+    ...attachments.map((a) =>
+      a.kind === "image" && images
+        ? { type: "image_url" as const, image_url: { url: `data:${a.mediaType};base64,${a.data}` } }
+        : {
+            type: "text" as const,
+            text:
+              a.kind === "text"
+                ? named(a)
+                : `<name>${a.name}</name>\n<content>(${a.kind === "pdf" ? "A PDF" : "A picture"}; this model can't read ${a.kind === "pdf" ? "PDFs" : "pictures"}.)</content>`,
+          },
+    ),
+    { type: "text" as const, text },
+  ];
+}
+
+/**
  * Codex's turn input: the attachments, then the prompt. Codex takes no PDFs, so a PDF is only named
  * (Pen with Codex not checked: Codex's usage limit was reached).
  */

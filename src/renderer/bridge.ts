@@ -6,6 +6,8 @@ import type { Attachment } from "../agent/attachments.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team, CodexModel } from "../agent/models.js";
 import type { ProviderStatus } from "../agent/codex.js";
+import type { ProviderDraft, ProviderRecord } from "../agent/providers.js";
+import { BUILT_IN_PROVIDERS, builtInProvider } from "../agent/providers.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
@@ -41,6 +43,16 @@ export interface Bridge {
   /** Picker-visible Codex models and their supported reasoning efforts. */
   /** The models Codex offers (a recent answer is reused unless `fresh`). */
   codexModels(fresh?: boolean): Promise<CodexModel[]>;
+  /** The AI providers: the built-ins with a key saved, then this person's own. */
+  listProviders(): Promise<ProviderRecord[]>;
+  /** Adds a custom provider, or updates one (`key` sets or clears it; left out keeps it). */
+  saveProvider(draft: ProviderDraft): Promise<ProviderRecord>;
+  removeProvider(id: string): Promise<void>;
+  /** Saves (or, empty, clears) a provider's key; `listProviders` then shows its masked preview. */
+  setProviderKey(id: string, key: string): Promise<void>;
+  clearProviderKey(id: string): Promise<void>;
+  /** Opens a built-in provider's keys page in the person's browser. */
+  openProviderKeysPage(id: string): Promise<void>;
   /** The file this window shows: its name and whether it is saved. */
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
@@ -199,6 +211,19 @@ export function browserBridge(): Bridge {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Model catalog: HTTP ${response.status}`);
       return response.json();
+    },
+    // `?providers=<url of a JSON file>` gives the pages a list; keys are only kept by the desktop app.
+    async listProviders() {
+      const url = new URLSearchParams(location.search).get("providers");
+      return url ? (await fetch(url)).json() : BUILT_IN_PROVIDERS;
+    },
+    saveProvider: () => Promise.reject(new Error("Open the desktop app to add providers.")),
+    removeProvider: () => Promise.reject(new Error("Open the desktop app to remove providers.")),
+    setProviderKey: () => Promise.reject(new Error("Open the desktop app to save keys.")),
+    clearProviderKey: () => Promise.reject(new Error("Open the desktop app to clear keys.")),
+    async openProviderKeysPage(id) {
+      const url = builtInProvider(id)?.getStarted.url;
+      if (url) window.open(url, "_blank", "noopener");
     },
     async fileInfo() {
       return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };

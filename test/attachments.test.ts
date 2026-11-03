@@ -1,7 +1,7 @@
 // Files attached to a prompt (src/agent/attachments.ts). The expected shapes are what Pen gave its
 // agent for the same attachments (its session log, 3 Nov 2026).
 import { describe, expect, it } from "vitest";
-import { claudeContent, codexInput, kindOf, type Attachment } from "../src/agent/attachments.js";
+import { chatContent, claudeContent, codexInput, kindOf, type Attachment } from "../src/agent/attachments.js";
 
 describe("attachments", () => {
   it("sends png, jpg and gif as pictures, pdf as a document, and text-like files as text", () => {
@@ -29,6 +29,16 @@ describe("attachments", () => {
       { type: "document", source: { type: "base64", media_type: "application/pdf", data: "JVBE" }, title: "doc.pdf" },
       { type: "text", text: "Make it" },
     ]);
+  });
+
+  it("gives an OpenAI-type provider pictures only when its model reads them", () => {
+    expect(chatContent(files, "Make it", true)).toEqual([
+      { type: "image_url", image_url: { url: "data:image/gif;base64,R0lG" } },
+      { type: "text", text: "<name>shape.svg</name>\n<content><svg/></content>" },
+      { type: "text", text: "<name>doc.pdf</name>\n<content>(A PDF; this model can't read PDFs.)</content>" },
+      { type: "text", text: "Make it" },
+    ]);
+    expect(chatContent(files, "Make it", false)[0]).toEqual({ type: "text", text: "<name>blue.gif</name>\n<content>(A picture; this model can't read pictures.)</content>" });
   });
 
   it("gives Codex pictures as data URLs and names a PDF it can't read", () => {
