@@ -1,4 +1,5 @@
 // The models the agent can use. Shared by the agent (main process) and the window (labels).
+import { providerModelLabel, type ProviderRecord } from "./providers.js";
 /** Public model metadata shared across IPC; Codex retains ownership of account credentials. */
 export interface CodexModel {
   id: string;
@@ -18,11 +19,16 @@ export const MODELS = [
   // Codex resolves its configured model, including account-specific model availability.
   { id: "codex", provider: "codex", label: "Codex (default)" },
 ] as const;
-export const modelProvider = (id: string): "claude" | "codex" => id === "codex" || id.startsWith("codex:") ? "codex" : "claude";
+export type ModelBackend = "claude" | "codex" | "provider";
+export const modelProvider = (id: string): ModelBackend =>
+  id === "codex" || id.startsWith("codex:") ? "codex" : id.startsWith("prov:") ? "provider" : "claude";
 
 export const DEFAULT_MODEL: string = "claude-opus-5-5";
-export const modelLabel = (id: string, discovered: readonly CodexModel[] = []) =>
-  discovered.find((m) => m.id === id)?.label ?? MODELS.find((m) => m.id === id)?.label ?? id.replace(/^codex:/, "");
+export const modelLabel = (id: string, discovered: readonly CodexModel[] = [], providers: readonly ProviderRecord[] = []) =>
+  discovered.find((m) => m.id === id)?.label ??
+  MODELS.find((m) => m.id === id)?.label ??
+  providerModelLabel(id, providers) ??
+  id.replace(/^codex:/, "");
 
 /**
  * The agents' names and cursor colours, in the order they join a run (one agent is the first). Our own

@@ -20,7 +20,7 @@ import {
 import { bridge, type DashboardFiles } from "../bridge.js";
 import { SettingsDialog } from "../chrome/SettingsDialog.js";
 import { setSetting, sharedCommand, useSettings } from "../settings.js";
-import { store } from "../store.js";
+import { store, useEditor } from "../store.js";
 import { cx } from "../ui/kit.js";
 import { PromptEditor, type PromptEditorHandle } from "../agent/PromptEditor.js";
 import { ParallelAgents, Variants } from "../agent/RunOptions.js";
@@ -34,7 +34,9 @@ const initial = new URLSearchParams(location.search).get("initial") ?? "Y";
 export function Dashboard() {
   const [files, setFiles] = useState<DashboardFiles>({ recents: [], drafts: [] });
   const settings = useSettings();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // In the shared store, so the model picker's provider rows can open it here as in the editor.
+  const settingsOpen = useEditor((s) => s.settingsOpen);
+  const setSettingsOpen = (open: boolean) => store.set({ settingsOpen: open });
   useEffect(() => {
     void bridge.dashboard.files().then(setFiles);
     bridge.dashboard.onFiles(setFiles);

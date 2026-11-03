@@ -23,6 +23,8 @@ import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import { startMcpServer } from "./mcp.js";
 import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
 import { McpAuth } from "./mcp-auth.js";
+import { clearProviderKey, listProviders, removeProvider, saveProvider, setProviderKey } from "./provider-store.js";
+import { builtInProvider } from "../agent/providers.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
 
@@ -243,6 +245,18 @@ async function main() {
   ipcMain.handle("codex:status", () => codexStatus());
   ipcMain.handle("codex:sign-in", () => codexSignIn((url) => void shell.openExternal(url)));
   ipcMain.handle("codex:models", (_e, fresh?: boolean) => codexModels(!!fresh));
+  // AI providers and their keys are owned here; answers to the window only carry masked key previews.
+  ipcMain.handle("providers:list", () => listProviders());
+  // What a window sends is checked by the store before anything is kept.
+  ipcMain.handle("providers:save", (_e, draft: unknown) => saveProvider(draft));
+  ipcMain.handle("providers:remove", (_e, id: unknown) => removeProvider(id));
+  ipcMain.handle("providers:key:set", (_e, id: unknown, key: unknown) => setProviderKey(id, key));
+  ipcMain.handle("providers:key:clear", (_e, id: unknown) => clearProviderKey(id));
+  // A built-in's "Generate … key" button: the window names the provider, the address is our own.
+  ipcMain.handle("providers:keys-page", (_e, id: unknown) => {
+    const url = typeof id === "string" ? builtInProvider(id)?.getStarted.url : undefined;
+    if (url) void shell.openExternal(url);
+  });
   ipcMain.handle("agent:start-prompt", (e) => editorOf(e)?.takeStartPrompt());
   ipcMain.handle("editor:notice", (e) => editorOf(e)?.takeNotice());
   ipcMain.handle("dashboard:show", () => showDashboard());

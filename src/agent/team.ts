@@ -11,6 +11,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCodex } from "./codex.js";
+import { runOpenAICompat } from "./openai.js";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { PRODUCT } from "../product.js";
@@ -19,10 +20,11 @@ import { getVars, insert, nodesOf, setVariables, toTree, update } from "../doc/s
 import { ROOT_ID } from "../doc/schema.js";
 import { facesUsed, layout } from "../layout/layout.js";
 import { GAP_BETWEEN_FRAMES, emptySpot } from "../layout/space.js";
-import { runAgent, type AgentEvent, type AgentOptions, type AgentStats } from "./agent.js";
+import { providerEnv, runAgent, type AgentEvent, type AgentOptions, type AgentStats } from "./agent.js";
 import { pickStartingPoints, type Direction } from "./directions.js";
 import { PLANNING_CONTEXT } from "./instructions.js";
 import { AGENTS, DEFAULT_MODEL, modelProvider, type Team } from "./models.js";
+import type { ResolvedProvider } from "./providers.js";
 import type { Engine } from "../engine.js";
 
 /** The plan a team agrees before building (Split Work). */
@@ -64,12 +66,21 @@ interface Said {
 }
 
 /** A question to the model with no tools: one answer, no canvas. */
-async function ask(system: string, prompt: string, model: string, signal?: AbortSignal, effort?: string): Promise<Said> {
+async function ask(system: string, prompt: string, model: string, signal?: AbortSignal, effort?: string, provider?: ResolvedProvider): Promise<Said> {
   // Planning follows the selected provider, including split-work proposals and agreement.
   if (modelProvider(model) === "codex") {
     const result = await runCodex({ system, prompt, model, signal, effort });
     return { text: result.reply, costUsd: 0 };
   }
+  if (provider?.apiType === "openai-completions") {
+    const result = await runOpenAICompat({
+      system, prompt, baseUrl: provider.baseUrl, apiKey: provider.apiKey, headers: provider.headers,
+      model: provider.model, maxTokens: provider.maxTokens, signal,
+    });
+    return { text: result.reply, costUsd: 0 };
+  }
+  // A provider model that didn't resolve (its provider or model was removed since it was picked).
+  if (modelProvider(model) === "provider" && !provider) throw new Error("That provider isn't configured any more. Choose another model.");
   const abort = new AbortController();
   signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
@@ -79,7 +90,8 @@ async function ask(system: string, prompt: string, model: string, signal?: Abort
   for await (const m of query({
     prompt,
     options: {
-      model,
+      model: provider?.model ?? model,
+      ...(provider ? { env: providerEnv(provider) } : {}),
       systemPrompt: system,
       tools: [],
       strictMcpConfig: true,
@@ -205,6 +217,7 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
           model,
           o.signal,
           o.effort,
+          o.provider,
         );
         planningCost += said.costUsd;
         const p = readPlan(said.text, count);
@@ -218,6 +231,7 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
       model,
       o.signal,
       o.effort,
+      o.provider,
     );
     planningCost += agreed.costUsd;
     plan = readPlan(agreed.text, count);

@@ -23,6 +23,8 @@ import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from 
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
 import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
 import { POPULAR_SERVERS } from "../mcp/settings.js";
+import { runOpenAICompat } from "./openai.js";
+import type { ResolvedProvider } from "./providers.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
@@ -97,6 +99,8 @@ export interface AgentOptions {
   model?: string;
   /** Codex effort identifiers come from model/list rather than a fixed enum. */
   effort?: string;
+  /** An API-key provider run (a "prov:…" model), resolved by the caller with its key. */
+  provider?: ResolvedProvider;
   /** The agent's name, shown on its cursor and in the chat. */
   name?: string;
   recentDirections?: string[];
@@ -204,8 +208,29 @@ function canvasSummary(doc: Y.Doc): string {
   return `On the canvas: ${frames.map((f) => `"${f.props.name ?? f.type}" (${f.id})`).join(", ")}.`;
 }
 
+/**
+ * The Claude SDK's environment for an Anthropic-compatible provider: its base URL and its key. The
+ * environment replaces the subprocess's, so the rest of the process's variables are carried over —
+ * except any Claude or Anthropic setting, which could make the subprocess sign in as the person
+ * (a host's login, an OAuth token) and send that to someone else's endpoint instead of the key. A
+ * provider without a key still gets a stand-in token, so nothing falls back to the person's own.
+ */
+export function providerEnv(p: ResolvedProvider): Record<string, string | undefined> {
+  const token = p.apiKey ?? "no-key";
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(ANTHROPIC_|CLAUDE_|CLAUDECODE$)/.test(name)));
+  return {
+    ...inherited,
+    ANTHROPIC_BASE_URL: p.baseUrl,
+    ANTHROPIC_AUTH_TOKEN: token,
+    ANTHROPIC_API_KEY: token,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+  };
+}
+
 export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const model = o.model ?? DEFAULT_MODEL;
+  // The provider's own id for its model; the chat gets the picker's id, which the window can label.
+  const apiModel = o.provider?.model ?? model;
   const emit = o.onEvent ?? (() => {});
   const started = performance.now();
   const steps: StepRecord[] = [];
@@ -467,7 +492,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     steps,
     directions: directions.map((d) => d.id),
-    model,
+    model: apiModel,
   };
 
   // Added servers that want a sign-in open it in the browser as the agent starts, as Pen's do. The
@@ -517,8 +542,33 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       stats.apiMs = result.durationMs;
       stats.turns = steps.length + 1;
       // Codex subscription turns expose token usage but no dollar charge.
+    } else if (o.provider?.apiType === "openai-completions") {
+      const result = await runOpenAICompat({
+        system: INSTRUCTIONS, prompt: message, baseUrl: o.provider.baseUrl, apiKey: o.provider.apiKey,
+        headers: o.provider.headers, model: apiModel, maxTokens: o.provider.maxTokens, images: o.provider.images, signal: o.signal,
+        followUp: nextTurn,
+        tools: {
+          execute: {
+            description: toolDescription,
+            inputSchema: z.toJSONSchema(toolSchema),
+            call: (input) => executeCall(toolSchema.parse(input)),
+          },
+          ...(o.browser
+            ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
+            : {}),
+        },
+        onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+      });
+      stats.ok = true;
+      stats.reply = result.reply;
+      stats.tokens = result.tokens;
+      stats.apiMs = result.durationMs;
+      stats.turns = steps.length + 1;
     } else {
-      // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options.
+      // A provider model that didn't resolve (its provider or model was removed since it was picked).
+      if (modelProvider(model) === "provider" && !o.provider) throw new Error("That provider isn't configured any more. Choose another model.");
+      // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options. Anthropic-type
+      // providers take it too: the SDK sends it as output_config.effort, which Z.AI honours.
       const effort = o.effort === "low" || o.effort === "medium" || o.effort === "high" || o.effort === "xhigh" || o.effort === "max" ? o.effort : undefined;
       const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
       const browserTool = o.browser ? [tool("browser", BROWSER_DESCRIPTION, browserSchema.shape, browserCall)] : [];
@@ -539,8 +589,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       for await (const m of query({
         prompt: variants > 1 ? turns() : message,
         options: {
-          model,
+          model: apiModel,
           ...(effort ? { effort } : {}),
+          ...(o.provider ? { env: providerEnv(o.provider) } : {}),
           systemPrompt: INSTRUCTIONS,
           tools: [], // no built-in tools at all
           // The person's servers from Settings → MCP, beside the canvas tools; every tool of theirs is allowed.
