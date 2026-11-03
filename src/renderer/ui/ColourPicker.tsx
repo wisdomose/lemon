@@ -2,7 +2,8 @@
 // fields), linear gradients (stops) and pictures. Layout measured from the reference captures 13 and 16.
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { Blinds, ChevronDown, Droplet, Image as ImageIcon, Minus, Pipette, Plus, SquareActivity, SquareSquare } from "lucide-react";
-import type { Fill, GradientFill, ImageFill } from "../../doc/schema.js";
+import type { ReactNode } from "react";
+import type { Fill, GradientFill, ImageFill, ShaderFill } from "../../doc/schema.js";
 import { parseColor } from "../../doc/values.js";
 import { cx } from "./kit.js";
 
@@ -233,12 +234,15 @@ export function ColourPicker({
   onChange,
   allowGradient = true,
   pictures,
+  shaderSettings,
 }: {
   value: Fill;
   onChange: (p: Fill) => void;
   allowGradient?: boolean;
   /** Offered for fills of shapes; without it the Image tab is off. */
   pictures?: PictureSource;
+  /** A shader fill's settings (its uniforms). */
+  shaderSettings?: (value: ShaderFill, onChange: (p: Fill) => void) => ReactNode;
 }) {
   const isGradient = typeof value === "object" && value.type === "gradient";
   const isPicture = typeof value === "object" && value.type === "image";
@@ -283,7 +287,9 @@ export function ColourPicker({
         </div>
         <Droplet size={14} strokeWidth={1.5} className="text-muted-foreground" aria-label="Blend mode" />
       </div>
-      {isGradient ? (
+      {typeof value === "object" && value.type === "shader" ? (
+        <div className="p-3">{shaderSettings?.(value, onChange)}</div>
+      ) : isGradient ? (
         <Gradient value={value} onChange={onChange} />
       ) : isPicture ? (
         <Picture value={value} onChange={onChange} pictures={pictures} />

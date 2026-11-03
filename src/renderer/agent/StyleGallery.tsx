@@ -15,6 +15,7 @@ import { pageInView } from "../canvas/canvas.js";
 import * as docStore from "../../doc/store.js";
 import { ROOT_ID } from "../../doc/schema.js";
 import { store } from "../store.js";
+import { FeaturedShaders, ShaderGallery } from "./ShaderGallery.js";
 import { cx } from "../ui/kit.js";
 
 export type GalleryTab = "featured" | "styles" | "design-systems" | "scripts" | "shaders";
@@ -98,7 +99,7 @@ export function StyleGallery({
             )}
             {tab === "design-systems" && <DesignSystems onOpened={() => onOpenChange(false)} />}
             {tab === "scripts" && <Scripts onInserted={() => onOpenChange(false)} />}
-            {tab === "shaders" && <Coming tab={tab} />}
+            {tab === "shaders" && <ShaderGallery onDone={() => onOpenChange(false)} />}
           </div>
         </D.Content>
       </D.Portal>
@@ -308,6 +309,7 @@ function Featured({ onStyle, onTab, onDone }: { onStyle: (d: Direction) => void;
           </div>
         )),
       )}
+      {row("shaders", <FeaturedShaders onDone={onDone} />)}
       {row(
         "scripts",
         SCRIPTS.map((s) => (
@@ -333,8 +335,4 @@ function Featured({ onStyle, onTab, onDone }: { onStyle: (d: Direction) => void;
         )}
     </div>
   );
-}
-
-function Coming({ tab }: { tab: GalleryTab }) {
-  return <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">{TABS.find((t) => t.id === tab)!.label} are on their way.</div>;
 }

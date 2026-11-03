@@ -26,6 +26,8 @@ import { ColourPicker, toHex, toHsva, type PictureSource } from "../ui/ColourPic
 import { MENU_PANEL, MENU_ROW } from "../ui/menu.js";
 import { cx } from "../ui/kit.js";
 import { doc, edit, fontFamilies } from "../scene.js";
+import { bridge } from "../bridge.js";
+import { shaderUniforms, type ShaderUniform } from "../../render/shader-source.js";
 
 // Measured: 24px fields on #37373a, 6px apart; sections pad 10px above the title and 15px below.
 export const FIELD = "flex h-6 min-w-0 items-center gap-1 rounded-md bg-field px-2 text-[11px] text-foreground";
@@ -342,7 +344,13 @@ export function ColourRow({
           onOpenAutoFocus={(e) => e.preventDefault()}
           className="z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none"
         >
-          <ColourPicker value={value} onChange={onChange} allowGradient={allowGradient} pictures={source} />
+          <ColourPicker
+            value={value}
+            onChange={onChange}
+            allowGradient={allowGradient}
+            pictures={source}
+            shaderSettings={(fill, change) => <ShaderSettings url={fill.url} uniforms={fill.uniforms} onChange={(uniforms) => change({ ...fill, uniforms })} />}
+          />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -610,8 +618,76 @@ function EffectEditor({ effect, onChange, hasBlur }: { effect: Effect; onChange:
           <NumberField lead={<CircleDot size={10} strokeWidth={1.5} />} value={num(effect.radius)} onCommit={(radius) => onChange({ ...effect, radius: Math.max(0, radius) })} />
         </div>
       ) : (
-        <div className="text-muted-foreground">Shaders can't be edited yet.</div>
+        <ShaderSettings url={effect.url} uniforms={effect.uniforms} onChange={(uniforms) => onChange({ ...effect, uniforms })} />
       )}
+    </div>
+  );
+}
+
+// ---- Shaders -----------------------------------------------------------------------------------------
+type Uniforms = NonNullable<Extract<Effect, { type: "shader" }>["uniforms"]>;
+
+/**
+ * A shader fill's or effect's settings: a field for each uniform its file declares (by its @label; a
+ * colour picker for @color, number fields kept in its @range), except those the app sets (@resolution,
+ * @time, @mouse, @sdf). Values left alone keep the file's @default.
+ */
+export function ShaderSettings({ url, uniforms = {}, onChange }: { url: string; uniforms?: Uniforms; onChange: (u: Uniforms) => void }) {
+  const [list, setList] = useState<ShaderUniform[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void bridge.shaderSource(url).then((s) => live && setList(s ? shaderUniforms(s).filter((u) => !u.bound) : []));
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  if (!list) return <div className="text-muted-foreground">Reading {url}…</div>;
+  if (!list.length) return <div className="text-muted-foreground">{url ? `${url}: nothing to set.` : "No shader file."}</div>;
+  const set = (name: string, v: Uniforms[string]) => onChange({ ...uniforms, [name]: v });
+  const clamp = (u: ShaderUniform, n: number) => Math.min(u.max ?? Infinity, Math.max(u.min ?? -Infinity, n));
+  return (
+    <div className="grid grid-cols-[72px_1fr] items-center gap-x-2 gap-y-[6px]">
+      {list.map((u) => {
+        const v = uniforms[u.name] ?? u.default;
+        const label = u.label ?? u.name;
+        let field: ReactNode;
+        if (u.color || ((u.type === "vec3" || u.type === "vec4") && typeof v === "string")) {
+          field = <ColourRow bare value={typeof v === "string" ? v : "#000000"} onChange={(c) => typeof c === "string" && set(u.name, c)} />;
+        } else if (u.type === "bool") {
+          field = <input type="checkbox" checked={v === true || v === 1} onChange={(e) => set(u.name, e.target.checked)} />;
+        } else if (u.type === "sampler2D") {
+          field = (
+            <input
+              key={String(v)}
+              defaultValue={typeof v === "string" ? v : ""}
+              placeholder="pencil:object, or a picture"
+              onBlur={(e) => e.target.value !== v && set(u.name, e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              className={cx(FIELD, "px-2 outline-none focus:ring-1 focus:ring-[#3b82f6]")}
+            />
+          );
+        } else if (u.type.startsWith("vec") || u.type.startsWith("ivec")) {
+          const n = Number(u.type.at(-1));
+          const parts = Array.from({ length: n }, (_, i) => (Array.isArray(v) ? Number(v[i] ?? 0) : 0));
+          field = (
+            <div className="grid gap-[6px]" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+              {parts.map((p, i) => (
+                <NumberField key={i} lead={"XYZW"[i]} value={p} onCommit={(x) => set(u.name, parts.map((q, j) => (j === i ? x : q)))} />
+              ))}
+            </div>
+          );
+        } else {
+          field = <NumberField lead="#" value={typeof v === "number" ? v : 0} onCommit={(x) => set(u.name, clamp(u, u.type === "int" ? Math.round(x) : x))} />;
+        }
+        return (
+          <div key={u.name} className="contents">
+            <span className="truncate text-muted-foreground" title={label}>
+              {label}
+            </span>
+            {field}
+          </div>
+        );
+      })}
     </div>
   );
 }

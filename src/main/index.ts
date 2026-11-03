@@ -30,6 +30,7 @@ import { listWorkspace, readWorkspace, workspaceFolder } from "./workspace.js";
 import { Skills } from "./skills.js";
 import { copyDesignSystem } from "./design-systems.js";
 import { placeLibraryScript } from "./script-library.js";
+import { placeLibraryShader, shaderSource } from "./shader-library.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -217,6 +218,9 @@ async function main() {
   });
   // "Choose a style" → Scripts: the script goes beside the file; the tab adds the node.
   ipcMain.handle("gallery:place-script", (e, id: string) => placeLibraryScript(editorOf(e)?.path ?? null, id));
+  // A shader fill's or effect's file, beside the document (as its url says).
+  ipcMain.handle("shader:source", (e, url: string) => shaderSource(editorOf(e)?.path ?? null, url));
+  ipcMain.handle("gallery:place-shader", (e, id: string) => placeLibraryShader(editorOf(e)?.path ?? null, id));
   // The prompt's "/" skills: Pen's, and ones added from a folder (kept where they are).
   const skills = new Skills(join(app.getPath("userData"), "skills.json"));
   ipcMain.handle("skills:list", () => skills.list());

@@ -1,7 +1,8 @@
 // The design canvas: draws the document with CanvasKit, plus the editor's overlays (frame names,
 // hover and selection outlines, size pill, agent cursor), and handles panning, zooming and selecting.
 import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
-import { drawNode } from "../../render/draw.js";
+import { drawNode, offscreen, type DrawContext } from "../../render/draw.js";
+import { EditorShaders } from "./shaders.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
@@ -360,23 +361,47 @@ function draw() {
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder)) schedule();
+  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) || shaders?.animating) schedule();
 }
 
+/** Shader fills and effects; bumped when one has more to show (its file read, a picture decoded). */
+let shaders: EditorShaders | undefined;
+let shadersVersion = 0;
+/** Shaders draw at the zoom rounded to a power of two (re-drawn when that changes), times the screen's density. */
+const shaderScale = () => (devicePixelRatio || 1) * 2 ** Math.max(-2, Math.min(2, Math.round(Math.log2(view.zoom))));
+
 /** The document drawn once per change and replayed for every frame of animation. */
-let recorded: { scene: Scene; pages: number; picture: SkPicture } | undefined;
+let recorded: { scene: Scene; pages: number; shaders: number; scale: number; picture: SkPicture } | undefined;
 function documentPicture(s: Scene): SkPicture {
-  // Drawn again when the document or a live page changes.
-  if (recorded?.scene === s && recorded.pages === pagesVersion) return recorded.picture;
+  shaders ??= new EditorShaders(engine.ck, (url) => bridge.shaderSource(url), assets, () => (shadersVersion++, schedule()));
+  // Drawn again when the document, a live page or a shader changes (an animated one, every frame).
+  const scale = shaderScale();
+  if (recorded?.scene === s && recorded.pages === pagesVersion && recorded.shaders === shadersVersion && !shaders.animating && (recorded.scale === scale || !hasShaders(s.tree)))
+    return recorded.picture;
   const { ck } = engine;
+  shaders.begin();
+  shaders.scale = scale;
+  const context: DrawContext = { ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput, shaders };
+  // What's behind a node: the page drawn into a picture of its box, up to the node.
+  context.backdrop = (node, box) =>
+    offscreen(ck, box, shaders!.scale, (o) => {
+      const stop = { id: node.id, hit: false };
+      for (const frame of s.tree.children) drawNode({ ...context, stop }, o, frame);
+    });
   const recorder = new ck.PictureRecorder();
   const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput }, c, frame);
+  for (const frame of s.tree.children) drawNode(context, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
-  recorded = { scene: s, pages: pagesVersion, picture };
+  recorded = { scene: s, pages: pagesVersion, shaders: shadersVersion, scale, picture };
   return picture;
+}
+
+/** Whether anything on the page has a shader fill or effect. */
+function hasShaders(n: TreeNode): boolean {
+  const has = (v: unknown) => (Array.isArray(v) ? v : [v]).some((f) => !!f && typeof f === "object" && (f as { type?: string }).type === "shader");
+  return has(n.props.fill) || has(n.props.effect) || n.children.some(hasShaders);
 }
 
 /** A frame an agent is building: a blue-violet tint growing towards the bottom, a slow sheen, a blue outline. */

@@ -57,6 +57,10 @@ export interface Bridge {
   openDesignSystem(id: string): Promise<boolean>;
   /** Puts one of Lemon's scripts beside this file (scripts/<id>.js): the uri for its node, or why not. */
   placeScript(id: string): Promise<{ uri: string } | { error: string }>;
+  /** A shader file named by a fill or effect (relative to this file): its text, or null. */
+  shaderSource(url: string): Promise<string | null>;
+  /** Puts one of Lemon's shaders beside this file (shaders/<id>.glsl): the url for fills and effects, or why not. */
+  placeShader(id: string): Promise<{ url: string } | { error: string }>;
   /** Menu bar commands for this window. */
   onMenuCommand(fn: (command: WindowCommand) => void): void;
   /** A prompt this new window was opened with (from the Dashboard), once. */
@@ -223,6 +227,15 @@ export function browserBridge(): Bridge {
     },
     async placeScript() {
       return { error: "Scripts need the desktop app." };
+    },
+    async placeShader() {
+      return { error: "Shaders need the desktop app." };
+    },
+    async shaderSource(url) {
+      // Beside the document the page was opened with (?doc=…), as in the app.
+      const base = docUrl ? new URL(docUrl, location.href) : new URL(location.href);
+      const res = await fetch(new URL(url, base)).catch(() => null);
+      return res?.ok ? res.text() : null;
     },
     onMenuCommand() {},
     async startPrompt() {
