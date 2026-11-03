@@ -38,8 +38,12 @@ export function forCodex(servers: PersonServers): Record<string, unknown> {
   for (const [name, s] of usable(servers)) {
     const key = `mcp_servers.${name}`;
     out[`${key}.enabled`] = true;
-    if (typeof s.url === "string") out[`${key}.url`] = s.url;
-    else {
+    if (typeof s.url === "string") {
+      out[`${key}.url`] = s.url;
+      // An API key goes in a header (Linear's MCP takes `Authorization: Bearer <key>`).
+      const headers = record(s.headers);
+      if (headers) out[`${key}.http_headers`] = headers;
+    } else {
       out[`${key}.command`] = s.command;
       const args = strings(s.args);
       const env = record(s.env);

@@ -28,6 +28,7 @@ describe("the person's MCP servers", () => {
       "mcp_servers.linear.url": "https://mcp.linear.app/mcp",
       "mcp_servers.old.enabled": true,
       "mcp_servers.old.url": "https://example.com/sse",
+      "mcp_servers.old.http_headers": { Authorization: "Bearer x" },
       "mcp_servers.local.enabled": true,
       "mcp_servers.local.command": "node",
       "mcp_servers.local.args": ["server.js", "3"],
