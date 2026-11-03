@@ -1,7 +1,7 @@
 // Electron's main process: owns the window (shell.ts: Home and a tab per open file), the documents (one
 // per file tab, editor.ts), the fonts and the agents. Tabs show their document and receive every change
 // as a Yjs update.
-import { app, clipboard, dialog, ipcMain, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, clipboard, dialog, ipcMain, net, protocol, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -22,6 +22,7 @@ import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import { startMcpServer } from "./mcp.js";
 import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
+import { McpAuth } from "./mcp-auth.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
 
@@ -54,6 +55,8 @@ const editors = new Map<number, Editor>();
 let shared: Shared | undefined;
 /** Settings → MCP (set up once the app is ready; developer runs have none). */
 let mcpSettings: McpSettingsStore | undefined;
+/** Sign-ins to the MCP servers added there that want one. */
+let mcpAuth: McpAuth | undefined;
 /** The window; it opens with the first file or with Home, and the app quits when it closes. */
 let window: Shell | undefined;
 
@@ -213,6 +216,22 @@ async function main() {
     }
   });
   ipcMain.handle("mcp:set-client", (_e, id: string, on: boolean) => mcpSettings!.setClient(id, on));
+  // Signing in to an added server: its page opens in the browser; the answer comes once it's done.
+  const urlOf = (name: string) => {
+    const url = mcpSettings?.servers()[name]?.url;
+    if (typeof url !== "string") throw new Error(`"${name}" isn't a server with a url.`);
+    return url;
+  };
+  ipcMain.handle("mcp:sign-in-status", () => mcpAuth?.status(mcpSettings?.servers() ?? {}) ?? {});
+  ipcMain.handle("mcp:sign-in", async (_e, name: string) => {
+    try {
+      await mcpAuth!.signIn(urlOf(name));
+    } catch {
+      // The row shows why.
+    }
+    return mcpAuth!.status(mcpSettings!.servers());
+  });
+  ipcMain.handle("mcp:sign-out", (_e, name: string) => (mcpAuth!.signOut(urlOf(name)), mcpAuth!.status(mcpSettings!.servers())));
   ipcMain.on("editor:selection", (e, ids: string[]) => {
     const editor = editorOf(e);
     if (editor) editor.selection = ids;
@@ -335,7 +354,7 @@ async function main() {
     changed: fileListChanged,
     tabsChanged: () => window?.tell(),
     window: () => window?.win,
-    mcpServers: () => mcpSettings?.servers() ?? {},
+    mcpServers: async () => (mcpAuth && mcpSettings ? mcpAuth.forAgents(mcpSettings.servers()) : {}),
   };
   // The menu bar before any window opens (the app may start on the Dashboard alone).
   refreshMenu();
@@ -351,6 +370,12 @@ async function main() {
   };
   mcpSettings = new McpSettingsStore(join(app.getPath("userData"), "mcp.json"), launch, log);
   mcpSettings.applyAll();
+  mcpAuth = new McpAuth(
+    join(app.getPath("userData"), "mcp-sign-ins"),
+    { available: () => safeStorage.isEncryptionAvailable(), encrypt: (t) => safeStorage.encryptString(t), decrypt: (b) => safeStorage.decryptString(b) },
+    (url) => void shell.openExternal(url),
+    log,
+  );
   ipcMain.handle("mcp:copy-config", () => clipboard.writeText(copyableConfig(launch)));
   // Outside agents (Claude Code, Codex…) design in the open files through the MCP server.
   const stopMcp = startMcpServer({

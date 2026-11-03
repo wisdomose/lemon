@@ -51,3 +51,21 @@ export function parseServers(text: string): Record<string, Record<string, unknow
   }
   return servers as Record<string, Record<string, unknown>>;
 }
+
+/** Where a server stands, for its row in Settings → MCP. */
+export type SignInState =
+  | "signed-in"
+  | "needs-sign-in"
+  /** It answered without a sign-in. */
+  | "open"
+  /** Its own headers carry a key. */
+  | "api-key"
+  /** It runs on this computer (a command). */
+  | "local"
+  | "unreachable";
+
+export interface ServerStatus {
+  state: SignInState;
+  /** Why the last sign-in (or refresh) didn't work. */
+  error?: string;
+}

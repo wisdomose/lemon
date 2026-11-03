@@ -9,7 +9,7 @@ import type { ProviderStatus } from "../../agent/codex.js";
 import { bridge } from "../bridge.js";
 import { setSetting, useSettings, type Settings } from "../settings.js";
 import { Tip, cx } from "../ui/kit.js";
-import { EMPTY_SERVERS, MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage } from "../../mcp/settings.js";
+import { EMPTY_SERVERS, MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage, type ServerStatus } from "../../mcp/settings.js";
 
 type Page = "general" | "agents" | "names" | "chat" | "mcp";
 const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
@@ -282,6 +282,18 @@ function Mcp() {
       setText(p.servers);
     });
   }, []);
+  // Each saved server's sign-in, asked again whenever the saved list changes.
+  const [signIns, setSignIns] = useState<Record<string, ServerStatus>>();
+  const [signingIn, setSigningIn] = useState<string>();
+  useEffect(() => {
+    if (page === undefined) return;
+    let active = true;
+    setSignIns(undefined);
+    void bridge.mcp.signInStatus().then((s) => active && setSignIns(s));
+    return () => {
+      active = false;
+    };
+  }, [page?.servers]);
   if (!page) return <H1>MCP</H1>;
   const saved = page.servers;
   const save = async (next: string) => {
@@ -309,6 +321,15 @@ function Mcp() {
     if (await save(JSON.stringify({ mcpServers: next }, null, 2))) toast.success(`${adding ? "Added" : "Removed"} ${label}`);
   };
   const setClient = async (id: string, on: boolean) => setPage(await bridge.mcp.setClient(id, on));
+  const labelOf = (name: string) => POPULAR_SERVERS[name]?.label ?? name;
+  const signIn = async (name: string) => {
+    setSigningIn(name);
+    const s = await bridge.mcp.signIn(name);
+    setSigningIn(undefined);
+    setSignIns(s);
+    if (s[name]?.state === "signed-in") toast.success(`Signed in to ${labelOf(name)}`);
+  };
+  const signOut = async (name: string) => setSignIns(await bridge.mcp.signOut(name));
   return (
     <>
       <H1>MCP</H1>
@@ -371,6 +392,13 @@ function Mcp() {
         </div>
       </div>
       {problem && <p className="mt-2 text-[12px] text-red-400">{problem}</p>}
+      {Object.keys(servers).length > 0 && (
+        <div className="mt-2">
+          {Object.keys(servers).map((name) => (
+            <ServerRow key={name} label={labelOf(name)} status={signIns?.[name]} signingIn={signingIn === name} onSignIn={() => void signIn(name)} onSignOut={() => void signOut(name)} />
+          ))}
+        </div>
+      )}
       <div className="mt-[33px]" />
       <H2>Use {PRODUCT.name} from other agents</H2>
       <p className="-mt-1 mb-[15px] text-[12px] text-muted-foreground">
@@ -391,6 +419,34 @@ function Mcp() {
         </button>
       </Row>
     </>
+  );
+}
+
+/** What a server's row says of its sign-in. */
+const SIGN_IN_NOTES: Record<ServerStatus["state"], string> = {
+  "signed-in": "Signed in",
+  "needs-sign-in": "Sign in to give the agents its tools",
+  open: "No sign-in needed",
+  "api-key": "Uses the key in its headers",
+  local: "Runs on this computer",
+  unreachable: "Couldn't reach it",
+};
+
+/** One added server: whether the agents can use it, and its sign-in. */
+function ServerRow({ label, status, signingIn, onSignIn, onSignOut }: { label: string; status?: ServerStatus; signingIn: boolean; onSignIn: () => void; onSignOut: () => void }) {
+  const pill = "flex h-6 items-center rounded-full border border-input px-2.5 text-[12px] text-foreground hover:bg-foreground/5 disabled:opacity-60";
+  return (
+    <Row label={label} note={status ? (status.error ?? SIGN_IN_NOTES[status.state]) : "Checking…"}>
+      {status?.state === "signed-in" ? (
+        <button type="button" onClick={onSignOut} className={pill}>
+          Sign out
+        </button>
+      ) : status?.state === "needs-sign-in" ? (
+        <button type="button" disabled={signingIn} onClick={onSignIn} className={pill}>
+          {signingIn ? "Waiting for the browser…" : "Sign in"}
+        </button>
+      ) : null}
+    </Row>
   );
 }
 

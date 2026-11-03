@@ -79,8 +79,8 @@ export interface Shared {
   tabsChanged: () => void;
   /** The window, for dialogs. */
   window: () => BaseWindow | undefined;
-  /** The MCP servers the person added in Settings → MCP, for the agents. */
-  mcpServers: () => Record<string, Record<string, unknown>>;
+  /** The MCP servers the person added in Settings → MCP, for the agents (with their sign-ins). */
+  mcpServers: () => Promise<Record<string, Record<string, unknown>>>;
 }
 
 export class Editor implements FileTab {
@@ -356,7 +356,7 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, mcpServers: this.shared.mcpServers(), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, mcpServers: await this.shared.mcpServers(), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;

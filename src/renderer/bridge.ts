@@ -13,7 +13,7 @@ import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/
 import type { Importable, PageShot } from "../agent/browser-tool.js";
 import type { ScriptOutput } from "../main/scripts.js";
 import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
-import { EMPTY_SERVERS, type McpPage } from "../mcp/settings.js";
+import { EMPTY_SERVERS, type McpPage, type ServerStatus } from "../mcp/settings.js";
 import { PRODUCT } from "../product.js";
 
 export interface Bridge {
@@ -94,6 +94,11 @@ export interface Bridge {
     setClient(id: string, on: boolean): Promise<McpPage>;
     /** Puts the connector's config for any other MCP client on the clipboard. */
     copyConfig(): Promise<void>;
+    /** Each added server's sign-in, by name. */
+    signInStatus(): Promise<Record<string, ServerStatus>>;
+    /** Opens the server's sign-in in the browser; answers once it's done (or failed). */
+    signIn(name: string): Promise<Record<string, ServerStatus>>;
+    signOut(name: string): Promise<Record<string, ServerStatus>>;
   };
   /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
   tabs: {
@@ -219,6 +224,15 @@ export function browserBridge(): Bridge {
         return Promise.reject(new Error("Open the desktop app to change MCP settings."));
       },
       async copyConfig() {},
+      async signInStatus() {
+        return {};
+      },
+      async signIn() {
+        return {};
+      },
+      async signOut() {
+        return {};
+      },
     },
     async who() {
       return "You";
