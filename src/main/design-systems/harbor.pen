@@ -1,0 +1,4273 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "VQk3X",
+      "name": "Button",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 0,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "EVgDg",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "9XMhM",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Button"
+            },
+            {
+              "type": "text",
+              "id": "CTkRp",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "One primary action per view. Secondary for alternatives, ghost for low-emphasis actions.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ct6dH",
+          "name": "Variants",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "zTXIz",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Variants label",
+              "content": "VARIANTS",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "3hOn1",
+              "name": "Variants row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "bzkLH",
+                  "name": "Button/Primary",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "padding": [
+                    0,
+                    "$space-4"
+                  ],
+                  "height": 40,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "fill": "$navy-900",
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "t0eNV",
+                      "width": 16,
+                      "height": 16,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "plus",
+                      "fill": "$text-inverse",
+                      "enabled": false
+                    },
+                    {
+                      "type": "text",
+                      "id": "YODQc",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text-inverse",
+                      "name": "Label",
+                      "content": "Button"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FG4PI",
+                  "name": "Button/Secondary",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "padding": [
+                    0,
+                    "$space-4"
+                  ],
+                  "height": 40,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "fill": "$white",
+                  "cornerRadius": "$radius-sm",
+                  "stroke": "$border-strong",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "fo5BP",
+                      "width": 16,
+                      "height": 16,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "plus",
+                      "fill": "$text",
+                      "enabled": false
+                    },
+                    {
+                      "type": "text",
+                      "id": "alktk",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Button"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kSrn6",
+                  "name": "Button/Ghost",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "padding": [
+                    0,
+                    "$space-4"
+                  ],
+                  "height": 40,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "fill": "$transparent",
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "mkJm3",
+                      "width": 16,
+                      "height": 16,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "plus",
+                      "fill": "$sea-700",
+                      "enabled": false
+                    },
+                    {
+                      "type": "text",
+                      "id": "6Sw3b",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$sea-700",
+                      "name": "Label",
+                      "content": "Button"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TK6E1",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "vZoiW",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "QREs4",
+              "name": "States row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "BOaHb",
+                  "ref": "bzkLH",
+                  "name": "Primary with icon",
+                  "descendants": {
+                    "t0eNV": {
+                      "enabled": true
+                    },
+                    "YODQc": {
+                      "content": "New claim"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "ksGYz",
+                  "ref": "bzkLH",
+                  "name": "Primary focus",
+                  "stroke": "$focus",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "outer",
+                  "descendants": {
+                    "YODQc": {
+                      "content": "Focused"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "hGAoy",
+                  "ref": "FG4PI",
+                  "name": "Secondary focus",
+                  "stroke": "$focus",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "outer",
+                  "descendants": {
+                    "alktk": {
+                      "content": "Focused"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "Kn6VT",
+                  "ref": "bzkLH",
+                  "name": "Primary disabled",
+                  "opacity": 0.4,
+                  "descendants": {
+                    "YODQc": {
+                      "content": "Disabled"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "KROyp",
+      "name": "Icon Button",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 0,
+      "y": 360,
+      "children": [
+        {
+          "type": "frame",
+          "id": "T3ZiH",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "pR3Kd",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Icon Button"
+            },
+            {
+              "type": "text",
+              "id": "dYADA",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Square, 36 × 36, for compact toolbar actions. Always pair with an accessible label.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "IBEBi",
+          "name": "Variants",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "UrC2F",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Variants label",
+              "content": "VARIANTS",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "JXdFM",
+              "name": "Variants row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "cQztz",
+                  "name": "Icon Button",
+                  "reusable": true,
+                  "width": 36,
+                  "height": 36,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "fill": "$white",
+                  "stroke": "$border-strong",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "CNTHb",
+                      "width": 18,
+                      "height": 18,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "bell",
+                      "fill": "$text"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "9kk1w",
+                  "ref": "cQztz",
+                  "name": "Icon Button filter",
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "sliders-horizontal"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "Yu0lA",
+                  "ref": "cQztz",
+                  "name": "Icon Button more",
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "ellipsis"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "m0D9B",
+                  "ref": "cQztz",
+                  "name": "Icon Button focus",
+                  "stroke": "$focus",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "outer",
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "download"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "oHtxZ",
+                  "ref": "cQztz",
+                  "name": "Icon Button filled",
+                  "fill": "$navy-900",
+                  "stroke": "$navy-900",
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "plus",
+                      "fill": "$text-inverse"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "G9tqf",
+      "name": "Input",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 0,
+      "y": 624,
+      "children": [
+        {
+          "type": "frame",
+          "id": "5CL6w",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "StGkU",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Input"
+            },
+            {
+              "type": "text",
+              "id": "ruGu8",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Labels sit above the field. Focus adds a 2px sea-green ring; errors explain how to fix them.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Bto9g",
+          "name": "Default",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "TsNH0",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Default label",
+              "content": "DEFAULT",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "kPbuH",
+              "name": "Default row",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Yx2mg",
+                  "name": "Input",
+                  "reusable": true,
+                  "layout": "vertical",
+                  "gap": "$space-2",
+                  "width": 320,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZCzuf",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Patient name"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dX3lW",
+                      "name": "Field",
+                      "layout": "horizontal",
+                      "gap": "$space-2",
+                      "padding": [
+                        0,
+                        "$space-3"
+                      ],
+                      "height": 40,
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "fill": "$white",
+                      "stroke": "$border-strong",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "cornerRadius": "$radius-sm",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "d1GPE",
+                          "width": 16,
+                          "height": 16,
+                          "library": "lucide",
+                          "name": "Leading icon",
+                          "icon": "search",
+                          "fill": "$text-muted",
+                          "enabled": false
+                        },
+                        {
+                          "type": "text",
+                          "id": "z9URC",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-sm",
+                          "fontWeight": "400",
+                          "fill": "$text-muted",
+                          "name": "Value",
+                          "content": "e.g. Maria Okafor",
+                          "width": "fill_container",
+                          "textGrowth": "fixed-width"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "vD87u",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted",
+                      "name": "Helper",
+                      "content": "As it appears on the insurance card."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "e0oe9",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "kEr9l",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "h2vjc",
+              "name": "States row",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "YK09H",
+                  "ref": "Yx2mg",
+                  "name": "Input focus",
+                  "descendants": {
+                    "dX3lW": {
+                      "stroke": "$focus",
+                      "strokeWidth": 2
+                    },
+                    "z9URC": {
+                      "content": "Maria Ok",
+                      "fill": "$text"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "nCFsy",
+                  "ref": "Yx2mg",
+                  "name": "Input error",
+                  "descendants": {
+                    "ZCzuf": {
+                      "content": "Member ID"
+                    },
+                    "dX3lW": {
+                      "stroke": "$danger",
+                      "strokeWidth": 2
+                    },
+                    "z9URC": {
+                      "content": "XQ-44",
+                      "fill": "$text"
+                    },
+                    "vD87u": {
+                      "content": "Member ID must be 9 characters, like XQH482019.",
+                      "fill": "$danger"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "YaCiJ",
+                  "ref": "Yx2mg",
+                  "name": "Input search",
+                  "descendants": {
+                    "ZCzuf": {
+                      "enabled": false
+                    },
+                    "vD87u": {
+                      "enabled": false
+                    },
+                    "d1GPE": {
+                      "enabled": true
+                    },
+                    "z9URC": {
+                      "content": "Search claims, patients, payers"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Ol7g1",
+      "name": "Select",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 0,
+      "y": 1246,
+      "children": [
+        {
+          "type": "frame",
+          "id": "00T40",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "o0IXp",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Select"
+            },
+            {
+              "type": "text",
+              "id": "Hbprx",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "For choosing one option from a known list of five or more.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JjbgK",
+          "name": "Default",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "LqBiA",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Default label",
+              "content": "DEFAULT",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "N6DfH",
+              "name": "Default row",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "jwV34",
+                  "name": "Select",
+                  "reusable": true,
+                  "layout": "vertical",
+                  "gap": "$space-2",
+                  "width": 320,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TmtPd",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Payer"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "VqHFB",
+                      "name": "Field",
+                      "layout": "horizontal",
+                      "gap": "$space-2",
+                      "padding": [
+                        0,
+                        "$space-3"
+                      ],
+                      "height": 40,
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "fill": "$white",
+                      "stroke": "$border-strong",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "cornerRadius": "$radius-sm",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "5e72i",
+                          "width": 16,
+                          "height": 16,
+                          "library": "lucide",
+                          "name": "Leading icon",
+                          "icon": "search",
+                          "fill": "$text-muted",
+                          "enabled": false
+                        },
+                        {
+                          "type": "text",
+                          "id": "7hDMc",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-sm",
+                          "fontWeight": "400",
+                          "fill": "$text-muted",
+                          "name": "Value",
+                          "content": "Select a payer",
+                          "width": "fill_container",
+                          "textGrowth": "fixed-width"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "ve1HV",
+                          "width": 16,
+                          "height": 16,
+                          "library": "lucide",
+                          "name": "Chevron",
+                          "icon": "chevron-down",
+                          "fill": "$text"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "afj5z",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted",
+                      "name": "Helper",
+                      "content": "Choose the primary insurer."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "GD27T",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "7DzyH",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "XVECz",
+              "name": "States row",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "uXmoW",
+                  "ref": "jwV34",
+                  "name": "Select filled",
+                  "descendants": {
+                    "7hDMc": {
+                      "content": "Blue Cross Blue Shield",
+                      "fill": "$text"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "3ONaG",
+                  "ref": "jwV34",
+                  "name": "Select focus",
+                  "descendants": {
+                    "VqHFB": {
+                      "stroke": "$focus",
+                      "strokeWidth": 2
+                    },
+                    "7hDMc": {
+                      "content": "Medicare Part B",
+                      "fill": "$text"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "lpKWq",
+      "name": "Checkbox",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 560,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "OyP0e",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "31DSC",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Checkbox"
+            },
+            {
+              "type": "text",
+              "id": "vsweU",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "For independent yes/no choices and task lists. The whole row is clickable.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "4lJcG",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "0R68T",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "Wef3a",
+              "name": "States row",
+              "layout": "vertical",
+              "gap": "$space-3",
+              "alignItems": "start",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "DUluN",
+                  "name": "Checkbox",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "2Xvwx",
+                      "name": "Box",
+                      "width": 18,
+                      "height": 18,
+                      "layout": "horizontal",
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "fill": "$sea-600",
+                      "stroke": "$sea-600",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "cornerRadius": "$radius-sm",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "qUO4n",
+                          "width": 14,
+                          "height": 14,
+                          "library": "lucide",
+                          "name": "Check",
+                          "icon": "check",
+                          "fill": "$text-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "CYplH",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Send statements by email"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "nWjzM",
+                  "ref": "DUluN",
+                  "name": "Checkbox unchecked",
+                  "descendants": {
+                    "2Xvwx": {
+                      "fill": "$white",
+                      "stroke": "$border-strong"
+                    },
+                    "qUO4n": {
+                      "enabled": false
+                    },
+                    "CYplH": {
+                      "content": "Include paid claims"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "BFVVH",
+                  "ref": "DUluN",
+                  "name": "Checkbox focus",
+                  "descendants": {
+                    "2Xvwx": {
+                      "fill": "$white",
+                      "stroke": "$focus",
+                      "strokeWidth": 3
+                    },
+                    "qUO4n": {
+                      "enabled": false
+                    },
+                    "CYplH": {
+                      "content": "Focused"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "3ckWd",
+                  "ref": "DUluN",
+                  "name": "Checkbox disabled",
+                  "opacity": 0.4,
+                  "descendants": {
+                    "CYplH": {
+                      "content": "Disabled"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ERG8A",
+      "name": "Switch",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 560,
+      "y": 336,
+      "children": [
+        {
+          "type": "frame",
+          "id": "tx0Gq",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "UEj0m",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Switch"
+            },
+            {
+              "type": "text",
+              "id": "SCyEE",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "For settings that take effect immediately. Use a checkbox when a form must be saved.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Hq19u",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "LxnLl",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "rzrEe",
+              "name": "States row",
+              "layout": "vertical",
+              "gap": "$space-3",
+              "alignItems": "start",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Py6oQ",
+                  "name": "Switch",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-3",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "xHb8p",
+                      "name": "Track",
+                      "width": 36,
+                      "height": 20,
+                      "padding": 2,
+                      "layout": "horizontal",
+                      "alignItems": "center",
+                      "justifyContent": "end",
+                      "fill": "$sea-600",
+                      "cornerRadius": 10,
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "Zh3n2",
+                          "width": 16,
+                          "height": 16,
+                          "name": "Knob",
+                          "fill": "$white"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "iU3zx",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Auto-submit clean claims"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "Os7wF",
+                  "ref": "Py6oQ",
+                  "name": "Switch off",
+                  "descendants": {
+                    "xHb8p": {
+                      "fill": "$border-strong",
+                      "justifyContent": "start"
+                    },
+                    "iU3zx": {
+                      "content": "Pause patient reminders"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "VQlgk",
+                  "ref": "Py6oQ",
+                  "name": "Switch focus",
+                  "descendants": {
+                    "xHb8p": {
+                      "stroke": "$focus",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "outer"
+                    },
+                    "iU3zx": {
+                      "content": "Focused"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "iKnVS",
+      "name": "Badge",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 560,
+      "y": 648,
+      "children": [
+        {
+          "type": "frame",
+          "id": "vgcYF",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "a4mei",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Badge"
+            },
+            {
+              "type": "text",
+              "id": "Qzk9Z",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Short status labels. Colour is never the only signal: the word carries the meaning.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "2TEzd",
+          "name": "Statuses",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "4WcqC",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Statuses label",
+              "content": "STATUSES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "EXiIa",
+              "name": "Statuses row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "pMxqq",
+                  "name": "Badge",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": 6,
+                  "padding": [
+                    2,
+                    "$space-2"
+                  ],
+                  "height": 24,
+                  "alignItems": "center",
+                  "fill": "$sea-50",
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "BKDXq",
+                      "width": 6,
+                      "height": 6,
+                      "name": "Dot",
+                      "fill": "$sea-600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "o7zDF",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$sea-700",
+                      "name": "Label",
+                      "content": "Paid"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "Z1JYB",
+                  "ref": "pMxqq",
+                  "name": "Badge Pending",
+                  "fill": "$warning-bg",
+                  "descendants": {
+                    "BKDXq": {
+                      "fill": "$warning"
+                    },
+                    "o7zDF": {
+                      "content": "Pending",
+                      "fill": "$warning"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "p7Cg9",
+                  "ref": "pMxqq",
+                  "name": "Badge Denied",
+                  "fill": "$danger-bg",
+                  "descendants": {
+                    "BKDXq": {
+                      "fill": "$danger"
+                    },
+                    "o7zDF": {
+                      "content": "Denied",
+                      "fill": "$danger"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "yTMU1",
+                  "ref": "pMxqq",
+                  "name": "Badge In review",
+                  "fill": "$info-bg",
+                  "descendants": {
+                    "BKDXq": {
+                      "fill": "$info"
+                    },
+                    "o7zDF": {
+                      "content": "In review",
+                      "fill": "$info"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "jrq9B",
+                  "ref": "pMxqq",
+                  "name": "Badge Draft",
+                  "fill": "$surface",
+                  "descendants": {
+                    "BKDXq": {
+                      "fill": "$text-muted"
+                    },
+                    "o7zDF": {
+                      "content": "Draft",
+                      "fill": "$text-muted"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uLD2m",
+      "name": "Avatar",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 560,
+      "y": 900,
+      "children": [
+        {
+          "type": "frame",
+          "id": "1TNMs",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "M24Gk",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Avatar"
+            },
+            {
+              "type": "text",
+              "id": "d3wJp",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Initials only — no photos. Two letters, on navy or sea tints.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "IfqUg",
+          "name": "Sizes and tints",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "MPDFC",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Sizes and tints label",
+              "content": "SIZES AND TINTS",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "LivMb",
+              "name": "Sizes and tints row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wpzw6",
+                  "name": "Avatar",
+                  "reusable": true,
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "fill": "$navy-100",
+                  "cornerRadius": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "4d5zn",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$navy-900",
+                      "name": "Initials",
+                      "content": "MO"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "4eLCC",
+                  "ref": "wpzw6",
+                  "name": "Avatar sea",
+                  "fill": "$sea-100",
+                  "descendants": {
+                    "4d5zn": {
+                      "content": "DR",
+                      "fill": "$sea-700"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "esh2q",
+                  "ref": "wpzw6",
+                  "name": "Avatar large",
+                  "width": 40,
+                  "height": 40,
+                  "cornerRadius": 20,
+                  "descendants": {
+                    "4d5zn": {
+                      "content": "JP",
+                      "fontSize": "$text-sm"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "K3q4d",
+                  "ref": "wpzw6",
+                  "name": "Avatar xl",
+                  "width": 56,
+                  "height": 56,
+                  "cornerRadius": 28,
+                  "fill": "$navy-900",
+                  "descendants": {
+                    "4d5zn": {
+                      "content": "LC",
+                      "fontSize": "$text-lg",
+                      "fill": "$text-inverse"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "fG0Qu",
+      "name": "Tabs",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 560,
+      "y": 1163,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Ezwla",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "JISoF",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Tabs"
+            },
+            {
+              "type": "text",
+              "id": "w19ya",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Switch between views of the same data. The active tab has a sea-green underline and heavier label.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "dgJun",
+          "name": "Tab item",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "11HQs",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Tab item label",
+              "content": "TAB ITEM",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "f3RGq",
+              "name": "Tab item row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "5p3SI",
+                  "name": "Tabs/Item",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "padding": [
+                    "$space-3",
+                    "$space-1"
+                  ],
+                  "alignItems": "center",
+                  "stroke": "$sea-600",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "uKL80",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "All claims"
+                    },
+                    {
+                      "type": "text",
+                      "id": "0kxjL",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted",
+                      "name": "Count",
+                      "content": "318",
+                      "enabled": false
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "jWN9C",
+                  "ref": "5p3SI",
+                  "name": "Tab inactive",
+                  "stroke": "$transparent",
+                  "descendants": {
+                    "uKL80": {
+                      "content": "Denied",
+                      "fontWeight": "400",
+                      "fill": "$text-muted"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "e9b05",
+                  "ref": "5p3SI",
+                  "name": "Tab focus",
+                  "stroke": "$focus",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "outer",
+                  "descendants": {
+                    "uKL80": {
+                      "content": "Focused"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "gM6Gv",
+          "name": "Tabs",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "aHCRj",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Tabs label",
+              "content": "TABS",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "9qkV4",
+              "name": "Tabs row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "IdnNq",
+                  "name": "Tabs",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-5",
+                  "width": 440,
+                  "stroke": "$border",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "fp53U",
+                      "ref": "5p3SI",
+                      "name": "Tab 1",
+                      "descendants": {
+                        "uKL80": {
+                          "content": "All claims"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "5OaBy",
+                      "ref": "5p3SI",
+                      "name": "Tab 2",
+                      "stroke": "$transparent",
+                      "descendants": {
+                        "uKL80": {
+                          "content": "Pending",
+                          "fontWeight": "400",
+                          "fill": "$text-muted"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "EACgC",
+                      "ref": "5p3SI",
+                      "name": "Tab 3",
+                      "stroke": "$transparent",
+                      "descendants": {
+                        "uKL80": {
+                          "content": "Denied",
+                          "fontWeight": "400",
+                          "fill": "$text-muted"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "OzAli",
+                      "ref": "5p3SI",
+                      "name": "Tab 4",
+                      "stroke": "$transparent",
+                      "descendants": {
+                        "uKL80": {
+                          "content": "Paid",
+                          "fontWeight": "400",
+                          "fill": "$text-muted"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "dbFho",
+      "name": "Sidebar Item",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 1120,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "8GcjE",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "98pkS",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Sidebar Item"
+            },
+            {
+              "type": "text",
+              "id": "TEl9C",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Primary navigation. Icon plus label, optional count; the current page is tinted sea-green.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "8hjRT",
+          "name": "States",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "7MCF5",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "States label",
+              "content": "STATES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "6dDLO",
+              "name": "States row",
+              "layout": "vertical",
+              "gap": "$space-3",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "2bCMR",
+                  "name": "Sidebar Item",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-3",
+                  "padding": [
+                    0,
+                    "$space-3"
+                  ],
+                  "width": 224,
+                  "height": 40,
+                  "alignItems": "center",
+                  "fill": "$transparent",
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "sbe7T",
+                      "width": 18,
+                      "height": 18,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "file-text",
+                      "fill": "$text-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CYS0Y",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text",
+                      "name": "Label",
+                      "content": "Claims",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VeEIM",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted",
+                      "name": "Count",
+                      "content": "12"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "M8vTI",
+                  "ref": "2bCMR",
+                  "name": "Sidebar Item active",
+                  "fill": "$sea-50",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "layout-dashboard",
+                      "fill": "$sea-700"
+                    },
+                    "CYS0Y": {
+                      "content": "Overview",
+                      "fontWeight": "600",
+                      "fill": "$sea-700"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "DFzTh",
+                  "ref": "2bCMR",
+                  "name": "Sidebar Item hover",
+                  "fill": "$surface",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "users"
+                    },
+                    "CYS0Y": {
+                      "content": "Patients"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "hCM6M",
+                  "ref": "2bCMR",
+                  "name": "Sidebar Item focus",
+                  "stroke": "$focus",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "settings"
+                    },
+                    "CYS0Y": {
+                      "content": "Settings"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "12Dnh",
+      "name": "Card",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 1120,
+      "y": 424,
+      "children": [
+        {
+          "type": "frame",
+          "id": "GCeCT",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "ZXk46",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Card"
+            },
+            {
+              "type": "text",
+              "id": "u41AX",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "A bordered surface for one topic. Header with optional actions; the body is a slot for any content.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Soxu8",
+          "name": "Card",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "pLDnu",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Card label",
+              "content": "CARD",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "TUKfx",
+              "name": "Card row",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "alignItems": "start",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wF4X0",
+                  "name": "Card",
+                  "reusable": true,
+                  "layout": "vertical",
+                  "width": 456,
+                  "fill": "$white",
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "cornerRadius": "$radius-md",
+                  "clip": true,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "3Rh6Z",
+                      "name": "Card header",
+                      "layout": "horizontal",
+                      "gap": "$space-4",
+                      "padding": [
+                        "$space-4",
+                        "$space-5"
+                      ],
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HDd8F",
+                          "name": "Titles",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "width": "fill_container",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "yenMB",
+                              "fontFamily": "$font-sans",
+                              "fontSize": "$text-md",
+                              "fontWeight": "600",
+                              "fill": "$text",
+                              "name": "Card title",
+                              "content": "Payer mix"
+                            },
+                            {
+                              "type": "text",
+                              "id": "gnuDw",
+                              "fontFamily": "$font-sans",
+                              "fontSize": "$text-sm",
+                              "fontWeight": "400",
+                              "fill": "$text-muted",
+                              "name": "Card subtitle",
+                              "content": "Share of collected revenue, last 30 days",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LIKrA",
+                          "name": "Actions",
+                          "layout": "horizontal",
+                          "gap": "$space-2",
+                          "alignItems": "center",
+                          "slot": []
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "rfghd",
+                      "name": "Body",
+                      "layout": "vertical",
+                      "gap": "$space-3",
+                      "padding": [
+                        0,
+                        "$space-5",
+                        "$space-5",
+                        "$space-5"
+                      ],
+                      "width": "fill_container",
+                      "slot": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "ref",
+          "id": "WJyrI",
+          "ref": "wF4X0",
+          "name": "Card with content",
+          "descendants": {
+            "yenMB": {
+              "content": "Today's tasks"
+            },
+            "gnuDw": {
+              "content": "3 of 5 done"
+            },
+            "LIKrA": {
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "M5Iz0",
+                  "ref": "cQztz",
+                  "name": "More",
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "ellipsis"
+                    }
+                  }
+                }
+              ]
+            },
+            "rfghd": {
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "nLM2Q",
+                  "ref": "DUluN",
+                  "name": "Task 1",
+                  "descendants": {
+                    "CYplH": {
+                      "content": "Verify insurance for 6 new patients"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "dH4eS",
+                  "ref": "DUluN",
+                  "name": "Task 2",
+                  "descendants": {
+                    "2Xvwx": {
+                      "fill": "$white",
+                      "stroke": "$border-strong"
+                    },
+                    "qUO4n": {
+                      "enabled": false
+                    },
+                    "CYplH": {
+                      "content": "Resubmit 14 Medicare Part B claims"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "0MY0j",
+      "name": "Stat",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 520,
+      "placeholder": false,
+      "x": 1120,
+      "y": 918,
+      "children": [
+        {
+          "type": "frame",
+          "id": "GlahD",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "dFPNo",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Stat"
+            },
+            {
+              "type": "text",
+              "id": "sBs7c",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "A single key figure with its label and change over the previous period.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "iyoFV",
+          "name": "Stat",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "VV28t",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Stat label",
+              "content": "STAT",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "uGjTb",
+              "name": "Stat row",
+              "layout": "horizontal",
+              "gap": "$space-4",
+              "alignItems": "center",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "V3i79",
+                  "name": "Stat",
+                  "reusable": true,
+                  "layout": "vertical",
+                  "gap": "$space-2",
+                  "padding": "$space-5",
+                  "width": 220,
+                  "fill": "$white",
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "cornerRadius": "$radius-md",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n4wij",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text-muted",
+                      "name": "Label",
+                      "content": "Collected this month"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Pr7lD",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-xl",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Value",
+                      "content": "$482,190"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "2fRgq",
+                      "name": "Delta",
+                      "layout": "horizontal",
+                      "gap": "$space-1",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "kM2Rp",
+                          "width": 14,
+                          "height": 14,
+                          "library": "lucide",
+                          "name": "Trend",
+                          "icon": "trending-up",
+                          "fill": "$sea-700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "SdDqR",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-xs",
+                          "fontWeight": "600",
+                          "fill": "$sea-700",
+                          "name": "Change",
+                          "content": "+8.2% vs October"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "xWdWB",
+                  "ref": "V3i79",
+                  "name": "Stat negative",
+                  "descendants": {
+                    "n4wij": {
+                      "content": "Denial rate"
+                    },
+                    "Pr7lD": {
+                      "content": "4.2%"
+                    },
+                    "kM2Rp": {
+                      "icon": "trending-up",
+                      "fill": "$danger"
+                    },
+                    "SdDqR": {
+                      "content": "+0.6 pts vs October",
+                      "fill": "$danger"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "8HbqH",
+      "name": "Table Row",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 800,
+      "placeholder": false,
+      "x": 1680,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "GdOJQ",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "2MipD",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Table Row"
+            },
+            {
+              "type": "text",
+              "id": "TUhfo",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Rows are 52px high with a hairline divider. Amounts are right-aligned; the header row is the same component.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "jSSHm",
+          "name": "Header and rows",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "EKM4V",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Header and rows label",
+              "content": "HEADER AND ROWS",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "i2QuZ",
+              "name": "Header and rows row",
+              "layout": "vertical",
+              "gap": 0,
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "VqJ9d",
+                  "ref": "feMi2",
+                  "name": "Table Row header",
+                  "height": 40,
+                  "fill": "$surface",
+                  "descendants": {
+                    "dss7y": {
+                      "content": "Claim",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted",
+                      "fontFamily": "$font-sans"
+                    },
+                    "JWiye": {
+                      "content": "Patient",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted"
+                    },
+                    "N0FdU": {
+                      "content": "Payer",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted"
+                    },
+                    "SSdIP": {
+                      "content": "Date",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted"
+                    },
+                    "3j47G": {
+                      "enabled": false
+                    },
+                    "mMAvi": {
+                      "enabled": true
+                    },
+                    "LWt12": {
+                      "content": "Amount",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "600",
+                      "fill": "$text-muted"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "feMi2",
+                  "name": "Table Row",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-4",
+                  "padding": [
+                    0,
+                    "$space-4"
+                  ],
+                  "width": 736,
+                  "height": 52,
+                  "alignItems": "center",
+                  "fill": "$white",
+                  "stroke": "$border",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dss7y",
+                      "fontFamily": "$font-mono",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted",
+                      "name": "Claim",
+                      "content": "CLM-20417",
+                      "width": 96,
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JWiye",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Patient",
+                      "content": "Maria Okafor",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "text",
+                      "id": "N0FdU",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text",
+                      "name": "Payer",
+                      "content": "Blue Cross Blue Shield",
+                      "width": 168,
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SSdIP",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text",
+                      "name": "Date",
+                      "content": "Nov 2",
+                      "width": 72,
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DhD29",
+                      "name": "Status",
+                      "width": 96,
+                      "layout": "horizontal",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "3j47G",
+                          "ref": "pMxqq",
+                          "name": "Status badge"
+                        },
+                        {
+                          "type": "text",
+                          "id": "mMAvi",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-xs",
+                          "fontWeight": "600",
+                          "fill": "$text-muted",
+                          "name": "Status header",
+                          "content": "Status",
+                          "enabled": false
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "LWt12",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Amount",
+                      "content": "$1,240.00",
+                      "width": 88,
+                      "textGrowth": "fixed-width",
+                      "textAlign": "right"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "OYGsU",
+                  "ref": "feMi2",
+                  "name": "Row CLM-20412",
+                  "descendants": {
+                    "dss7y": {
+                      "content": "CLM-20412"
+                    },
+                    "JWiye": {
+                      "content": "James Patel"
+                    },
+                    "N0FdU": {
+                      "content": "Medicare Part B"
+                    },
+                    "SSdIP": {
+                      "content": "Nov 1"
+                    },
+                    "LWt12": {
+                      "content": "$386.50"
+                    },
+                    "3j47G": {
+                      "fill": "$warning-bg"
+                    },
+                    "3j47G/BKDXq": {
+                      "fill": "$warning"
+                    },
+                    "3j47G/o7zDF": {
+                      "content": "Pending",
+                      "fill": "$warning"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "FzFxy",
+                  "ref": "feMi2",
+                  "name": "Row CLM-20398",
+                  "descendants": {
+                    "dss7y": {
+                      "content": "CLM-20398"
+                    },
+                    "JWiye": {
+                      "content": "Ana Lindqvist"
+                    },
+                    "N0FdU": {
+                      "content": "Aetna"
+                    },
+                    "SSdIP": {
+                      "content": "Oct 30"
+                    },
+                    "LWt12": {
+                      "content": "$2,015.00"
+                    },
+                    "3j47G": {
+                      "fill": "$danger-bg"
+                    },
+                    "3j47G/BKDXq": {
+                      "fill": "$danger"
+                    },
+                    "3j47G/o7zDF": {
+                      "content": "Denied",
+                      "fill": "$danger"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "qiunU",
+      "name": "Alert",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 640,
+      "placeholder": false,
+      "x": 1680,
+      "y": 403,
+      "children": [
+        {
+          "type": "frame",
+          "id": "HwKA8",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "tuoG4",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Alert"
+            },
+            {
+              "type": "text",
+              "id": "LdIXb",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "Inline messages tied to a task. A left bar and icon mark the tone; the title says what happened.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FKEog",
+          "name": "Tones",
+          "layout": "vertical",
+          "gap": "$space-3",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "wI8oq",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-xs",
+              "fontWeight": "600",
+              "fill": "$text-muted",
+              "name": "Tones label",
+              "content": "TONES",
+              "letterSpacing": 1
+            },
+            {
+              "type": "frame",
+              "id": "AIKWj",
+              "name": "Tones row",
+              "layout": "vertical",
+              "gap": "$space-3",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "sYUtL",
+                  "name": "Alert",
+                  "reusable": true,
+                  "layout": "horizontal",
+                  "gap": "$space-3",
+                  "padding": "$space-4",
+                  "width": 576,
+                  "alignItems": "start",
+                  "fill": "$info-bg",
+                  "stroke": "$info",
+                  "strokeWidth": {
+                    "left": 4
+                  },
+                  "cornerRadius": "$radius-sm",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "7HVUg",
+                      "width": 20,
+                      "height": 20,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "info",
+                      "fill": "$info"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "IgWvW",
+                      "name": "Content",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "9ZfhA",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-sm",
+                          "fontWeight": "600",
+                          "fill": "$text",
+                          "name": "Alert title",
+                          "content": "Payer portal maintenance tonight"
+                        },
+                        {
+                          "type": "text",
+                          "id": "kSLSw",
+                          "fontFamily": "$font-sans",
+                          "fontSize": "$text-sm",
+                          "fontWeight": "400",
+                          "fill": "$text-muted",
+                          "name": "Message",
+                          "content": "Aetna submissions pause from 11 pm to 2 am ET. Claims queue and send automatically.",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "lineHeight": 1.45
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "9JJXT",
+                      "width": 18,
+                      "height": 18,
+                      "library": "lucide",
+                      "name": "Close",
+                      "icon": "x",
+                      "fill": "$text-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "tVs6n",
+                  "ref": "sYUtL",
+                  "name": "Alert Warning",
+                  "fill": "$warning-bg",
+                  "stroke": "$warning",
+                  "descendants": {
+                    "7HVUg": {
+                      "icon": "triangle-alert",
+                      "fill": "$warning"
+                    },
+                    "9ZfhA": {
+                      "content": "14 claims need resubmission"
+                    },
+                    "kSLSw": {
+                      "content": "Medicare Part B rejected them for a missing modifier. Fix by Nov 7 to stay in the filing window."
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "MdCbw",
+                  "ref": "sYUtL",
+                  "name": "Alert Danger",
+                  "fill": "$danger-bg",
+                  "stroke": "$danger",
+                  "descendants": {
+                    "7HVUg": {
+                      "icon": "circle-x",
+                      "fill": "$danger"
+                    },
+                    "9ZfhA": {
+                      "content": "Bank feed disconnected"
+                    },
+                    "kSLSw": {
+                      "content": "Payments from First Harbor Bank haven't synced since Oct 31. Reconnect to keep balances accurate."
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "KAARf",
+                  "ref": "sYUtL",
+                  "name": "Alert Success",
+                  "fill": "$sea-50",
+                  "stroke": "$sea-600",
+                  "descendants": {
+                    "7HVUg": {
+                      "icon": "circle-check",
+                      "fill": "$sea-600"
+                    },
+                    "9ZfhA": {
+                      "content": "Remittance posted"
+                    },
+                    "kSLSw": {
+                      "content": "212 ERA lines from UnitedHealthcare were matched to claims."
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "CwAyr",
+      "name": "Dialog",
+      "layout": "vertical",
+      "padding": "$space-6",
+      "gap": "$space-5",
+      "fill": "$white",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "width": 640,
+      "placeholder": false,
+      "x": 1680,
+      "y": 1015,
+      "children": [
+        {
+          "type": "frame",
+          "id": "meWab",
+          "name": "Header",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "width": "fill_container",
+          "children": [
+            {
+              "type": "text",
+              "id": "1CfYF",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-lg",
+              "fontWeight": "600",
+              "fill": "$text",
+              "name": "Title",
+              "content": "Dialog"
+            },
+            {
+              "type": "text",
+              "id": "BUoky",
+              "fontFamily": "$font-sans",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text-muted",
+              "name": "Description",
+              "content": "For a focused decision that blocks the page. Title states the action; the primary button repeats it.",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "lineHeight": 1.5
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "QoBWO",
+          "name": "Stage",
+          "layout": "vertical",
+          "padding": "$space-6",
+          "width": "fill_container",
+          "alignItems": "center",
+          "fill": "$scrim",
+          "cornerRadius": "$radius-sm",
+          "children": [
+            {
+              "type": "frame",
+              "id": "OdVVt",
+              "name": "Dialog",
+              "reusable": true,
+              "layout": "vertical",
+              "gap": "$space-5",
+              "padding": "$space-5",
+              "width": 448,
+              "fill": "$white",
+              "cornerRadius": "$radius-lg",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 12
+                },
+                "blur": 32,
+                "color": "$shadow"
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "tFqaX",
+                  "name": "Dialog header",
+                  "layout": "horizontal",
+                  "gap": "$space-3",
+                  "width": "fill_container",
+                  "alignItems": "start",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HTpmR",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-lg",
+                      "fontWeight": "600",
+                      "fill": "$text",
+                      "name": "Dialog title",
+                      "content": "Resubmit 14 claims?",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "oOIbn",
+                      "width": 20,
+                      "height": 20,
+                      "library": "lucide",
+                      "name": "Close",
+                      "icon": "x",
+                      "fill": "$text-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "8jPHs",
+                  "name": "Dialog body",
+                  "layout": "vertical",
+                  "gap": "$space-4",
+                  "width": "fill_container",
+                  "slot": [],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "0cFM0",
+                      "fontFamily": "$font-sans",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "400",
+                      "fill": "$text-muted",
+                      "name": "Dialog text",
+                      "content": "We'll add modifier 25 to each claim and send them to Medicare Part B. You can track them under Pending.",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "lineHeight": 1.5
+                    },
+                    {
+                      "type": "ref",
+                      "id": "gZvwq",
+                      "ref": "DUluN",
+                      "name": "Notify",
+                      "descendants": {
+                        "CYplH": {
+                          "content": "Email me when they're accepted"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jabpN",
+                  "name": "Dialog footer",
+                  "layout": "horizontal",
+                  "gap": "$space-2",
+                  "width": "fill_container",
+                  "justifyContent": "end",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "e4ghx",
+                      "ref": "FG4PI",
+                      "name": "Cancel",
+                      "descendants": {
+                        "alktk": {
+                          "content": "Cancel"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "KkNPc",
+                      "ref": "bzkLH",
+                      "name": "Confirm",
+                      "descendants": {
+                        "YODQc": {
+                          "content": "Resubmit claims"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "DzIC6",
+      "name": "Overview",
+      "x": 2600,
+      "y": 0,
+      "width": 1440,
+      "height": 900,
+      "layout": "horizontal",
+      "fill": "$surface",
+      "clip": true,
+      "placeholder": false,
+      "children": [
+        {
+          "type": "frame",
+          "id": "DRabo",
+          "name": "Sidebar",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "padding": [
+            "$space-5",
+            "$space-4"
+          ],
+          "width": 256,
+          "height": "fill_container",
+          "fill": "$white",
+          "stroke": "$border",
+          "strokeWidth": {
+            "right": 1
+          },
+          "children": [
+            {
+              "type": "ref",
+              "id": "B01Qa",
+              "ref": "2bCMR",
+              "name": "Brand",
+              "height": 48,
+              "descendants": {
+                "sbe7T": {
+                  "icon": "anchor",
+                  "fill": "$sea-600",
+                  "width": 22,
+                  "height": 22
+                },
+                "CYS0Y": {
+                  "content": "Lantern Billing",
+                  "fontSize": "$text-md",
+                  "fontWeight": "700"
+                },
+                "VeEIM": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "QjvF7",
+              "name": "Primary nav",
+              "layout": "vertical",
+              "gap": "$space-1",
+              "padding": [
+                "$space-4",
+                0,
+                0,
+                0
+              ],
+              "width": "fill_container",
+              "height": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "brKcd",
+                  "ref": "2bCMR",
+                  "name": "Nav Overview",
+                  "fill": "$sea-50",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "layout-dashboard",
+                      "fill": "$sea-700"
+                    },
+                    "CYS0Y": {
+                      "content": "Overview",
+                      "fontWeight": "600",
+                      "fill": "$sea-700"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "5Iptg",
+                  "ref": "2bCMR",
+                  "name": "Nav Claims",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "file-text"
+                    },
+                    "CYS0Y": {
+                      "content": "Claims"
+                    },
+                    "VeEIM": {
+                      "content": "12"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "ghrQT",
+                  "ref": "2bCMR",
+                  "name": "Nav Patients",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "users"
+                    },
+                    "CYS0Y": {
+                      "content": "Patients"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "ZJSmE",
+                  "ref": "2bCMR",
+                  "name": "Nav Payments",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "wallet"
+                    },
+                    "CYS0Y": {
+                      "content": "Payments"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "Ekk4A",
+                  "ref": "2bCMR",
+                  "name": "Nav Payers",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "building-2"
+                    },
+                    "CYS0Y": {
+                      "content": "Payers"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "cGR2B",
+                  "ref": "2bCMR",
+                  "name": "Nav Reports",
+                  "descendants": {
+                    "sbe7T": {
+                      "icon": "chart-column"
+                    },
+                    "CYS0Y": {
+                      "content": "Reports"
+                    },
+                    "VeEIM": {
+                      "enabled": false
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "dlAQB",
+              "ref": "2bCMR",
+              "name": "Nav Settings",
+              "descendants": {
+                "sbe7T": {
+                  "icon": "settings"
+                },
+                "CYS0Y": {
+                  "content": "Settings"
+                },
+                "VeEIM": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "y3DFh",
+              "ref": "2bCMR",
+              "name": "Nav Help & support",
+              "descendants": {
+                "sbe7T": {
+                  "icon": "life-buoy"
+                },
+                "CYS0Y": {
+                  "content": "Help & support"
+                },
+                "VeEIM": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BBsYC",
+          "name": "Main",
+          "layout": "vertical",
+          "gap": "$space-5",
+          "padding": "$space-6",
+          "width": "fill_container",
+          "height": "fill_container",
+          "children": [
+            {
+              "type": "frame",
+              "id": "UI4xF",
+              "name": "Top bar",
+              "layout": "horizontal",
+              "gap": "$space-3",
+              "width": "fill_container",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "RgkvG",
+                  "ref": "Yx2mg",
+                  "name": "Search",
+                  "width": 380,
+                  "descendants": {
+                    "ZCzuf": {
+                      "enabled": false
+                    },
+                    "vD87u": {
+                      "enabled": false
+                    },
+                    "d1GPE": {
+                      "enabled": true
+                    },
+                    "z9URC": {
+                      "content": "Search claims, patients, payers"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "7odbH",
+                  "name": "Spacer",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "ref",
+                  "id": "tVG1b",
+                  "ref": "jwV34",
+                  "name": "Location",
+                  "width": 220,
+                  "descendants": {
+                    "TmtPd": {
+                      "enabled": false
+                    },
+                    "afj5z": {
+                      "enabled": false
+                    },
+                    "7hDMc": {
+                      "content": "Midtown clinic",
+                      "fill": "$text"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "hPlA7",
+                  "ref": "cQztz",
+                  "name": "Notifications",
+                  "width": 40,
+                  "height": 40,
+                  "descendants": {
+                    "CNTHb": {
+                      "icon": "bell"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "7CWkT",
+                  "ref": "bzkLH",
+                  "name": "New claim",
+                  "descendants": {
+                    "t0eNV": {
+                      "enabled": true
+                    },
+                    "YODQc": {
+                      "content": "New claim"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "HzN5q",
+                  "ref": "wpzw6",
+                  "name": "User",
+                  "width": 40,
+                  "height": 40,
+                  "cornerRadius": 20,
+                  "fill": "$sea-100",
+                  "descendants": {
+                    "4d5zn": {
+                      "content": "RA",
+                      "fontSize": "$text-sm",
+                      "fill": "$sea-700"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "wYXOS",
+              "ref": "sYUtL",
+              "name": "Resubmission alert",
+              "width": "fill_container",
+              "fill": "$warning-bg",
+              "stroke": "$warning",
+              "descendants": {
+                "7HVUg": {
+                  "icon": "triangle-alert",
+                  "fill": "$warning"
+                },
+                "9ZfhA": {
+                  "content": "14 Medicare Part B claims need resubmission by Nov 7"
+                },
+                "kSLSw": {
+                  "content": "They were rejected for a missing modifier 25. Review them in Claims → Denied, or resubmit all at once."
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "vRnNo",
+              "name": "Stats",
+              "layout": "horizontal",
+              "gap": "$space-5",
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "ndA1o",
+                  "ref": "V3i79",
+                  "name": "Stat Collected this month",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n4wij": {
+                      "content": "Collected this month"
+                    },
+                    "Pr7lD": {
+                      "content": "$482,190"
+                    },
+                    "kM2Rp": {
+                      "icon": "trending-up",
+                      "fill": "$sea-700"
+                    },
+                    "SdDqR": {
+                      "content": "+8.2% vs October",
+                      "fill": "$sea-700"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "pOkDt",
+                  "ref": "V3i79",
+                  "name": "Stat Outstanding A/R",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n4wij": {
+                      "content": "Outstanding A/R"
+                    },
+                    "Pr7lD": {
+                      "content": "$1.27M"
+                    },
+                    "kM2Rp": {
+                      "icon": "trending-down",
+                      "fill": "$sea-700"
+                    },
+                    "SdDqR": {
+                      "content": "−3.1% vs October",
+                      "fill": "$sea-700"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "E5No0",
+                  "ref": "V3i79",
+                  "name": "Stat Avg. days to payment",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n4wij": {
+                      "content": "Avg. days to payment"
+                    },
+                    "Pr7lD": {
+                      "content": "21.4"
+                    },
+                    "kM2Rp": {
+                      "icon": "trending-down",
+                      "fill": "$sea-700"
+                    },
+                    "SdDqR": {
+                      "content": "−1.8 days vs October",
+                      "fill": "$sea-700"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "kCzqH",
+                  "ref": "V3i79",
+                  "name": "Stat Denial rate",
+                  "width": "fill_container",
+                  "descendants": {
+                    "n4wij": {
+                      "content": "Denial rate"
+                    },
+                    "Pr7lD": {
+                      "content": "4.2%"
+                    },
+                    "kM2Rp": {
+                      "icon": "trending-up",
+                      "fill": "$danger"
+                    },
+                    "SdDqR": {
+                      "content": "+0.6 pts vs October",
+                      "fill": "$danger"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "O4KTb",
+              "name": "Content",
+              "layout": "horizontal",
+              "gap": "$space-5",
+              "width": "fill_container",
+              "height": "fill_container",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "XTlQU",
+                  "ref": "wF4X0",
+                  "name": "Recent claims",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "descendants": {
+                    "yenMB": {
+                      "content": "Recent claims"
+                    },
+                    "gnuDw": {
+                      "content": "Submitted in the last 7 days · 86 claims"
+                    },
+                    "LIKrA": {
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "1Hce9",
+                          "ref": "cQztz",
+                          "name": "Filter",
+                          "descendants": {
+                            "CNTHb": {
+                              "icon": "sliders-horizontal"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "2ptg2",
+                          "ref": "FG4PI",
+                          "name": "Export",
+                          "height": 36,
+                          "descendants": {
+                            "fo5BP": {
+                              "enabled": true,
+                              "icon": "download"
+                            },
+                            "alktk": {
+                              "content": "Export CSV"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "rfghd": {
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "smYvO",
+                          "ref": "IdnNq",
+                          "name": "Claim tabs",
+                          "width": "fill_container",
+                          "descendants": {
+                            "fp53U/uKL80": {
+                              "content": "All · 86"
+                            },
+                            "5OaBy/uKL80": {
+                              "content": "Pending · 31"
+                            },
+                            "EACgC/uKL80": {
+                              "content": "Denied · 14"
+                            },
+                            "OzAli/uKL80": {
+                              "content": "Paid · 41"
+                            }
+                          }
+                        },
+                        {
+                          "type": "frame",
+                          "id": "kct31",
+                          "name": "Claims table",
+                          "layout": "vertical",
+                          "width": "fill_container",
+                          "children": [
+                            {
+                              "type": "ref",
+                              "id": "km1Z5",
+                              "ref": "feMi2",
+                              "name": "Header row",
+                              "width": "fill_container",
+                              "height": 40,
+                              "fill": "$surface",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "Claim",
+                                  "fontSize": "$text-xs",
+                                  "fontWeight": "600",
+                                  "fill": "$text-muted",
+                                  "fontFamily": "$font-sans"
+                                },
+                                "JWiye": {
+                                  "content": "Patient",
+                                  "fontSize": "$text-xs",
+                                  "fontWeight": "600",
+                                  "fill": "$text-muted"
+                                },
+                                "N0FdU": {
+                                  "content": "Payer",
+                                  "fontSize": "$text-xs",
+                                  "fontWeight": "600",
+                                  "fill": "$text-muted"
+                                },
+                                "SSdIP": {
+                                  "content": "Date",
+                                  "fontSize": "$text-xs",
+                                  "fontWeight": "600",
+                                  "fill": "$text-muted"
+                                },
+                                "3j47G": {
+                                  "enabled": false
+                                },
+                                "mMAvi": {
+                                  "enabled": true
+                                },
+                                "LWt12": {
+                                  "content": "Amount",
+                                  "fontSize": "$text-xs",
+                                  "fontWeight": "600",
+                                  "fill": "$text-muted"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "AT4dm",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20431",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20431"
+                                },
+                                "JWiye": {
+                                  "content": "Grace Mensah"
+                                },
+                                "N0FdU": {
+                                  "content": "UnitedHealthcare"
+                                },
+                                "SSdIP": {
+                                  "content": "Nov 3"
+                                },
+                                "LWt12": {
+                                  "content": "$642.00"
+                                },
+                                "3j47G": {
+                                  "fill": "$info-bg"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$info"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "In review",
+                                  "fill": "$info"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "67Jcg",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20417",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20417"
+                                },
+                                "JWiye": {
+                                  "content": "Maria Okafor"
+                                },
+                                "N0FdU": {
+                                  "content": "Blue Cross Blue Shield"
+                                },
+                                "SSdIP": {
+                                  "content": "Nov 2"
+                                },
+                                "LWt12": {
+                                  "content": "$1,240.00"
+                                },
+                                "3j47G": {
+                                  "fill": "$sea-50"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$sea-600"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "Paid",
+                                  "fill": "$sea-700"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "kvD2r",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20412",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20412"
+                                },
+                                "JWiye": {
+                                  "content": "James Patel"
+                                },
+                                "N0FdU": {
+                                  "content": "Medicare Part B"
+                                },
+                                "SSdIP": {
+                                  "content": "Nov 1"
+                                },
+                                "LWt12": {
+                                  "content": "$386.50"
+                                },
+                                "3j47G": {
+                                  "fill": "$warning-bg"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$warning"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "Pending",
+                                  "fill": "$warning"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "zi4We",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20405",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20405"
+                                },
+                                "JWiye": {
+                                  "content": "Tomás Rivera"
+                                },
+                                "N0FdU": {
+                                  "content": "Cigna"
+                                },
+                                "SSdIP": {
+                                  "content": "Oct 31"
+                                },
+                                "LWt12": {
+                                  "content": "$918.75"
+                                },
+                                "3j47G": {
+                                  "fill": "$sea-50"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$sea-600"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "Paid",
+                                  "fill": "$sea-700"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "SxO8C",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20398",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20398"
+                                },
+                                "JWiye": {
+                                  "content": "Ana Lindqvist"
+                                },
+                                "N0FdU": {
+                                  "content": "Aetna"
+                                },
+                                "SSdIP": {
+                                  "content": "Oct 30"
+                                },
+                                "LWt12": {
+                                  "content": "$2,015.00"
+                                },
+                                "3j47G": {
+                                  "fill": "$danger-bg"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$danger"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "Denied",
+                                  "fill": "$danger"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "mqOXK",
+                              "ref": "feMi2",
+                              "name": "Row CLM-20391",
+                              "width": "fill_container",
+                              "descendants": {
+                                "dss7y": {
+                                  "content": "CLM-20391"
+                                },
+                                "JWiye": {
+                                  "content": "Wei Chen"
+                                },
+                                "N0FdU": {
+                                  "content": "Medicare Part B"
+                                },
+                                "SSdIP": {
+                                  "content": "Oct 30"
+                                },
+                                "LWt12": {
+                                  "content": "$274.20"
+                                },
+                                "3j47G": {
+                                  "fill": "$warning-bg"
+                                },
+                                "3j47G/BKDXq": {
+                                  "fill": "$warning"
+                                },
+                                "3j47G/o7zDF": {
+                                  "content": "Pending",
+                                  "fill": "$warning"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "TqpJI",
+                  "name": "Right column",
+                  "layout": "vertical",
+                  "gap": "$space-5",
+                  "width": 320,
+                  "height": "fill_container",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "AVdex",
+                      "ref": "wF4X0",
+                      "name": "Today's tasks",
+                      "width": "fill_container",
+                      "descendants": {
+                        "yenMB": {
+                          "content": "Today's tasks"
+                        },
+                        "gnuDw": {
+                          "content": "2 of 5 done"
+                        },
+                        "rfghd": {
+                          "children": [
+                            {
+                              "type": "ref",
+                              "id": "pHaob",
+                              "ref": "DUluN",
+                              "name": "Task Verify 6 new insurance cards",
+                              "descendants": {
+                                "CYplH": {
+                                  "content": "Verify 6 new insurance cards",
+                                  "fill": "$text-muted"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "jznFC",
+                              "ref": "DUluN",
+                              "name": "Task Post Cigna remittance",
+                              "descendants": {
+                                "CYplH": {
+                                  "content": "Post Cigna remittance",
+                                  "fill": "$text-muted"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "eBhvd",
+                              "ref": "DUluN",
+                              "name": "Task Call Aetna about CLM-20398",
+                              "descendants": {
+                                "2Xvwx": {
+                                  "fill": "$white",
+                                  "stroke": "$border-strong"
+                                },
+                                "qUO4n": {
+                                  "enabled": false
+                                },
+                                "CYplH": {
+                                  "content": "Call Aetna about CLM-20398"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "8cwyt",
+                              "ref": "DUluN",
+                              "name": "Task Send 23 patient statements",
+                              "descendants": {
+                                "2Xvwx": {
+                                  "fill": "$white",
+                                  "stroke": "$border-strong"
+                                },
+                                "qUO4n": {
+                                  "enabled": false
+                                },
+                                "CYplH": {
+                                  "content": "Send 23 patient statements"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "ViooR",
+                              "ref": "DUluN",
+                              "name": "Task Review write-offs over $500",
+                              "descendants": {
+                                "2Xvwx": {
+                                  "fill": "$white",
+                                  "stroke": "$border-strong"
+                                },
+                                "qUO4n": {
+                                  "enabled": false
+                                },
+                                "CYplH": {
+                                  "content": "Review write-offs over $500"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "wRmoy",
+                      "ref": "wF4X0",
+                      "name": "Automation",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "descendants": {
+                        "yenMB": {
+                          "content": "Automation"
+                        },
+                        "gnuDw": {
+                          "content": "Runs nightly at 2 am ET"
+                        },
+                        "rfghd": {
+                          "children": [
+                            {
+                              "type": "ref",
+                              "id": "GCuF9",
+                              "ref": "Py6oQ",
+                              "name": "Switch Auto-submit clean claims",
+                              "descendants": {
+                                "iU3zx": {
+                                  "content": "Auto-submit clean claims"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "vC4Ct",
+                              "ref": "Py6oQ",
+                              "name": "Switch Match ERA to claims",
+                              "descendants": {
+                                "iU3zx": {
+                                  "content": "Match ERA to claims"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "SN169",
+                              "ref": "Py6oQ",
+                              "name": "Switch Text payment reminders",
+                              "descendants": {
+                                "xHb8p": {
+                                  "fill": "$border-strong",
+                                  "justifyContent": "start"
+                                },
+                                "iU3zx": {
+                                  "content": "Text payment reminders"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "navy-900": {
+      "type": "color",
+      "value": "#0F2A44"
+    },
+    "navy-700": {
+      "type": "color",
+      "value": "#1D3F63"
+    },
+    "navy-100": {
+      "type": "color",
+      "value": "#DCE6F0"
+    },
+    "navy-50": {
+      "type": "color",
+      "value": "#EEF3F8"
+    },
+    "sea-700": {
+      "type": "color",
+      "value": "#0A6658"
+    },
+    "sea-600": {
+      "type": "color",
+      "value": "#0E7C6B"
+    },
+    "sea-100": {
+      "type": "color",
+      "value": "#CFEAE4"
+    },
+    "sea-50": {
+      "type": "color",
+      "value": "#E8F5F2"
+    },
+    "white": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#F5F7FA"
+    },
+    "border": {
+      "type": "color",
+      "value": "#D5DDE5"
+    },
+    "border-strong": {
+      "type": "color",
+      "value": "#9AA9B8"
+    },
+    "text": {
+      "type": "color",
+      "value": "#0F2A44"
+    },
+    "text-muted": {
+      "type": "color",
+      "value": "#52657A"
+    },
+    "text-inverse": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "focus": {
+      "type": "color",
+      "value": "#2BA58F"
+    },
+    "danger": {
+      "type": "color",
+      "value": "#B42318"
+    },
+    "danger-bg": {
+      "type": "color",
+      "value": "#FDECEA"
+    },
+    "warning": {
+      "type": "color",
+      "value": "#8A5A00"
+    },
+    "warning-bg": {
+      "type": "color",
+      "value": "#FFF4D6"
+    },
+    "info": {
+      "type": "color",
+      "value": "#1D4F86"
+    },
+    "info-bg": {
+      "type": "color",
+      "value": "#EAF1FB"
+    },
+    "font-sans": {
+      "type": "string",
+      "value": "IBM Plex Sans"
+    },
+    "font-mono": {
+      "type": "string",
+      "value": "IBM Plex Mono"
+    },
+    "text-xs": {
+      "type": "number",
+      "value": 12
+    },
+    "text-sm": {
+      "type": "number",
+      "value": 14
+    },
+    "text-md": {
+      "type": "number",
+      "value": 16
+    },
+    "text-lg": {
+      "type": "number",
+      "value": 20
+    },
+    "text-xl": {
+      "type": "number",
+      "value": 28
+    },
+    "radius-sm": {
+      "type": "number",
+      "value": 4
+    },
+    "radius-md": {
+      "type": "number",
+      "value": 6
+    },
+    "radius-lg": {
+      "type": "number",
+      "value": 8
+    },
+    "space-1": {
+      "type": "number",
+      "value": 4
+    },
+    "space-2": {
+      "type": "number",
+      "value": 8
+    },
+    "space-3": {
+      "type": "number",
+      "value": 12
+    },
+    "space-4": {
+      "type": "number",
+      "value": 16
+    },
+    "space-5": {
+      "type": "number",
+      "value": 24
+    },
+    "space-6": {
+      "type": "number",
+      "value": 32
+    },
+    "space-8": {
+      "type": "number",
+      "value": 48
+    },
+    "transparent": {
+      "type": "color",
+      "value": "#FFFFFF00"
+    },
+    "scrim": {
+      "type": "color",
+      "value": "#0F2A4466"
+    },
+    "shadow": {
+      "type": "color",
+      "value": "#0F2A4429"
+    }
+  }
+}

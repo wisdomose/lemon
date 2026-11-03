@@ -1,8 +1,14 @@
 // The prompt footer's run options: parallel agents (⚡) and "let it cook" variants (▦). Layout measured
-// from the reference: a 300px popover over the chat box, 6px above the footer row, chips 44px wide.
+// from the reference: a 300px popover over the chat box (⚡'s from its button), chips 44px wide.
 // Parallel agents work (team.ts), and so do variants (agent.ts, "Let it cook").
 import { useState, type ReactNode, type RefObject } from "react";
-import { Popover as P } from "radix-ui";
+import { HoverCard as H, Popover as P } from "radix-ui";
+import techLanding from "./styles/dark-tech-landing.webp";
+import techWeb from "./styles/dark-tech-web.webp";
+import techMobile from "./styles/dark-tech-mobile.webp";
+import editorialWeb from "./styles/editorial-magazine-web.webp";
+import brutalWeb from "./styles/neo-brutalism-web.webp";
+import calmWeb from "./styles/scandi-calm-web.webp";
 import { LayoutGrid, Zap } from "lucide-react";
 import { Tip, cx } from "../ui/kit.js";
 import { MAX_AGENTS } from "../../agent/models.js";
@@ -53,24 +59,30 @@ function OptionPopover({
   trigger,
   children,
   className = "w-[300px] px-2 pt-[11px] pb-3",
+  sideOffset = 1,
+  fromTrigger,
 }: {
   anchor: RefObject<HTMLDivElement | null>;
+  /** Lined up with its button's left edge rather than the footer's (Pen's ⚡). */
+  fromTrigger?: boolean;
   trigger: (open: boolean) => ReactNode;
   children: ReactNode;
   /** Width and padding. */
   className?: string;
+  /** Gap below it, above the footer row. */
+  sideOffset?: number;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <P.Root open={open} onOpenChange={setOpen}>
-      <P.Anchor virtualRef={anchor as RefObject<HTMLDivElement>} />
+      {!fromTrigger && <P.Anchor virtualRef={anchor as RefObject<HTMLDivElement>} />}
       <P.Trigger asChild>{trigger(open)}</P.Trigger>
       <P.Portal>
         <P.Content
           side="top"
           align="start"
-          sideOffset={1}
-          alignOffset={-20}
+          sideOffset={sideOffset}
+          alignOffset={fromTrigger ? -4 : -20}
           avoidCollisions={false}
           className={cx("z-50 rounded-[10px] border border-border bg-popover shadow-island outline-none", className)}
         >
@@ -87,12 +99,10 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
   return (
     <OptionPopover
       anchor={anchor}
-      trigger={(open) => (
-        <button
-          type="button"
-          aria-label="Parallel agents"
-          className={cx("ml-auto flex h-6 items-center gap-[3px] rounded-[6px] px-1 font-semibold text-amber-500", open && "bg-amber-500/10")}
-        >
+      fromTrigger
+      // Pen's button looks the same while its popover is open.
+      trigger={() => (
+        <button type="button" aria-label="Parallel agents" className="ml-auto flex h-6 items-center gap-[3px] rounded-[6px] px-1 font-semibold text-amber-500">
           <Zap size={12} strokeWidth={1.75} /> {team.count}x
         </button>
       )}
@@ -107,8 +117,8 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
         ))}
       </div>
       <div className="mt-[13px] flex gap-1">
-        <Card title="Split Work" text="Several agents work on different tasks" selected={team.mode === "split"} onClick={() => set({ mode: "split" })} />
-        <Card title="Side by Side" text="Several agents work on the same task" selected={team.mode === "side"} onClick={() => set({ mode: "side" })} />
+        <Card title="Split Work" text="Multiple agents work on different tasks" selected={team.mode === "split"} onClick={() => set({ mode: "split" })} />
+        <Card title="Side by Side" text="Multiple agents work on the same task" selected={team.mode === "side"} onClick={() => set({ mode: "side" })} />
       </div>
       {team.count > 1 && <p className="mt-2 pl-1 text-[10px] text-muted-foreground">Each agent uses your subscription separately.</p>}
     </OptionPopover>
@@ -139,6 +149,57 @@ function CookOption({ children, selected, disabled, onClick }: { children: React
 const COOK_LABEL = "text-[10px] leading-[14px] font-semibold tracking-wide text-muted-foreground uppercase";
 
 /**
+ * What a mode does, on a card above it while hovered (Pen, 3 Nov 2026: a picture, a title, a line).
+ * Pen's pictures are its own; Lemon's are made of its style previews: one look laid out three ways for
+ * Layout, three looks for Style.
+ */
+const MODES = {
+  layout: {
+    title: "Layout iteration",
+    text: "Explore various layout directions while preserving visual style in each iteration.",
+    pictures: [techLanding, techWeb, techMobile],
+  },
+  style: {
+    title: "Style iteration",
+    text: "Explore various visual styles with a new design direction in each iteration.",
+    pictures: [editorialWeb, brutalWeb, calmWeb],
+  },
+} as const;
+
+function ModeCard({ mode, children }: { mode: keyof typeof MODES; children: ReactNode }) {
+  const m = MODES[mode];
+  return (
+    <H.Root openDelay={200} closeDelay={0}>
+      {/* A wrapper, so the card shows over a mode that can't be picked yet too (disabled buttons get no pointer events). */}
+      <H.Trigger asChild>
+        <div className="grid">{children}</div>
+      </H.Trigger>
+      <H.Portal>
+        <H.Content side="top" sideOffset={8} className="z-50 w-[228px] rounded-[8px] bg-popover p-2 shadow-island outline-none">
+          <div className="relative h-[94px] overflow-hidden rounded-[4px] bg-[#e7e7ea]">
+            {m.pictures.map((src, i) => (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                className="absolute rounded-[3px] object-cover object-top shadow-md"
+                style={
+                  mode === "layout" && i === 2
+                    ? { left: 168, top: 14, width: 38, height: 82 }
+                    : { left: 10 + i * 58, top: 12 + (i % 2) * 8, width: mode === "layout" && i === 0 ? 60 : 96, height: mode === "layout" && i === 0 ? 90 : 60 }
+                }
+              />
+            ))}
+          </div>
+          <div className="mt-[9px] px-1 text-[12px] leading-4 font-semibold text-foreground">{m.title}</div>
+          <div className="mt-[3px] px-1 pb-1 text-[11px] leading-[15px] text-muted-foreground">{m.text}</div>
+        </H.Content>
+      </H.Portal>
+    </H.Root>
+  );
+}
+
+/**
  * "Let it cook": the iteration mode and how many variants, measured from Pen (260px wide). With
  * variants the agent designs more variations after the first, each in its own turn (agent/agent.ts);
  * the button then shows the count in Pen's blue. The count goes back to "Don't iterate" once a request
@@ -152,34 +213,40 @@ export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> 
     <OptionPopover
       anchor={anchor}
       className="w-[260px] px-[13px] pt-[9px] pb-[10px]"
-      trigger={(open) => (
+      sideOffset={4}
+      // Pen's button looks the same while its popover is open.
+      trigger={() => (
         <button
           type="button"
           aria-label="Let it cook"
-          className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", on && "text-[#8485f2]", open && "bg-foreground/5")}
+          className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", on && "text-[#8485f2]")}
         >
           <LayoutGrid size={12} strokeWidth={1.5} /> {cook.count}x
         </button>
       )}
     >
       <div className="text-[12px] leading-4 font-semibold text-foreground">Let it cook</div>
-      <div className="mt-[3px] text-[12px] leading-4 text-muted-foreground">
+      <div className="mt-[5px] text-[12px] leading-4 text-muted-foreground">
         Iterate on designs{" "}
-        <Tip label={"Keeps the agent going after a design is done.\nIt makes new variations on its own."} side="top">
+        <Tip label={"Leave the agent running after a design is done.\nIt will keep generating new variations on its own."} side="top">
           <span className="cursor-default underline decoration-dotted underline-offset-2">automatically</span>
         </Tip>
       </div>
-      <div className={cx(COOK_LABEL, "mt-[12px]")}>Iteration mode</div>
-      <div className="mt-[7px] grid grid-cols-2 gap-1">
-        <CookOption selected={on && cook.mode === "layout"} disabled={!on} onClick={() => set({ mode: "layout" })}>
-          Layout
-        </CookOption>
-        <CookOption selected={on && cook.mode === "style"} disabled={!on} onClick={() => set({ mode: "style" })}>
-          Style
-        </CookOption>
+      <div className={cx(COOK_LABEL, "mt-[9px]")}>Iteration mode</div>
+      <div className="mt-[5px] grid grid-cols-2 gap-1">
+        <ModeCard mode="layout">
+          <CookOption selected={on && cook.mode === "layout"} disabled={!on} onClick={() => set({ mode: "layout" })}>
+            Layout
+          </CookOption>
+        </ModeCard>
+        <ModeCard mode="style">
+          <CookOption selected={on && cook.mode === "style"} disabled={!on} onClick={() => set({ mode: "style" })}>
+            Style
+          </CookOption>
+        </ModeCard>
       </div>
-      <div className={cx(COOK_LABEL, "mt-[13px]")}>Variants</div>
-      <div className="mt-[7px] grid grid-cols-2 gap-x-1 gap-y-1">
+      <div className={cx(COOK_LABEL, "mt-[12px]")}>Variants</div>
+      <div className="mt-[5px] grid grid-cols-2 gap-x-1 gap-y-1">
         <CookOption selected={!on} onClick={() => set({ count: 1 })}>
           Don’t iterate
         </CookOption>
