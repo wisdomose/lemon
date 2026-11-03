@@ -24,6 +24,7 @@ import { DEFAULT_MODEL, modelProvider } from "./models.js";
 import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
 import { POPULAR_SERVERS } from "../mcp/settings.js";
 import { runOpenAICompat } from "./openai.js";
+import { connectServers } from "./mcp-client.js";
 import type { ResolvedProvider } from "./providers.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
@@ -543,6 +544,14 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       stats.turns = steps.length + 1;
       // Codex subscription turns expose token usage but no dollar charge.
     } else if (o.provider?.apiType === "openai-completions") {
+      // This engine doesn't speak MCP, so the app reaches the added servers for it; one it can't
+      // reach gets a card saying so, and the run goes on without it.
+      const servers = await connectServers(personServers, (name, why) => {
+        const label = POPULAR_SERVERS[name]?.label ?? name;
+        const index = SERVER_STEP_BASE + ++serverSteps;
+        emit({ type: "step-start", index, title: `Connect to ${label}` });
+        serverStepEnd(index, `Connect to ${label}`, false, `Couldn't reach ${label}: ${why} Going on without it.`, performance.now());
+      });
       const result = await runOpenAICompat({
         system: INSTRUCTIONS, prompt: message, baseUrl: o.provider.baseUrl, apiKey: o.provider.apiKey,
         headers: o.provider.headers, model: apiModel, maxTokens: o.provider.maxTokens, images: o.provider.images, signal: o.signal,
@@ -557,8 +566,10 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
             ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
             : {}),
         },
+        serverTools: servers.tools,
+        onServerTool: (e) => ("tool" in e ? serverToolStart(e.id, e.tool, e.input) : serverToolEnd(e.id, e.ok, e.content)),
         onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
-      });
+      }).finally(() => servers.close());
       stats.ok = true;
       stats.reply = result.reply;
       stats.tokens = result.tokens;

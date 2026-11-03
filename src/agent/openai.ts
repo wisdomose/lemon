@@ -3,7 +3,8 @@
 // the next variation on the same conversation, as Codex's turns do. Tool arguments arrive complete (as with Codex), so steps
 // run as whole scripts; text streams as it lands. A tool message can only hold text, so the pictures
 // a step takes follow its results as a user message — for models that read pictures.
-import type { CodexTool } from "./codex.js";
+import type { CodexTool, ToolResultContent } from "./codex.js";
+import type { ServerTool } from "./mcp-client.js";
 
 export interface OpenAIResult {
   reply: string;
@@ -75,6 +76,10 @@ export async function runOpenAICompat(o: {
   tools?: Record<string, CodexTool>;
   /** Asked when the model is done: another message to send in the same conversation, or undefined. */
   followUp?: () => string | undefined;
+  /** Tools of the MCP servers the person added (mcp-client.ts), offered beside the canvas tools. */
+  serverTools?: Record<string, ServerTool>;
+  /** A call to one of those starts, and ends (as runCodex reports them). */
+  onServerTool?: (e: { id: string; tool: string; input: unknown } | { id: string; ok: boolean; content: ToolResultContent[] }) => void;
   onText?: (text: string, streamId: string) => void;
   fetchImpl?: typeof fetch;
 }): Promise<OpenAIResult> {
@@ -88,7 +93,7 @@ export async function runOpenAICompat(o: {
   const result: OpenAIResult = { reply: "", durationMs: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
   let calls = 0;
   let streamId = 0;
-  const tools = Object.entries(o.tools ?? {});
+  const tools: [string, CodexTool][] = [...Object.entries(o.tools ?? {}), ...Object.entries(o.serverTools ?? {})];
 
   for (;;) {
     ensureLive(o);
@@ -174,9 +179,19 @@ export async function runOpenAICompat(o: {
       if (++calls > MAX_CALLS) throw new Error(`The agent reached the ${MAX_CALLS}-step limit.`);
       let content: string;
       try {
-        const tool = o.tools?.[call.name];
+        const server = o.serverTools?.[call.name];
+        const tool = server ?? o.tools?.[call.name];
         if (!tool) throw new Error(`There is no "${call.name}" tool.`);
-        const r = await tool.call(JSON.parse(call.args || "null"));
+        const input: unknown = JSON.parse(call.args || "null");
+        if (server) o.onServerTool?.({ id: call.id, tool: server.title, input });
+        let r: Awaited<ReturnType<CodexTool["call"]>>;
+        try {
+          r = await tool.call(input);
+        } catch (e) {
+          if (server) o.onServerTool?.({ id: call.id, ok: false, content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }] });
+          throw e;
+        }
+        if (server) o.onServerTool?.({ id: call.id, ok: !r.isError, content: r.content });
         content = r.content.map((c) => {
           if (c.type === "text") return c.text;
           if (!o.images) return "(a picture was taken; this model can't see pictures)";

@@ -1,6 +1,7 @@
 // Shared picker for the Dashboard and editor: static Claude choices, a live Codex catalog, and the
 // models of every AI provider a person has connected. A built-in without its key shows its models
-// locked, with a row to go set it up. A model that takes a reasoning effort opens it from its row.
+// locked, with a row to go set it up. A model's row picks it at its default
+// effort; one that takes a reasoning effort opens its levels from a chevron button on the row.
 import { Fragment, useState } from "react";
 import { DropdownMenu as M } from "radix-ui";
 import { ChevronDown, ChevronRight, Image as ImageIcon, Lock, Plus, Search } from "lucide-react";
@@ -146,39 +147,66 @@ function ModelMenu({ model }: { model: string }) {
 const effortLabel = (id: string) => (id === "xhigh" ? "Very high" : id === "xlow" ? "Extra low" : id[0]!.toUpperCase() + id.slice(1));
 
 /**
- * One model. One that takes a reasoning effort opens its levels from its row (Pen); picking a level
- * picks the model with it. The level the next run uses is ticked on the selected model: the chosen
- * one, else the model's own default.
+ * One model. Picking the row picks the model at its default effort. One that takes a reasoning
+ * effort has its own chevron button, shown while the row is hovered or focused (Pen): hovering or
+ * clicking it opens the levels, and picking a level picks the model with it. The level the next run
+ * uses is ticked on the selected model: the chosen one, else the model's own default.
  */
 function ModelRow({ id, label, model }: { id: string; label: string; model: string }) {
   const codexModels = useEditor((s) => s.codexModels);
   const providers = useEditor((s) => s.providers);
   const effort = useEditor((s) => s.effort);
+  const [open, setOpen] = useState(false);
   const { levels, fallback } = effortChoices(id, codexModels, providers);
   const current = id === model;
   const name = <span className="block max-w-[180px] truncate font-medium">{label}</span>;
-  if (!levels.length) return <MenuItem label={name} current={current} plain onSelect={() => store.set({ model: id, effort: undefined })} />;
+  const pick = () => store.set({ model: id, effort: undefined });
+  if (!levels.length) return <MenuItem label={name} current={current} plain onSelect={pick} />;
   const shown = current ? (effort ?? fallback) : undefined;
   const descriptions = codexModels.find((m) => m.id === id)?.efforts;
   return (
-    <M.Sub>
-      <M.SubTrigger className={cx(ROW, "group", current && "bg-input")}>
+    // The row lights up while either half is highlighted, or while its levels are open.
+    <div
+      className={cx(
+        "group/row relative rounded-[6px]",
+        current && "bg-input",
+        "has-[[data-highlighted]]:bg-[#3b82f6] has-[[data-highlighted]]:text-white has-[[data-state=open]]:bg-[#3b82f6] has-[[data-state=open]]:text-white",
+      )}
+    >
+      <M.Item
+        className={cx(ROW, "pr-8 data-[highlighted]:bg-transparent")}
+        onSelect={pick}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
         <span className="min-w-0 flex-1">{name}</span>
-        <ChevronRight size={12} strokeWidth={1.5} className="text-muted-foreground group-data-[highlighted]:text-white/80 group-data-[state=open]:text-white/80" />
-      </M.SubTrigger>
-      <M.Portal>
-        <M.SubContent sideOffset={4} className={cx(PANEL, "min-w-[120px]")}>
-          <MenuLabel>Effort</MenuLabel>
-          {levels.map((level) => (
-            <MenuItem
-              key={level}
-              label={<span title={descriptions?.find((e) => e.id === level)?.description}>{effortLabel(level)}</span>}
-              checked={shown === level}
-              onSelect={() => store.set({ model: id, effort: level })}
-            />
-          ))}
-        </M.SubContent>
-      </M.Portal>
-    </M.Sub>
+      </M.Item>
+      <M.Sub open={open} onOpenChange={setOpen}>
+        <M.SubTrigger
+          aria-label={`${label} effort`}
+          className="absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-white/80 opacity-0 outline-none group-hover/row:opacity-100 group-has-[[data-highlighted]]/row:opacity-100 data-[highlighted]:bg-white/20 data-[state=open]:bg-white/20 data-[state=open]:opacity-100"
+          onClick={() => setOpen(true)}
+        >
+          <ChevronRight size={12} strokeWidth={1.5} />
+        </M.SubTrigger>
+        <M.Portal>
+          <M.SubContent sideOffset={4} className={cx(PANEL, "min-w-[120px]")}>
+            <MenuLabel>Effort</MenuLabel>
+            {levels.map((level) => (
+              <MenuItem
+                key={level}
+                label={<span title={descriptions?.find((e) => e.id === level)?.description}>{effortLabel(level)}</span>}
+                checked={shown === level}
+                onSelect={() => store.set({ model: id, effort: level })}
+              />
+            ))}
+          </M.SubContent>
+        </M.Portal>
+      </M.Sub>
+    </div>
   );
 }
