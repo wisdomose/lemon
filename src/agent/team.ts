@@ -193,7 +193,9 @@ export async function runTeam(o: TeamOptions): Promise<AgentStats[]> {
   }
 
   // ---- Split Work: plan together, agree, then build the parts at the same time.
-  const request = `The person asked for:\n${o.prompt.trim()}\n\nThe canvas: ${toTree(o.doc).children.length ? "already has other frames; your design goes beside them." : "empty."}`;
+  // The planners get the attachments' names; the agents who build get the files themselves.
+  const attached = o.attachments?.length ? `\n\nAttached: ${o.attachments.map((a) => a.name).join(", ")}.` : "";
+  const request = `The person asked for:\n${o.prompt.trim()}${attached}\n\nThe canvas: ${toTree(o.doc).children.length ? "already has other frames; your design goes beside them." : "empty."}`;
   const shape = PLAN_SHAPE.replace("COUNT", String(count));
   let plan: TeamPlan;
   try {

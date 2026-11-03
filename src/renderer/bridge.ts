@@ -2,12 +2,15 @@
 // plain browser (development and headless checks) a stand-in reads a saved document and fonts over HTTP
 // and has no agent.
 import type { AgentStats, Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
 import type { TaggedEvent } from "../agent/team.js";
 import type { Team, CodexModel } from "../agent/models.js";
 import type { ProviderStatus } from "../agent/codex.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
+import type { WorkspaceFile } from "../main/workspace.js";
+import type { Skill } from "../main/skills.js";
 import type { Tabs } from "../main/shell.js";
 import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/browser-pages.js";
 import type { Importable, PageShot } from "../agent/browser-tool.js";
@@ -25,7 +28,7 @@ export interface Bridge {
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
   /** `variants`: "Let it cook" (more variations after the first design). */
-  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants): Promise<AgentStats[]>;
+  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]): Promise<AgentStats[]>;
   stopAgent(): Promise<void>;
   onAgentEvent(fn: (e: TaggedEvent) => void): void;
   canRunAgent: boolean;
@@ -41,6 +44,15 @@ export interface Bridge {
   /** The file this window shows: its name and whether it is saved. */
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
+  /** "Add from workspace": the attachable files in the open document's folder, and reading chosen ones. */
+  workspaceFiles(): Promise<WorkspaceFile[]>;
+  readWorkspaceFiles(paths: string[]): Promise<Attachment[]>;
+  /** The prompt's "/" skills; adding asks for a folder, removing asks first. Each answers the new list. */
+  skills(): Promise<Skill[]>;
+  addSkill(): Promise<Skill[]>;
+  removeSkill(path: string, name: string): Promise<Skill[]>;
+  /** Skills' SKILL.md files, as the agent gets them. */
+  readSkills(paths: string[]): Promise<Attachment[]>;
   /** Menu bar commands for this window. */
   onMenuCommand(fn: (command: WindowCommand) => void): void;
   /** A prompt this new window was opened with (from the Dashboard), once. */
@@ -184,6 +196,24 @@ export function browserBridge(): Bridge {
       return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };
     },
     onFileInfo() {},
+    async workspaceFiles() {
+      return [];
+    },
+    async readWorkspaceFiles() {
+      return [];
+    },
+    async skills() {
+      return [];
+    },
+    async addSkill() {
+      return [];
+    },
+    async removeSkill() {
+      return [];
+    },
+    async readSkills() {
+      return [];
+    },
     onMenuCommand() {},
     async startPrompt() {
       return undefined;

@@ -6,6 +6,8 @@ import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
 import type { SidebarState } from "../main/browser-pages.js";
 import type { Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
+import type { PromptPart } from "./agent/prompt-doc.js";
 
 export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
 export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand" | "comment";
@@ -15,7 +17,7 @@ export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" |
  * the chat groups them under that agent.
  */
 export type ChatItem = (
-  | { kind: "user"; text: string }
+  | { kind: "user"; text: string; attachments?: SentAttachment[]; parts?: PromptPart[] }
   | { kind: "agent-head"; name: string; model: string }
   | { kind: "thought"; seconds: number }
   /** Several agents start on a request. */
@@ -42,6 +44,19 @@ export type ChatItem = (
   | { kind: "error"; text: string }
 ) & { agent?: number };
 
+/** An attachment as the chat shows it: a picture (data URL), or a file whose text can be shown. */
+export interface SentAttachment {
+  name: string;
+  kind: Attachment["kind"];
+  /** An image's data URL (not kept in the history). */
+  url?: string;
+  /** A text file's contents. */
+  text?: string;
+}
+
+/** A file attached to the prompt being written, with its id in the tray. */
+export type PendingAttachment = Attachment & { id: string };
+
 export interface EditorState {
   tab: Tab;
   tool: Tool;
@@ -67,6 +82,8 @@ export interface EditorState {
   team: Team;
   /** "Let it cook" (the ▦ choice): how many variations the next request gets, and how they differ. Back to 1 once sent, as in Pen. */
   cook: Variants;
+  /** Files attached to the prompt being written ("+" → Add image or file, paste, drop). */
+  attachments: PendingAttachment[];
   settingsOpen: boolean;
   /** Past conversations, newest first. */
   history: Session[];
@@ -116,6 +133,7 @@ const initial: EditorState = {
   codexModelsState: "idle",
   team: { count: 1, mode: "split" },
   cook: { count: 1, mode: "layout" },
+  attachments: [],
   settingsOpen: false,
   history: [],
   file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },

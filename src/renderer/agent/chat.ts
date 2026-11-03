@@ -9,6 +9,9 @@ import { ROOT_ID } from "../../doc/schema.js";
 import { targetPoint } from "./targets.js";
 import { aimPath } from "./aim.js";
 import { store, type ChatItem, type Session } from "../store.js";
+import type { Attachment } from "../../agent/attachments.js";
+import { sent } from "./attach.js";
+import type { PromptPart } from "./prompt-doc.js";
 
 const pngUrl = (png: Uint8Array) => URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
 
@@ -169,19 +172,30 @@ export function handleAgentEvent(e: TaggedEvent): void {
   }
 }
 
-/** Sends a prompt. The chat shows `text`; the agent gets `forAgent` (e.g. with canvas references) if given. */
-export function sendPrompt(text: string, forAgent?: string): void {
+/**
+ * Sends a prompt. The chat shows `text` (or `parts`, with its chips); the agent gets `forAgent` (e.g.
+ * with canvas references) if given, after the files attached to it and the SKILL.md of each skill
+ * chip (`skills`, which the chat doesn't show as attached: the chip says it, as in Pen).
+ */
+export function sendPrompt(text: string, forAgent?: string, attachments: Attachment[] = [], parts?: PromptPart[], skills: Attachment[] = []): void {
   if (!text.trim() || !bridge.canRunAgent || store.get().agentStatus) return;
-  push({ kind: "user", text: text.trim() });
+  push({
+    kind: "user",
+    text: text.trim(),
+    ...(attachments.length ? { attachments: attachments.map(sent) } : {}),
+    ...(parts?.some((p) => typeof p !== "string") ? { parts } : {}),
+  });
   store.set((s) => ({ agentStatus: "planning", session: s.session ?? text.trim() }));
   const { model, team, effort, cook } = store.get();
   // "Let it cook" is for one request: it goes back to no variations once sent (as in Pen).
   if (cook.count > 1) store.set({ cook: { ...cook, count: 1 } });
-  void bridge.runAgent((forAgent ?? text).trim(), model, team, effort, cook.count > 1 ? cook : undefined);
+  // Only what the agent needs crosses to the host (not the tray's ids).
+  const files = [...attachments, ...skills].map(({ name, kind, mediaType, data }) => ({ name, kind, mediaType, data }));
+  void bridge.runAgent((forAgent ?? text).trim(), model, team, effort, cook.count > 1 ? cook : undefined, files.length ? files : undefined);
 }
 
 // Past conversations are kept in this window's local storage (STOPGAP: they belong in the document's
-// folder or the main process once files are saved; pictures are not kept).
+// folder or the main process once files are saved; pictures are not kept, attached ones included).
 const HISTORY_KEY = "agent-history";
 export function loadHistory(): void {
   store.set({ history: JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]") as Session[] });
@@ -191,7 +205,9 @@ const saveHistory = () => localStorage.setItem(HISTORY_KEY, JSON.stringify(store
 let currentId: string = crypto.randomUUID();
 
 function stripPictures(chat: ChatItem[]): ChatItem[] {
-  return chat.map((c) => (c.kind === "step" ? { ...c, pictures: [] } : c));
+  return chat.map((c) =>
+    c.kind === "step" ? { ...c, pictures: [] } : c.kind === "user" && c.attachments ? { ...c, attachments: c.attachments.map((a) => ({ ...a, url: undefined })) } : c,
+  );
 }
 
 /** Files the current conversation in the history (if it has anything) and starts an empty one. */

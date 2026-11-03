@@ -1,8 +1,8 @@
 // The Agent tab: session row, then the empty state or the conversation with step cards.
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronsUpDown, CircleCheck, CircleX, Plus } from "lucide-react";
+import { Box, ChevronDown, ChevronsUpDown, Circle, CircleCheck, CircleX, FileText, Frame, Globe, Image as ImageIcon, Layers, Palette, Paperclip, Plus, Square, Type } from "lucide-react";
 import { AGENTS } from "../../agent/models.js";
-import { useEditor, type ChatItem } from "../store.js";
+import { useEditor, type ChatItem, type SentAttachment } from "../store.js";
 import { CHAT_ZOOM, useSettings } from "../settings.js";
 import { markdown } from "../markdown.js";
 import { cx } from "../ui/kit.js";
@@ -10,6 +10,7 @@ import { clearHistory, formatDuration, newSession, openSession, sendPrompt } fro
 import { DropdownMenu as M } from "radix-ui";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
 import { MessageText } from "./links.js";
+import type { PromptPart } from "./prompt-doc.js";
 
 // Our own example prompts and tips, laid out as Pen lays out its empty state.
 const EXAMPLES = [
@@ -175,9 +176,12 @@ function Item({ item }: { item: ChatItem }) {
   switch (item.kind) {
     case "user":
       return (
-        <div className="ml-[52px] rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">
-          <MessageText text={item.text} />
-        </div>
+        <>
+          {item.attachments && <Attachments files={item.attachments} />}
+          <div className="ml-[52px] rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">
+            {item.parts ? item.parts.map((p, i) => (typeof p === "string" ? <MessageText key={i} text={p} /> : <SentChip key={i} part={p} />)) : <MessageText text={item.text} />}
+          </div>
+        </>
       );
     case "agent-head":
       return (
@@ -233,6 +237,68 @@ function Item({ item }: { item: ChatItem }) {
     case "error":
       return <div className="text-[13px] text-destructive">{item.text}</div>;
   }
+}
+
+const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette } as const;
+
+/** A chip in a sent message, as it looked in the prompt (PromptEditor's ChipView). */
+function SentChip({ part }: { part: Exclude<PromptPart, string> }) {
+  const Icon = CHIP_ICONS[part.kind as keyof typeof CHIP_ICONS] ?? Frame;
+  return (
+    <span
+      className={cx(
+        "mx-px inline-flex h-[21px] max-w-[200px] items-center gap-[3px] rounded-[4px] px-[5px] align-top text-[10px] leading-none",
+        part.kind === "skill" ? "bg-[#3c1e58] text-[#d2b3f0]" : "border border-input text-muted-foreground",
+      )}
+    >
+      <Icon size={11} strokeWidth={1.5} className="shrink-0" />
+      <span className="truncate">{part.chip}</span>
+    </span>
+  );
+}
+
+/**
+ * The files sent with a message, above it (Pen, 3 Nov 2026): pictures at full width under their name,
+ * other files as rows whose text opens beneath them.
+ */
+function Attachments({ files }: { files: SentAttachment[] }) {
+  return (
+    <div className="-mb-1 ml-[52px] rounded-[10px] border border-input px-2 pt-1.5 pb-1">
+      <div className="mb-1 flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+        <Paperclip size={12} strokeWidth={1.75} /> Attachments
+      </div>
+      {files.map((f, i) => (f.kind === "image" ? <AttachedPicture key={i} file={f} /> : <AttachedFile key={i} file={f} />))}
+    </div>
+  );
+}
+
+function AttachedPicture({ file }: { file: SentAttachment }) {
+  return (
+    <div className="mb-1.5">
+      <div className="mb-1 truncate text-[10px] text-muted-foreground">{file.name}</div>
+      {/* Past conversations keep no pictures (chat.ts); the name stays. */}
+      {file.url && <img src={file.url} alt={file.name} className="w-full rounded-[4px]" />}
+    </div>
+  );
+}
+
+function AttachedFile({ file }: { file: SentAttachment }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        disabled={file.text === undefined}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-6 w-full items-center gap-1.5 text-left text-[10px] text-muted-foreground"
+      >
+        <FileText size={12} strokeWidth={1.5} className="shrink-0" />
+        <span className="flex-1 truncate">{file.name}</span>
+        {file.text !== undefined && <ChevronsUpDown size={10} strokeWidth={1.5} className="shrink-0" />}
+      </button>
+      {open && <pre className="mb-1 max-h-[240px] overflow-auto rounded-[4px] px-2 py-1.5 font-mono text-[10px] leading-[14px] whitespace-pre-wrap text-foreground/80">{file.text}</pre>}
+    </div>
+  );
 }
 
 function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {

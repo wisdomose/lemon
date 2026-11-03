@@ -1,7 +1,7 @@
 // Electron's main process: owns the window (shell.ts: Home and a tab per open file), the documents (one
 // per file tab, editor.ts), the fonts and the agents. Tabs show their document and receive every change
 // as a Yjs update.
-import { app, clipboard, dialog, ipcMain, net, protocol, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
@@ -25,6 +25,9 @@ import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js
 import { McpAuth } from "./mcp-auth.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
+import { listWorkspace, readWorkspace, workspaceFolder } from "./workspace.js";
+import { Skills } from "./skills.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -203,9 +206,47 @@ async function main() {
     return editor ? Y.encodeStateAsUpdate(editor.doc) : new Uint8Array();
   });
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
+  ipcMain.handle("workspace:list", (e) => listWorkspace(workspaceFolder(editorOf(e)?.path ?? null), editorOf(e)?.path));
+  ipcMain.handle("workspace:read", (e, paths: string[]) => readWorkspace(workspaceFolder(editorOf(e)?.path ?? null), paths));
+  // The prompt's "/" skills: Pen's, and ones added from a folder (kept where they are).
+  const skills = new Skills(join(app.getPath("userData"), "skills.json"));
+  ipcMain.handle("skills:list", () => skills.list());
+  ipcMain.handle("skills:add", async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const options: Electron.OpenDialogOptions = { title: "Select a skill", properties: ["openDirectory"] };
+    const r = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+    if (r.canceled || !r.filePaths[0]) return skills.list();
+    const error = skills.add(r.filePaths[0]);
+    if (error) await (win ? dialog.showMessageBox(win, { type: "warning", message: error }) : dialog.showMessageBox({ type: "warning", message: error }));
+    return skills.list();
+  });
+  ipcMain.handle("skills:remove", async (e, path: string, name: string) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    // Pen's question, word for word but the app's name.
+    const options: Electron.MessageBoxOptions = {
+      type: "warning",
+      message: `Do you want to remove the ${name} skill from ${PRODUCT.name}?`,
+      detail: "The folder and the SKILL.md won't be deleted.",
+      buttons: ["Remove", "Cancel"],
+      defaultId: 0,
+      cancelId: 1,
+    };
+    const r = await (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+    if (r.response === 0) skills.remove(path);
+    return skills.list();
+  });
+  // A skill goes to the agent as its SKILL.md, named by where it is (as Pen's does).
+  ipcMain.handle("skills:read", (_e, paths: string[]): Attachment[] =>
+    paths.flatMap((path) => {
+      const text = skills.read(path);
+      return text === null ? [] : [{ name: path, kind: "text" as const, mediaType: "text/plain", data: text }];
+    }),
+  );
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants) => editorOf(e)?.runAgent(prompt, model, team, effort, variants));
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]) =>
+    editorOf(e)?.runAgent(prompt, model, team, effort, variants, attachments),
+  );
   ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
   ipcMain.handle("mcp:page", () => mcpSettings?.page());
   ipcMain.handle("mcp:set-servers", (_e, text: string) => {

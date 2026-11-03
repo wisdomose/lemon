@@ -198,6 +198,8 @@
   ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
   ::-webkit-scrollbar-thumb:active { background: var(--scroll-thumb-active); background-clip: padding-box; }
   ::-webkit-scrollbar-track { background: transparent; }
+  /* A scroller whose bar shows only while the pointer is over it (the prompt's attachment tray). */
+  .scroll-quiet:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
 }
 
 /* The Dashboard prompt's border (Pen's prompt starter): two soft spots of the picked kind's colour

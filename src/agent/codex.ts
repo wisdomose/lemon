@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { CodexModel } from "./models.js";
 import { PRODUCT } from "../product.js";
 import { forCodex, serverNames, type PersonServers } from "./mcp-servers.js";
+import { codexInput, type Attachment } from "./attachments.js";
 
 interface RpcMessage {
   id?: number | string;
@@ -263,6 +264,8 @@ interface CodexResult {
 export async function runCodex(o: {
   system: string;
   prompt: string;
+  /** Files attached to the prompt, sent before it. */
+  attachments?: Attachment[];
   model: string;
   effort?: string;
   signal?: AbortSignal;
@@ -386,7 +389,7 @@ export async function runCodex(o: {
     threadId = thread.thread.id;
     o.signal?.throwIfAborted();
     const turn = await connection.request<{ turn: { id: string } }>("turn/start", {
-      threadId, input: [{ type: "text", text: o.prompt, text_elements: [] }],
+      threadId, input: codexInput(o.attachments ?? [], o.prompt),
       ...(o.effort ? { effort: o.effort } : {}),
     });
     turnId = turn.turn.id;
