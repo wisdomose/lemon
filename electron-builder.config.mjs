@@ -12,6 +12,8 @@ export default {
   files: [
     "out/**",
     "product.json",
+    // Native windows load the same artwork in development and packaged apps.
+    "assets/icon.png",
     "package.json",
     "!**/*.map",
     // Codex comes with the app (src/agent/codex.ts) without its voice feature and file-search tool,
@@ -26,8 +28,9 @@ export default {
   // Double-clicking a design file opens it in the app.
   fileAssociations: [{ ext: product.fileExtension, name: "Pen design", role: "Editor" }],
   artifactName: `${product.slug}-\${version}-\${os}-\${arch}.\${ext}`,
-  win: { target: [{ target: "nsis", arch: ["x64"] }] },
+  mac: { icon: "assets/icon.icns" },
+  win: { icon: "assets/icon.ico", target: [{ target: "nsis", arch: ["x64"] }] },
   nsis: { oneClick: false, allowToChangeInstallationDirectory: true },
-  linux: { target: [{ target: "AppImage", arch: ["x64"] }], category: "Graphics" },
+  linux: { icon: "assets/icon.png", target: [{ target: "AppImage", arch: ["x64"] }], category: "Graphics" },
   publish: null,
 };

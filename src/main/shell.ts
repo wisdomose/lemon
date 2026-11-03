@@ -1,7 +1,8 @@
 // The one window, as in Pen: a Home tab (the Dashboard page) and a tab per open file, each tab its own
 // page. Only the chosen tab is shown; each page draws the tab strip in its own top bar from the list
 // this sends it.
-import { BaseWindow, WebContentsView, type WebContents } from "electron";
+import { app, BaseWindow, WebContentsView, type WebContents } from "electron";
+import { join } from "node:path";
 import { PRODUCT } from "../product.js";
 
 /** A tab as the top bar shows it. */
@@ -34,7 +35,8 @@ export class Shell {
   private active: FileTab | null = null;
 
   constructor(opts: { homeUrl: string; preload: string; onClosed: () => void }) {
-    this.win = new BaseWindow({ width: 1600, height: 1000, title: PRODUCT.name, backgroundColor: "#141414" });
+    // app.getAppPath resolves the bundled asset inside packaged apps too.
+    this.win = new BaseWindow({ icon: join(app.getAppPath(), "assets", "icon.png"), width: 1600, height: 1000, title: PRODUCT.name, backgroundColor: "#141414" });
     this.home = page(opts.preload);
     this.win.contentView.addChildView(this.home);
     void this.home.webContents.loadURL(opts.homeUrl);
