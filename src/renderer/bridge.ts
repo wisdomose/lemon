@@ -53,6 +53,10 @@ export interface Bridge {
   removeSkill(path: string, name: string): Promise<Skill[]>;
   /** Skills' SKILL.md files, as the agent gets them. */
   readSkills(paths: string[]): Promise<Attachment[]>;
+  /** Opens a copy of one of Lemon's design systems as a new draft; false if it couldn't. */
+  openDesignSystem(id: string): Promise<boolean>;
+  /** Puts one of Lemon's scripts beside this file (scripts/<id>.js): the uri for its node, or why not. */
+  placeScript(id: string): Promise<{ uri: string } | { error: string }>;
   /** Menu bar commands for this window. */
   onMenuCommand(fn: (command: WindowCommand) => void): void;
   /** A prompt this new window was opened with (from the Dashboard), once. */
@@ -213,6 +217,12 @@ export function browserBridge(): Bridge {
     },
     async readSkills() {
       return [];
+    },
+    async openDesignSystem() {
+      return false;
+    },
+    async placeScript() {
+      return { error: "Scripts need the desktop app." };
     },
     onMenuCommand() {},
     async startPrompt() {

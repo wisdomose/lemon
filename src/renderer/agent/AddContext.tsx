@@ -9,6 +9,8 @@ import { toggleSidebar } from "../chrome/BrowserSidebar.js";
 import { useEditor } from "../store.js";
 import { dataUrl, detach, pickFiles } from "./attach.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
+import { StyleGallery } from "./StyleGallery.js";
+import type { Direction } from "../../agent/directions.js";
 
 const ICON = { size: 14, strokeWidth: 1.5 } as const;
 
@@ -16,8 +18,9 @@ const ICON = { size: 14, strokeWidth: 1.5 } as const;
  * `focusPrompt`: where the caret goes once the menu closes (the prompt, as in Pen). `pickSkill` types
  * the "/" that opens the list of skills.
  */
-export function AddContext({ focusPrompt, pickSkill }: { focusPrompt: () => void; pickSkill: () => void }) {
+export function AddContext({ focusPrompt, pickSkill, pickStyle }: { focusPrompt: () => void; pickSkill: () => void; pickStyle: (style: Direction) => void }) {
   const [workspace, setWorkspace] = useState(false);
+  const [styles, setStyles] = useState(false);
   return (
     <>
       <M.Root>
@@ -42,14 +45,15 @@ export function AddContext({ focusPrompt, pickSkill }: { focusPrompt: () => void
           }}
         >
           <MenuLabel>Add to context</MenuLabel>
-          <MenuItem icon={<Paperclip {...ICON} />} label="Add image or file" onSelect={pickFiles} />
-          <MenuItem icon={<HardDrive {...ICON} />} label="Add from workspace" onSelect={() => setWorkspace(true)} />
-          <MenuItem icon={<Globe {...ICON} />} label="Import from browser" onSelect={() => toggleSidebar(true)} />
-          <MenuItem icon={<Palette {...ICON} />} label="Choose a style" />
-          <MenuItem icon={<Box {...ICON} />} label="Pick a skill" onSelect={pickSkill} />
+          <MenuItem grey icon={<Paperclip {...ICON} />} label="Add image or file" onSelect={pickFiles} />
+          <MenuItem grey icon={<HardDrive {...ICON} />} label="Add from workspace" onSelect={() => setWorkspace(true)} />
+          <MenuItem grey icon={<Globe {...ICON} />} label="Import from browser" onSelect={() => toggleSidebar(true)} />
+          <MenuItem grey icon={<Palette {...ICON} />} label="Choose a style" onSelect={() => setStyles(true)} />
+          <MenuItem grey icon={<Box {...ICON} />} label="Pick a skill" onSelect={pickSkill} />
         </MenuContent>
       </M.Root>
       <WorkspaceDialog open={workspace} onOpenChange={setWorkspace} focusPrompt={focusPrompt} />
+      <StyleGallery open={styles} onOpenChange={setStyles} onStyle={pickStyle} focusPrompt={focusPrompt} />
     </>
   );
 }

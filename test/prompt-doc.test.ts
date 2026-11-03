@@ -76,3 +76,24 @@ describe("selection chip in the prompt", () => {
     expect(promptText(state([chip(A)]).doc)).toMatchObject({ hasText: false, isEmpty: false });
   });
 });
+
+describe("skill and style chips", () => {
+  const SKILL: ChipRef = { id: "C:/skills/better-colors/SKILL.md", name: "better-colors", kind: "skill", forAgent: 'the skill "better-colors"' };
+  const STYLE: ChipRef = { id: "style:dark-tech", name: "Dark technical", kind: "style", forAgent: "\nUse the following style: Dark technical\n" };
+
+  it("never follow the selection: a new selection is added after them", () => {
+    expect(liveChip(state([chip(SKILL)]).doc)).toBeNull();
+    expect(after(state([chip(STYLE), text(" ")]), A).shown).toBe("[Dark technical] [Hero]");
+  });
+
+  it("give the agent what they stand for, and count as more than references", () => {
+    const p = promptText(state([chip(SKILL), text(" make it calm")]).doc);
+    expect(p.forAgent).toBe('the skill "better-colors" make it calm');
+    expect(p.hasText).toBe(true);
+    expect(promptText(state([chip(STYLE)]).doc).hasText).toBe(true);
+  });
+
+  it("keep their place in the sent message's parts", () => {
+    expect(promptText(state([text(" use "), chip(SKILL), text(" here ")]).doc).parts).toEqual(["use ", { chip: "better-colors", kind: "skill" }, " here"]);
+  });
+});

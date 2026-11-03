@@ -15,6 +15,7 @@ import { AddContext, AttachmentTray } from "./AddContext.js";
 import { attachFiles } from "./attach.js";
 import { matching, SkillList } from "./SkillList.js";
 import type { Skill } from "../../main/skills.js";
+import { styleText } from "../../agent/directions.js";
 
 /** A prompt's reference to the element picked in the browser sidebar (the agent reads it with target "selection"). */
 const BROWSER_SELECTION = "browser-selection";
@@ -106,7 +107,12 @@ export function ChatInput() {
         />
       </div>
       <div ref={footer} className="mt-auto flex h-6 items-center text-[11px] text-muted-foreground">
-        <AddContext focusPrompt={() => editor.current?.focus()} pickSkill={() => editor.current?.type("/")} />
+        <AddContext
+          focusPrompt={() => editor.current?.focus()}
+          pickSkill={() => editor.current?.type("/")}
+          // The agent reads the style on lines of its own in the chip's place (as Pen's does).
+          pickStyle={(d) => editor.current?.insertChip({ id: `style:${d.id}`, name: d.name, kind: "style", forAgent: `\n${styleText(d)}\n` })}
+        />
         <ParallelAgents anchor={footer} />
         <Variants anchor={footer} />
         <ModelPicker />

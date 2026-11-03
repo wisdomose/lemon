@@ -1,6 +1,6 @@
 // The Agent tab: session row, then the empty state or the conversation with step cards.
 import { useEffect, useRef, useState } from "react";
-import { Box, ChevronDown, ChevronsUpDown, Circle, CircleCheck, CircleX, FileText, Frame, Globe, Image as ImageIcon, Layers, Palette, Paperclip, Plus, Square, Type } from "lucide-react";
+import { Box, ChevronDown, Code, ChevronsUpDown, Circle, CircleCheck, CircleX, FileText, Frame, Globe, Image as ImageIcon, Layers, Palette, Paperclip, Plus, Square, Type } from "lucide-react";
 import { AGENTS } from "../../agent/models.js";
 import { useEditor, type ChatItem, type SentAttachment } from "../store.js";
 import { CHAT_ZOOM, useSettings } from "../settings.js";
@@ -11,6 +11,7 @@ import { DropdownMenu as M } from "radix-ui";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
 import { MessageText } from "./links.js";
 import type { PromptPart } from "./prompt-doc.js";
+import { CHIP_LOOK, CHIP_PLAIN } from "./PromptEditor.js";
 
 // Our own example prompts and tips, laid out as Pen lays out its empty state.
 const EXAMPLES = [
@@ -239,7 +240,7 @@ function Item({ item }: { item: ChatItem }) {
   }
 }
 
-const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette } as const;
+const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code } as const;
 
 /** A chip in a sent message, as it looked in the prompt (PromptEditor's ChipView). */
 function SentChip({ part }: { part: Exclude<PromptPart, string> }) {
@@ -247,8 +248,8 @@ function SentChip({ part }: { part: Exclude<PromptPart, string> }) {
   return (
     <span
       className={cx(
-        "mx-px inline-flex h-[21px] max-w-[200px] items-center gap-[3px] rounded-[4px] px-[5px] align-top text-[10px] leading-none",
-        part.kind === "skill" ? "bg-[#3c1e58] text-[#d2b3f0]" : "border border-input text-muted-foreground",
+        "mx-px inline-flex h-[21px] items-center gap-[3px] rounded-[4px] px-[5px] align-top text-[10px] leading-none",
+        CHIP_LOOK[part.kind] ?? CHIP_PLAIN,
       )}
     >
       <Icon size={11} strokeWidth={1.5} className="shrink-0" />

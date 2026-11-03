@@ -28,6 +28,8 @@ import type { Variants } from "../agent/agent.js";
 import type { Attachment } from "../agent/attachments.js";
 import { listWorkspace, readWorkspace, workspaceFolder } from "./workspace.js";
 import { Skills } from "./skills.js";
+import { copyDesignSystem } from "./design-systems.js";
+import { placeLibraryScript } from "./script-library.js";
 
 // Developer switches are environment variables, all off in normal use; .env.example lists them.
 // While developing (not in the installed app), a .env file in the project folder is read first; values
@@ -208,6 +210,13 @@ async function main() {
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   ipcMain.handle("workspace:list", (e) => listWorkspace(workspaceFolder(editorOf(e)?.path ?? null), editorOf(e)?.path));
   ipcMain.handle("workspace:read", (e, paths: string[]) => readWorkspace(workspaceFolder(editorOf(e)?.path ?? null), paths));
+  // "Choose a style" → Design Systems: a copy opens as a new draft.
+  ipcMain.handle("gallery:open-design-system", async (_e, id: string) => {
+    const path = copyDesignSystem(id);
+    return path ? (await openPaths([path])) > 0 : false;
+  });
+  // "Choose a style" → Scripts: the script goes beside the file; the tab adds the node.
+  ipcMain.handle("gallery:place-script", (e, id: string) => placeLibraryScript(editorOf(e)?.path ?? null, id));
   // The prompt's "/" skills: Pen's, and ones added from a folder (kept where they are).
   const skills = new Skills(join(app.getPath("userData"), "skills.json"));
   ipcMain.handle("skills:list", () => skills.list());

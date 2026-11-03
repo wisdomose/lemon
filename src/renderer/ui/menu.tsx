@@ -38,6 +38,7 @@ export function MenuItem({
   icon,
   onSelect,
   disabled,
+  grey,
 }: {
   label: ReactNode;
   keys?: string;
@@ -51,9 +52,15 @@ export function MenuItem({
   icon?: ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
+  /** Highlighted grey rather than blue (the prompt's "+" menu, as in Pen). */
+  grey?: boolean;
 }) {
   return (
-    <M.Item className={cx(MENU_ROW, "group", current && "bg-input", danger && "text-destructive")} onSelect={onSelect} disabled={disabled}>
+    <M.Item
+      className={cx(MENU_ROW, "group", current && "bg-input", danger && "text-destructive", grey && "data-[highlighted]:!bg-input data-[highlighted]:!text-foreground")}
+      onSelect={onSelect}
+      disabled={disabled}
+    >
       {icon}
       <span className="flex-1">{label}</span>
       {checked && <Check size={14} strokeWidth={1.5} />}

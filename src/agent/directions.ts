@@ -27,6 +27,22 @@ export function pickStartingPoints(recent: string[] = [], random: () => number =
   return (fresh.length >= STARTING_POINTS ? fresh : shuffled).slice(0, STARTING_POINTS);
 }
 
+/**
+ * A style as the prompt gives it to the agent when picked from "Choose a style": Pen's words ("Use the
+ * following style: <name>", then the style's parts as a list), with Lemon's parts.
+ */
+export function styleText(d: Direction): string {
+  return [
+    `Use the following style: ${d.name}`,
+    `- idea: ${d.idea}`,
+    `- composition: ${d.composition}`,
+    `- type: ${d.type}`,
+    `- colour: ${d.colour}`,
+    `- imagery: ${d.imagery}`,
+    `- details: ${d.details}`,
+  ].join("\n");
+}
+
 export function libraryText(): string {
   return DIRECTIONS.map(
     (d) =>

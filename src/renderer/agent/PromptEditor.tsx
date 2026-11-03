@@ -8,15 +8,17 @@ import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import type { Node as PMNode } from "prosemirror-model";
-import { Box, Circle, createElement, Frame, Globe, Image, Layers, Palette, Square, Type, type IconNode } from "lucide";
+import { Box, Circle, Code, createElement, Frame, Globe, Image, Layers, Palette, Square, Type, type IconNode } from "lucide";
 import { followSelection, promptSchema, promptText, type ChipRef } from "./prompt-doc.js";
 
-const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image, nodes: Layers, browser: Globe, skill: Box, style: Palette };
+const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code };
 
-/** A skill's chip is filled purple (Pen, 3 Nov 2026); the others are outlined. */
-const CHIP_LOOK: Record<string, string> = {
-  skill: "bg-[#3c1e58] text-[#d2b3f0]",
+/** A skill's chip is filled purple, a style's is narrower (Pen, 3 Nov 2026); the others are outlined. */
+export const CHIP_LOOK: Record<string, string> = {
+  skill: "max-w-[200px] bg-[#3c1e58] text-[#d2b3f0]",
+  style: "max-w-[140px] border border-input text-muted-foreground",
 };
+export const CHIP_PLAIN = "max-w-[200px] border border-input text-muted-foreground";
 
 /**
  * How a chip looks (measured from the reference: 21px tall, 1px border, 10px muted text). It is anchored
@@ -27,8 +29,8 @@ class ChipView implements NodeView {
   dom: HTMLElement;
   constructor(node: PMNode) {
     const el = document.createElement("span");
-    el.className = `mx-px inline-flex h-[21px] max-w-[200px] items-center gap-[3px] rounded-[4px] px-[5px] mb-[-2px] align-top text-[10px] leading-none select-none ${
-      CHIP_LOOK[node.attrs.kind as string] ?? "border border-input text-muted-foreground"
+    el.className = `mx-px inline-flex h-[21px] items-center gap-[3px] rounded-[4px] px-[5px] mb-[-2px] align-top text-[10px] leading-none select-none ${
+      CHIP_LOOK[node.attrs.kind as string] ?? CHIP_PLAIN
     }`;
     el.contentEditable = "false";
     const icon = createElement(ICONS[node.attrs.kind as string] ?? Frame, { width: 11, height: 11, "stroke-width": 1.5 });

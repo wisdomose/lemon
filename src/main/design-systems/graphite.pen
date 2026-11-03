@@ -1,0 +1,3733 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "f7n4p",
+      "name": "Button",
+      "width": 462,
+      "height": 192,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 0,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "SVTAG",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "JOxuD",
+              "name": "Index",
+              "content": "01 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "d32J4",
+              "name": "Title",
+              "content": "Button",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "DzHiI",
+          "name": "Variants",
+          "gap": "$space-3",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "43l8P",
+              "name": "Button / Primary",
+              "height": "$control-h",
+              "padding": [
+                0,
+                10
+              ],
+              "gap": 6,
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "fill": "$accent",
+              "reusable": true,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "x7kXU",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "rocket",
+                  "fill": "$on-accent"
+                },
+                {
+                  "type": "text",
+                  "id": "hVF86",
+                  "name": "Label",
+                  "content": "Deploy",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "500",
+                  "fill": "$on-accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kf0DU",
+              "name": "Button / Secondary",
+              "height": "$control-h",
+              "padding": [
+                0,
+                10
+              ],
+              "gap": 6,
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "fill": "$surface-3",
+              "stroke": "$border-strong",
+              "strokeWidth": 1,
+              "reusable": true,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "POIfV",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "download",
+                  "fill": "$text"
+                },
+                {
+                  "type": "text",
+                  "id": "bMtKq",
+                  "name": "Label",
+                  "content": "Export",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "500",
+                  "fill": "$text"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "9j0ma",
+              "name": "Button / Ghost",
+              "height": "$control-h",
+              "padding": [
+                0,
+                10
+              ],
+              "gap": 6,
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "reusable": true,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "VBKZx",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "x",
+                  "fill": "$text-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "4BHJ4",
+                  "name": "Label",
+                  "content": "Cancel",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "500",
+                  "fill": "$text-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "BeRrG",
+      "name": "Icon Button",
+      "width": 462,
+      "height": 192,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 494,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Flnyn",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "xjaRU",
+              "name": "Index",
+              "content": "02 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "C6LEh",
+              "name": "Title",
+              "content": "Icon Button",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "dwAgg",
+          "name": "Icon Button",
+          "width": "$control-h",
+          "height": "$control-h",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "cornerRadius": "$radius-sm",
+          "fill": "$surface-2",
+          "stroke": "$border",
+          "strokeWidth": 1,
+          "reusable": true,
+          "children": [
+            {
+              "type": "icon",
+              "id": "NC94T",
+              "width": 14,
+              "height": 14,
+              "library": "lucide",
+              "name": "Icon",
+              "icon": "bell",
+              "fill": "$text-muted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "cnjcZ",
+      "name": "Input",
+      "width": 462,
+      "height": 192,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 988,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Xii4j",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "XWBMB",
+              "name": "Index",
+              "content": "03 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "rhkEp",
+              "name": "Title",
+              "content": "Input",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "wnk1L",
+          "name": "Input",
+          "width": 260,
+          "layout": "vertical",
+          "gap": 6,
+          "reusable": true,
+          "children": [
+            {
+              "type": "text",
+              "id": "mxmvp",
+              "name": "Label",
+              "content": "Search",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xs",
+              "fontWeight": "500",
+              "fill": "$text-muted"
+            },
+            {
+              "type": "frame",
+              "id": "btvOW",
+              "name": "Field",
+              "width": "fill_container",
+              "height": "$control-h",
+              "padding": [
+                0,
+                8
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "fill": "$surface-2",
+              "stroke": "$border-strong",
+              "strokeWidth": 1,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "ysCTA",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "search",
+                  "fill": "$text-subtle"
+                },
+                {
+                  "type": "text",
+                  "id": "gMqUl",
+                  "name": "Placeholder",
+                  "content": "Search services, commits…",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-subtle",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "frame",
+                  "id": "KwGx9",
+                  "name": "Shortcut",
+                  "height": 18,
+                  "padding": [
+                    0,
+                    5
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": "$radius-xs",
+                  "fill": "$surface-3",
+                  "stroke": "$border-strong",
+                  "strokeWidth": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aBSYh",
+                      "name": "Shortcut Key",
+                      "content": "⌘K",
+                      "fontFamily": "$font-mono",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "IuZYD",
+      "name": "Select",
+      "width": 462,
+      "height": 192,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 1482,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "zlqPE",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "L1efv",
+              "name": "Index",
+              "content": "04 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "Wg4tP",
+              "name": "Title",
+              "content": "Select",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "tFnpB",
+          "name": "Select",
+          "width": 260,
+          "layout": "vertical",
+          "gap": 6,
+          "reusable": true,
+          "children": [
+            {
+              "type": "text",
+              "id": "UBP6q",
+              "name": "Label",
+              "content": "Environment",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xs",
+              "fontWeight": "500",
+              "fill": "$text-muted"
+            },
+            {
+              "type": "frame",
+              "id": "nHpFA",
+              "name": "Field",
+              "width": "fill_container",
+              "height": "$control-h",
+              "padding": [
+                0,
+                8
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "fill": "$surface-2",
+              "stroke": "$border-strong",
+              "strokeWidth": 1,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "TSUiv",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Lead Icon",
+                  "icon": "server",
+                  "fill": "$text-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "4VARk",
+                  "name": "Value",
+                  "content": "Production",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "icon",
+                  "id": "hBY4W",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Chevron",
+                  "icon": "chevrons-up-down",
+                  "fill": "$text-subtle"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Qt4be",
+      "name": "Checkbox",
+      "width": 462,
+      "height": 200,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 0,
+      "y": 224,
+      "children": [
+        {
+          "type": "frame",
+          "id": "ujY0Q",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "LavAb",
+              "name": "Index",
+              "content": "05 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "41ej6",
+              "name": "Title",
+              "content": "Checkbox",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "p9uWt",
+          "name": "Checkbox",
+          "gap": "$space-2",
+          "alignItems": "center",
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "WAAln",
+              "name": "Box",
+              "width": 16,
+              "height": 16,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": "$radius-xs",
+              "fill": "$accent",
+              "stroke": "$accent",
+              "strokeWidth": 1,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "NF8BJ",
+                  "width": 12,
+                  "height": 12,
+                  "library": "lucide",
+                  "name": "Check",
+                  "icon": "check",
+                  "fill": "$on-accent"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "geGmL",
+              "name": "Label",
+              "content": "Notify on failed deploys",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "ref",
+          "id": "BtqJp",
+          "ref": "p9uWt",
+          "name": "Checkbox / Unchecked",
+          "descendants": {
+            "WAAln": {
+              "fill": "$surface-2",
+              "stroke": "$border-strong"
+            },
+            "NF8BJ": {
+              "enabled": false
+            },
+            "geGmL": {
+              "content": "Require approval for production"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "tUhyC",
+      "name": "Switch",
+      "width": 462,
+      "height": 200,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 494,
+      "y": 224,
+      "children": [
+        {
+          "type": "frame",
+          "id": "7rL5P",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "WaOUh",
+              "name": "Index",
+              "content": "06 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "b8IgS",
+              "name": "Title",
+              "content": "Switch",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Au0DR",
+          "name": "Switch",
+          "gap": "$space-2",
+          "alignItems": "center",
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "gSZTA",
+              "name": "Track",
+              "width": 28,
+              "height": 16,
+              "padding": 2,
+              "justifyContent": "end",
+              "alignItems": "center",
+              "cornerRadius": 8,
+              "fill": "$accent",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "bdnUT",
+                  "width": 12,
+                  "height": 12,
+                  "name": "Knob",
+                  "fill": "$on-accent"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "H4Kv3",
+              "name": "Label",
+              "content": "Auto-rollback",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-sm",
+              "fontWeight": "400",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "ref",
+          "id": "iHZtr",
+          "ref": "Au0DR",
+          "name": "Switch / Off",
+          "descendants": {
+            "gSZTA": {
+              "fill": "$surface-3",
+              "justifyContent": "start"
+            },
+            "bdnUT": {
+              "fill": "$text-subtle"
+            },
+            "H4Kv3": {
+              "content": "Preview environments"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "1HPfE",
+      "name": "Badge",
+      "width": 462,
+      "height": 200,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 988,
+      "y": 224,
+      "children": [
+        {
+          "type": "frame",
+          "id": "LMUTI",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "tyeJf",
+              "name": "Index",
+              "content": "07 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "bBG3B",
+              "name": "Title",
+              "content": "Badge",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "xE2Sn",
+          "name": "Tones",
+          "gap": "$space-2",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "WexCj",
+              "name": "Badge",
+              "height": 20,
+              "padding": [
+                0,
+                6
+              ],
+              "gap": 5,
+              "alignItems": "center",
+              "cornerRadius": "$radius-xs",
+              "fill": "$accent-soft",
+              "reusable": true,
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "wEqVr",
+                  "width": 6,
+                  "height": 6,
+                  "name": "Dot",
+                  "fill": "$accent-text"
+                },
+                {
+                  "type": "text",
+                  "id": "0YDJf",
+                  "name": "Label",
+                  "content": "Building",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "500",
+                  "fill": "$accent-text"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "Z8uER",
+              "ref": "WexCj",
+              "name": "Badge / Live",
+              "fill": "$success-soft",
+              "descendants": {
+                "wEqVr": {
+                  "fill": "$success"
+                },
+                "0YDJf": {
+                  "content": "Live",
+                  "fill": "$success"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "n4Xwj",
+              "ref": "WexCj",
+              "name": "Badge / Queued",
+              "fill": "$warning-soft",
+              "descendants": {
+                "wEqVr": {
+                  "fill": "$warning"
+                },
+                "0YDJf": {
+                  "content": "Queued",
+                  "fill": "$warning"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "MLqST",
+              "ref": "WexCj",
+              "name": "Badge / Failed",
+              "fill": "$danger-soft",
+              "descendants": {
+                "wEqVr": {
+                  "fill": "$danger"
+                },
+                "0YDJf": {
+                  "content": "Failed",
+                  "fill": "$danger"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "pgwCE",
+              "ref": "WexCj",
+              "name": "Badge / Neutral",
+              "fill": "$surface-3",
+              "descendants": {
+                "wEqVr": {
+                  "fill": "$text-subtle"
+                },
+                "0YDJf": {
+                  "content": "Canceled",
+                  "fill": "$text-muted"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "n6Nom",
+      "name": "Avatar",
+      "width": 462,
+      "height": 200,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 1482,
+      "y": 224,
+      "children": [
+        {
+          "type": "frame",
+          "id": "pwu5s",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "ylHgV",
+              "name": "Index",
+              "content": "08 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "zvj82",
+              "name": "Title",
+              "content": "Avatar",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ZltFF",
+          "name": "Examples",
+          "gap": "$space-2",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "W2UzS",
+              "name": "Avatar",
+              "width": 24,
+              "height": 24,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "cornerRadius": 12,
+              "fill": "$accent-soft",
+              "stroke": "$accent-line",
+              "strokeWidth": 1,
+              "reusable": true,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "b1hYc",
+                  "name": "Initials",
+                  "content": "MO",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "600",
+                  "fill": "$accent-text"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "klsCH",
+              "ref": "W2UzS",
+              "name": "Avatar / TA",
+              "fill": "$success-soft",
+              "stroke": "$border-strong",
+              "descendants": {
+                "b1hYc": {
+                  "content": "TA",
+                  "fill": "$success"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "iJ86n",
+              "ref": "W2UzS",
+              "name": "Avatar / KR",
+              "fill": "$warning-soft",
+              "stroke": "$border-strong",
+              "descendants": {
+                "b1hYc": {
+                  "content": "KR",
+                  "fill": "$warning"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "cdH6l",
+              "ref": "W2UzS",
+              "name": "Avatar / LS",
+              "fill": "$danger-soft",
+              "stroke": "$border-strong",
+              "descendants": {
+                "b1hYc": {
+                  "content": "LS",
+                  "fill": "$danger"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "C4qXH",
+      "name": "Tabs",
+      "width": 462,
+      "height": 240,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 0,
+      "y": 456,
+      "children": [
+        {
+          "type": "frame",
+          "id": "1CWCN",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "xsTVi",
+              "name": "Index",
+              "content": "09 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "hmFbh",
+              "name": "Title",
+              "content": "Tabs",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Xi621",
+          "name": "Tabs",
+          "width": 398,
+          "gap": "$space-5",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "yBhVk",
+              "name": "Tab 1",
+              "height": 32,
+              "gap": 6,
+              "alignItems": "center",
+              "stroke": "$accent",
+              "strokeWidth": {
+                "bottom": 2
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MQEwn",
+                  "name": "Tab 1 Label",
+                  "content": "Overview",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "500",
+                  "fill": "$text"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RNvmV",
+              "name": "Tab 2",
+              "height": 32,
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "i0Wtw",
+                  "name": "Tab 2 Label",
+                  "content": "Deployments",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "500",
+                  "fill": "$text-muted"
+                },
+                {
+                  "type": "frame",
+                  "id": "emHyi",
+                  "name": "Tab 2 Count",
+                  "height": 16,
+                  "padding": [
+                    0,
+                    5
+                  ],
+                  "alignItems": "center",
+                  "cornerRadius": "$radius-xs",
+                  "fill": "$surface-3",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Fkrub",
+                      "name": "Tab 2 Count Text",
+                      "content": "128",
+                      "fontFamily": "$font-mono",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Dz7pY",
+              "name": "Tab 3",
+              "height": 32,
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "isnld",
+                  "name": "Tab 3 Label",
+                  "content": "Logs",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "500",
+                  "fill": "$text-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wmPt1",
+              "name": "Tab 4",
+              "height": 32,
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "sa4mZ",
+                  "name": "Tab 4 Label",
+                  "content": "Settings",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "500",
+                  "fill": "$text-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "foRJV",
+      "name": "Sidebar Item",
+      "width": 462,
+      "height": 240,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 494,
+      "y": 456,
+      "children": [
+        {
+          "type": "frame",
+          "id": "v4h0v",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "S4Vor",
+              "name": "Index",
+              "content": "10 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "jHkRq",
+              "name": "Title",
+              "content": "Sidebar Item",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yhira",
+          "name": "States",
+          "width": 232,
+          "layout": "vertical",
+          "gap": 2,
+          "children": [
+            {
+              "type": "frame",
+              "id": "s6SOW",
+              "name": "Sidebar Item",
+              "width": 232,
+              "height": "$control-h",
+              "padding": [
+                0,
+                8
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "cornerRadius": "$radius-sm",
+              "fill": "$surface-3",
+              "reusable": true,
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "rlz9y",
+                  "width": 15,
+                  "height": 15,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "rocket",
+                  "fill": "$accent-text"
+                },
+                {
+                  "type": "text",
+                  "id": "1i1mk",
+                  "name": "Label",
+                  "content": "Deployments",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "500",
+                  "fill": "$text",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "text",
+                  "id": "DYN6A",
+                  "name": "Count",
+                  "content": "12",
+                  "fontFamily": "$font-mono",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "400",
+                  "fill": "$text-subtle"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "Rgkr2",
+              "ref": "s6SOW",
+              "name": "Sidebar Item / Services",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "layout-grid",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Services",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "34"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "oDQca",
+              "ref": "s6SOW",
+              "name": "Sidebar Item / Monitoring",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "activity",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Monitoring",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "m5ApQ",
+      "name": "Card",
+      "width": 462,
+      "height": 240,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 988,
+      "y": 456,
+      "children": [
+        {
+          "type": "frame",
+          "id": "3IlhJ",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "A8I7h",
+              "name": "Index",
+              "content": "11 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "4ixFM",
+              "name": "Title",
+              "content": "Card",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "QMiOB",
+          "name": "Card",
+          "width": 336,
+          "layout": "vertical",
+          "cornerRadius": "$radius-lg",
+          "fill": "$surface",
+          "stroke": "$border",
+          "strokeWidth": 1,
+          "clip": true,
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "3KHmf",
+              "name": "Card Header",
+              "width": "fill_container",
+              "height": 40,
+              "padding": [
+                0,
+                12
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "stroke": "$border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zyDE6",
+                  "name": "Card Title",
+                  "content": "Recent deployments",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "600",
+                  "fill": "$text",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "text",
+                  "id": "yu0Bb",
+                  "name": "Card Action",
+                  "content": "View all",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "500",
+                  "fill": "$accent-text"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "t9aF0",
+              "name": "Body",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": "$space-2",
+              "padding": "$space-3",
+              "slot": [],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZHGA7",
+                  "name": "Body Text",
+                  "content": "Drop any content into the card body. Header and action are optional.",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "UemWa",
+      "name": "Stat",
+      "width": 462,
+      "height": 240,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 1482,
+      "y": 456,
+      "children": [
+        {
+          "type": "frame",
+          "id": "vCf52",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "T6AE3",
+              "name": "Index",
+              "content": "12 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "HzT9k",
+              "name": "Title",
+              "content": "Stat",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "cr7Bz",
+          "name": "Stat",
+          "width": 240,
+          "layout": "vertical",
+          "gap": 6,
+          "padding": [
+            12,
+            14
+          ],
+          "cornerRadius": "$radius-lg",
+          "fill": "$surface",
+          "stroke": "$border",
+          "strokeWidth": 1,
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "CMEHN",
+              "name": "Stat Head",
+              "width": "fill_container",
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "LQjm3",
+                  "name": "Stat Label",
+                  "content": "Deploys today",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "icon",
+                  "id": "iWipd",
+                  "width": 14,
+                  "height": 14,
+                  "library": "lucide",
+                  "name": "Stat Icon",
+                  "icon": "rocket",
+                  "fill": "$text-subtle"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "3W6l4",
+              "name": "Stat Value",
+              "content": "248",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-xl",
+              "fontWeight": "500",
+              "fill": "$text"
+            },
+            {
+              "type": "frame",
+              "id": "8sSdC",
+              "name": "Stat Delta",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "lw4vq",
+                  "width": 12,
+                  "height": 12,
+                  "library": "lucide",
+                  "name": "Delta Icon",
+                  "icon": "trending-up",
+                  "fill": "$success"
+                },
+                {
+                  "type": "text",
+                  "id": "5SpDL",
+                  "name": "Delta Value",
+                  "content": "+12.4%",
+                  "fontFamily": "$font-mono",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "500",
+                  "fill": "$success"
+                },
+                {
+                  "type": "text",
+                  "id": "mcPTE",
+                  "name": "Delta Caption",
+                  "content": "vs last week",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "400",
+                  "fill": "$text-subtle"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "rx9Zj",
+      "name": "Table Row",
+      "width": 840,
+      "height": 320,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 0,
+      "y": 728,
+      "children": [
+        {
+          "type": "frame",
+          "id": "7fCam",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "3lYND",
+              "name": "Index",
+              "content": "13 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "a2j6A",
+              "name": "Title",
+              "content": "Table Row",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "zF4m5",
+          "name": "Table",
+          "width": 776,
+          "layout": "vertical",
+          "cornerRadius": "$radius-md",
+          "stroke": "$border",
+          "strokeWidth": 1,
+          "clip": true,
+          "fill": "$surface",
+          "children": [
+            {
+              "type": "frame",
+              "id": "5LG8d",
+              "name": "Table Row / Header",
+              "width": "fill_container",
+              "height": 32,
+              "padding": [
+                0,
+                12
+              ],
+              "gap": "$space-4",
+              "alignItems": "center",
+              "fill": "$surface-2",
+              "stroke": "$border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "reusable": true,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "oREv6",
+                  "name": "Service Cell",
+                  "width": "fill_container",
+                  "gap": "$space-2",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cLZDO",
+                      "name": "Service",
+                      "content": "SERVICE",
+                      "fontFamily": "$font-ui",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "500",
+                      "fill": "$text-subtle",
+                      "letterSpacing": 0.6
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "E9sL4",
+                  "name": "Status Cell",
+                  "width": 110,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "O8stj",
+                      "name": "Status Head",
+                      "content": "STATUS",
+                      "fontFamily": "$font-ui",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "500",
+                      "fill": "$text-subtle",
+                      "letterSpacing": 0.6
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NCQyi",
+                  "name": "Author Cell",
+                  "width": 150,
+                  "gap": "$space-2",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pXFB6",
+                      "name": "Author",
+                      "content": "AUTHOR",
+                      "fontFamily": "$font-ui",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "500",
+                      "fill": "$text-subtle",
+                      "letterSpacing": 0.6
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "cz4BY",
+                  "name": "Duration",
+                  "content": "DURATION",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "500",
+                  "fill": "$text-subtle",
+                  "width": 80,
+                  "textGrowth": "fixed-width",
+                  "textAlign": "right",
+                  "letterSpacing": 0.6
+                },
+                {
+                  "type": "text",
+                  "id": "6RSYJ",
+                  "name": "When",
+                  "content": "WHEN",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-2xs",
+                  "fontWeight": "500",
+                  "fill": "$text-subtle",
+                  "width": 90,
+                  "textGrowth": "fixed-width",
+                  "textAlign": "right",
+                  "letterSpacing": 0.6
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "U91fd",
+              "name": "Table Row",
+              "width": "fill_container",
+              "height": 36,
+              "padding": [
+                0,
+                12
+              ],
+              "gap": "$space-4",
+              "alignItems": "center",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "reusable": true,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "SoSa8",
+                  "name": "Service Cell",
+                  "width": "fill_container",
+                  "gap": "$space-2",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "eZEhU",
+                      "width": 14,
+                      "height": 14,
+                      "library": "lucide",
+                      "name": "Commit Icon",
+                      "icon": "git-commit-horizontal",
+                      "fill": "$text-subtle"
+                    },
+                    {
+                      "type": "text",
+                      "id": "OND24",
+                      "name": "Service",
+                      "content": "checkout-api",
+                      "fontFamily": "$font-ui",
+                      "fontSize": "$text-sm",
+                      "fontWeight": "500",
+                      "fill": "$text"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YdBOM",
+                      "name": "Commit",
+                      "content": "a3f91c2",
+                      "fontFamily": "$font-mono",
+                      "fontSize": "$text-2xs",
+                      "fontWeight": "400",
+                      "fill": "$text-subtle"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "R7gWo",
+                  "name": "Status Cell",
+                  "width": 110,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "vdDzY",
+                      "ref": "WexCj",
+                      "name": "Status",
+                      "fill": "$success-soft",
+                      "descendants": {
+                        "wEqVr": {
+                          "fill": "$success"
+                        },
+                        "0YDJf": {
+                          "content": "Live",
+                          "fill": "$success"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "EfUOr",
+                  "name": "Author Cell",
+                  "width": 150,
+                  "gap": "$space-2",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "spdjJ",
+                      "ref": "W2UzS",
+                      "name": "Author Avatar"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TLssf",
+                      "name": "Author",
+                      "content": "Maya Okafor",
+                      "fontFamily": "$font-ui",
+                      "fontSize": "$text-xs",
+                      "fontWeight": "400",
+                      "fill": "$text-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ynG2f",
+                  "name": "Duration",
+                  "content": "1m 42s",
+                  "fontFamily": "$font-mono",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": 80,
+                  "textGrowth": "fixed-width",
+                  "textAlign": "right"
+                },
+                {
+                  "type": "text",
+                  "id": "fhjEG",
+                  "name": "When",
+                  "content": "4 min ago",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": 90,
+                  "textGrowth": "fixed-width",
+                  "textAlign": "right"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "nFzuu",
+              "ref": "U91fd",
+              "name": "Table Row / Failed",
+              "descendants": {
+                "OND24": {
+                  "content": "billing-worker"
+                },
+                "YdBOM": {
+                  "content": "7be04d9"
+                },
+                "vdDzY": {
+                  "fill": "$danger-soft"
+                },
+                "Status/Dot": {
+                  "fill": "$danger"
+                },
+                "Status/Label": {
+                  "content": "Failed",
+                  "fill": "$danger"
+                },
+                "Author Avatar/Initials": {
+                  "content": "TA"
+                },
+                "TLssf": {
+                  "content": "Tomás Aguilar"
+                },
+                "ynG2f": {
+                  "content": "0m 58s"
+                },
+                "fhjEG": {
+                  "content": "11 min ago"
+                },
+                "vdDzY/wEqVr": {
+                  "fill": "$danger"
+                },
+                "vdDzY/0YDJf": {
+                  "content": "Failed",
+                  "fill": "$danger"
+                },
+                "spdjJ/b1hYc": {
+                  "content": "TA",
+                  "fill": "$success"
+                },
+                "spdjJ": {
+                  "fill": "$success-soft",
+                  "stroke": "$border-strong"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "k7sxh",
+      "name": "Alert",
+      "width": 520,
+      "height": 320,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 872,
+      "y": 728,
+      "children": [
+        {
+          "type": "frame",
+          "id": "LyZ0U",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "yhAiM",
+              "name": "Index",
+              "content": "14 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "efmSQ",
+              "name": "Title",
+              "content": "Alert",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "CbEbq",
+          "name": "Alert",
+          "width": 456,
+          "gap": 10,
+          "padding": [
+            10,
+            12
+          ],
+          "cornerRadius": "$radius-md",
+          "fill": "$accent-soft",
+          "stroke": "$accent-line",
+          "strokeWidth": 1,
+          "reusable": true,
+          "children": [
+            {
+              "type": "icon",
+              "id": "JzpIp",
+              "width": 16,
+              "height": 16,
+              "library": "lucide",
+              "name": "Alert Icon",
+              "icon": "info",
+              "fill": "$accent-text"
+            },
+            {
+              "type": "frame",
+              "id": "mCv8x",
+              "name": "Alert Body",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "L13H7",
+                  "name": "Alert Title",
+                  "content": "Maintenance window tonight",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "600",
+                  "fill": "$text",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "text",
+                  "id": "AOKKd",
+                  "name": "Alert Text",
+                  "content": "eu-west-1 builders restart at 02:00 UTC. Queued jobs resume automatically.",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-xs",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width",
+                  "lineHeight": 1.45
+                }
+              ]
+            },
+            {
+              "type": "icon",
+              "id": "MGX8X",
+              "width": 14,
+              "height": 14,
+              "library": "lucide",
+              "name": "Alert Close",
+              "icon": "x",
+              "fill": "$text-subtle"
+            }
+          ]
+        },
+        {
+          "type": "ref",
+          "id": "RMHSC",
+          "ref": "CbEbq",
+          "name": "Alert / Danger",
+          "fill": "$danger-soft",
+          "stroke": "$danger",
+          "descendants": {
+            "JzpIp": {
+              "icon": "octagon-alert",
+              "fill": "$danger"
+            },
+            "L13H7": {
+              "content": "billing-worker failed health checks"
+            },
+            "AOKKd": {
+              "content": "3 of 4 replicas returned 503 after deploy 7be04d9. Traffic was rolled back."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Z0yS1",
+      "name": "Dialog",
+      "width": 520,
+      "height": 320,
+      "layout": "vertical",
+      "gap": "$space-6",
+      "padding": "$space-8",
+      "fill": "$bg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "cornerRadius": "$radius-lg",
+      "placeholder": false,
+      "x": 1424,
+      "y": 728,
+      "children": [
+        {
+          "type": "frame",
+          "id": "wdqgq",
+          "name": "Header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": "$space-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "OIFeo",
+              "name": "Index",
+              "content": "15 / COMPONENT",
+              "fontFamily": "$font-mono",
+              "fontSize": "$text-2xs",
+              "fontWeight": "400",
+              "fill": "$text-subtle",
+              "letterSpacing": 1
+            },
+            {
+              "type": "text",
+              "id": "PsDlf",
+              "name": "Title",
+              "content": "Dialog",
+              "fontFamily": "$font-ui",
+              "fontSize": "$text-xl",
+              "fontWeight": "600",
+              "fill": "$text"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TODAx",
+          "name": "Dialog",
+          "width": 420,
+          "layout": "vertical",
+          "cornerRadius": "$radius-lg",
+          "fill": "$surface-2",
+          "stroke": "$border-strong",
+          "strokeWidth": 1,
+          "clip": true,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 16
+            },
+            "blur": 40,
+            "color": "#000000B3"
+          },
+          "reusable": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "dAXi1",
+              "name": "Dialog Header",
+              "width": "fill_container",
+              "padding": [
+                14,
+                16,
+                6,
+                16
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Dh2Wh",
+                  "name": "Dialog Title",
+                  "content": "Promote to production?",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-md",
+                  "fontWeight": "600",
+                  "fill": "$text",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "icon",
+                  "id": "iJ7UN",
+                  "width": 16,
+                  "height": 16,
+                  "library": "lucide",
+                  "name": "Dialog Close",
+                  "icon": "x",
+                  "fill": "$text-subtle"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XyhJ4",
+              "name": "Dialog Body",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": "$space-3",
+              "padding": [
+                0,
+                16,
+                16,
+                16
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "9fjFL",
+                  "name": "Dialog Text",
+                  "content": "checkout-api @ a3f91c2 will replace the current release on 6 regions. Traffic shifts gradually over 10 minutes.",
+                  "fontFamily": "$font-ui",
+                  "fontSize": "$text-sm",
+                  "fontWeight": "400",
+                  "fill": "$text-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width",
+                  "lineHeight": 1.5
+                },
+                {
+                  "type": "ref",
+                  "id": "0wpID",
+                  "ref": "p9uWt",
+                  "name": "Dialog Option",
+                  "descendants": {
+                    "geGmL": {
+                      "content": "Roll back automatically on error spike"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "7a8F3",
+              "name": "Dialog Footer",
+              "width": "fill_container",
+              "padding": [
+                12,
+                16
+              ],
+              "gap": "$space-2",
+              "justifyContent": "end",
+              "alignItems": "center",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": {
+                "top": 1
+              },
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "ckfIv",
+                  "ref": "kf0DU",
+                  "name": "Dialog Cancel",
+                  "descendants": {
+                    "POIfV": {
+                      "enabled": false
+                    },
+                    "bMtKq": {
+                      "content": "Cancel"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "S0C7N",
+                  "ref": "43l8P",
+                  "name": "Dialog Confirm",
+                  "descendants": {
+                    "hVF86": {
+                      "content": "Promote"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "hG7m6",
+      "name": "Overview",
+      "x": 2064,
+      "y": 0,
+      "width": 1440,
+      "height": 900,
+      "layout": "horizontal",
+      "fill": "$bg",
+      "clip": true,
+      "cornerRadius": "$radius-lg",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "children": [
+        {
+          "type": "frame",
+          "id": "2hvNP",
+          "name": "Sidebar",
+          "width": 248,
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 2,
+          "padding": [
+            12,
+            8
+          ],
+          "fill": "$surface",
+          "stroke": "$border",
+          "strokeWidth": {
+            "right": 1
+          },
+          "children": [
+            {
+              "type": "ref",
+              "id": "gxshF",
+              "ref": "tFnpB",
+              "name": "Workspace Switcher",
+              "width": 232,
+              "descendants": {
+                "UBP6q": {
+                  "enabled": false
+                },
+                "TSUiv": {
+                  "icon": "hexagon",
+                  "fill": "$accent-text"
+                },
+                "4VARk": {
+                  "content": "Northwind · Relay",
+                  "fontWeight": "600"
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "xqc30",
+              "name": "Spacer",
+              "width": "fill_container",
+              "height": 12
+            },
+            {
+              "type": "ref",
+              "id": "FkXZ7",
+              "ref": "s6SOW",
+              "name": "Nav / Overview",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "layout-dashboard",
+                  "fill": "$accent-text"
+                },
+                "1i1mk": {
+                  "content": "Overview",
+                  "fill": "$text",
+                  "fontWeight": "500"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "zcybX",
+              "ref": "s6SOW",
+              "name": "Nav / Deployments",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "rocket",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Deployments",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "12"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "oLJpU",
+              "ref": "s6SOW",
+              "name": "Nav / Services",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "boxes",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Services",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "34"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "oMiND",
+              "ref": "s6SOW",
+              "name": "Nav / Environments",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "layers",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Environments",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "6"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "FtjH3",
+              "ref": "s6SOW",
+              "name": "Nav / Monitoring",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "activity",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Monitoring",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "STAtz",
+              "ref": "s6SOW",
+              "name": "Nav / Incidents",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "siren",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Incidents",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "2"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "ACMDJ",
+              "ref": "s6SOW",
+              "name": "Nav / Logs",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "scroll-text",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Logs",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "YnevY",
+              "ref": "s6SOW",
+              "name": "Nav / Pipelines",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "git-branch",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Pipelines",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "content": "9"
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "9nU9s",
+              "name": "Push",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "ref",
+              "id": "QoKKy",
+              "ref": "s6SOW",
+              "name": "Nav / Docs",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "book-open",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Docs",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "nG4j6",
+              "ref": "s6SOW",
+              "name": "Nav / Settings",
+              "fill": "$transparent",
+              "descendants": {
+                "rlz9y": {
+                  "icon": "settings",
+                  "fill": "$text-subtle"
+                },
+                "1i1mk": {
+                  "content": "Settings",
+                  "fill": "$text-muted",
+                  "fontWeight": "400"
+                },
+                "DYN6A": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "7FAvR",
+          "name": "Main",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "utU4i",
+              "name": "Top Bar",
+              "width": "fill_container",
+              "height": 52,
+              "padding": [
+                0,
+                24
+              ],
+              "gap": "$space-2",
+              "alignItems": "center",
+              "stroke": "$border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "Iqagg",
+                  "ref": "wnk1L",
+                  "name": "Global Search",
+                  "width": 340,
+                  "descendants": {
+                    "mxmvp": {
+                      "enabled": false
+                    },
+                    "gMqUl": {
+                      "content": "Search services, commits, people…"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "UUs9d",
+                  "name": "Push",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "ref",
+                  "id": "bb06w",
+                  "ref": "dwAgg",
+                  "name": "Help",
+                  "descendants": {
+                    "NC94T": {
+                      "icon": "circle-help"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "n0Kpn",
+                  "ref": "dwAgg",
+                  "name": "Notifications"
+                },
+                {
+                  "type": "ref",
+                  "id": "4Onsq",
+                  "ref": "kf0DU",
+                  "name": "Export Report",
+                  "descendants": {
+                    "bMtKq": {
+                      "content": "Export"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "ZU8jV",
+                  "ref": "43l8P",
+                  "name": "New Deployment",
+                  "descendants": {
+                    "x7kXU": {
+                      "icon": "plus"
+                    },
+                    "hVF86": {
+                      "content": "New deployment"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "U14my",
+                  "ref": "W2UzS",
+                  "name": "Me",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": 14,
+                  "descendants": {
+                    "b1hYc": {
+                      "content": "FA"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WiTE4",
+              "name": "Content",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": "$space-4",
+              "padding": [
+                16,
+                24,
+                24,
+                24
+              ],
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "AHgcA",
+                  "ref": "Xi621",
+                  "name": "Page Tabs",
+                  "width": "fill_container"
+                },
+                {
+                  "type": "ref",
+                  "id": "YUCmx",
+                  "ref": "CbEbq",
+                  "name": "Maintenance Alert",
+                  "width": "fill_container",
+                  "descendants": {
+                    "L13H7": {
+                      "content": "Builder maintenance tonight, 02:00–02:30 UTC"
+                    },
+                    "AOKKd": {
+                      "content": "eu-west-1 build runners restart one at a time. Queued jobs resume automatically; production traffic is unaffected."
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "BozTd",
+                  "name": "Stats",
+                  "width": "fill_container",
+                  "gap": "$space-3",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "V3Jyk",
+                      "ref": "cr7Bz",
+                      "name": "Stat / Deploys today",
+                      "width": "fill_container",
+                      "descendants": {
+                        "LQjm3": {
+                          "content": "Deploys today"
+                        },
+                        "iWipd": {
+                          "icon": "rocket"
+                        },
+                        "3W6l4": {
+                          "content": "248"
+                        },
+                        "lw4vq": {
+                          "icon": "trending-up",
+                          "fill": "$success"
+                        },
+                        "5SpDL": {
+                          "content": "+12.4%",
+                          "fill": "$success"
+                        },
+                        "mcPTE": {
+                          "content": "vs yesterday"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "zpaJ1",
+                      "ref": "cr7Bz",
+                      "name": "Stat / Success rate · 7d",
+                      "width": "fill_container",
+                      "descendants": {
+                        "LQjm3": {
+                          "content": "Success rate · 7d"
+                        },
+                        "iWipd": {
+                          "icon": "circle-check"
+                        },
+                        "3W6l4": {
+                          "content": "98.6%"
+                        },
+                        "lw4vq": {
+                          "icon": "trending-up",
+                          "fill": "$success"
+                        },
+                        "5SpDL": {
+                          "content": "+0.4 pt",
+                          "fill": "$success"
+                        },
+                        "mcPTE": {
+                          "content": "vs prior 7d"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "fqGX0",
+                      "ref": "cr7Bz",
+                      "name": "Stat / Median build time",
+                      "width": "fill_container",
+                      "descendants": {
+                        "LQjm3": {
+                          "content": "Median build time"
+                        },
+                        "iWipd": {
+                          "icon": "timer"
+                        },
+                        "3W6l4": {
+                          "content": "1m 47s"
+                        },
+                        "lw4vq": {
+                          "icon": "trending-down",
+                          "fill": "$success"
+                        },
+                        "5SpDL": {
+                          "content": "−8s",
+                          "fill": "$success"
+                        },
+                        "mcPTE": {
+                          "content": "faster than last week"
+                        }
+                      }
+                    },
+                    {
+                      "type": "ref",
+                      "id": "hq5YL",
+                      "ref": "cr7Bz",
+                      "name": "Stat / Open incidents",
+                      "width": "fill_container",
+                      "descendants": {
+                        "LQjm3": {
+                          "content": "Open incidents"
+                        },
+                        "iWipd": {
+                          "icon": "siren"
+                        },
+                        "3W6l4": {
+                          "content": "2"
+                        },
+                        "lw4vq": {
+                          "icon": "trending-up",
+                          "fill": "$danger"
+                        },
+                        "5SpDL": {
+                          "content": "+1",
+                          "fill": "$danger"
+                        },
+                        "mcPTE": {
+                          "content": "since 09:00"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uoR26",
+                  "name": "Lower",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": "$space-4",
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "HbUSH",
+                      "ref": "QMiOB",
+                      "name": "Recent Deployments",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "descendants": {
+                        "zyDE6": {
+                          "content": "Recent deployments · production"
+                        },
+                        "yu0Bb": {
+                          "content": "View all 128"
+                        },
+                        "t9aF0": {
+                          "padding": 0,
+                          "gap": 0,
+                          "children": [
+                            {
+                              "type": "ref",
+                              "id": "FFWMr",
+                              "ref": "5LG8d",
+                              "name": "Head"
+                            },
+                            {
+                              "type": "ref",
+                              "id": "78ww8",
+                              "ref": "U91fd",
+                              "name": "Row / checkout-api",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "checkout-api"
+                                },
+                                "YdBOM": {
+                                  "content": "a3f91c2"
+                                },
+                                "TLssf": {
+                                  "content": "Maya Okafor"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 42s"
+                                },
+                                "fhjEG": {
+                                  "content": "4 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "MO"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "liiMk",
+                              "ref": "U91fd",
+                              "name": "Row / search-indexer",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "search-indexer"
+                                },
+                                "YdBOM": {
+                                  "content": "e18c7aa"
+                                },
+                                "TLssf": {
+                                  "content": "Kenji Ruiz"
+                                },
+                                "ynG2f": {
+                                  "content": "0m 36s"
+                                },
+                                "fhjEG": {
+                                  "content": "6 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$accent-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$accent-text"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Building",
+                                  "fill": "$accent-text"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "KR"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "Z3iin",
+                              "ref": "U91fd",
+                              "name": "Row / billing-worker",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "billing-worker"
+                                },
+                                "YdBOM": {
+                                  "content": "7be04d9"
+                                },
+                                "TLssf": {
+                                  "content": "Tomás Aguilar"
+                                },
+                                "ynG2f": {
+                                  "content": "0m 58s"
+                                },
+                                "fhjEG": {
+                                  "content": "11 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$danger-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$danger"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Failed",
+                                  "fill": "$danger"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "TA"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "zNDbf",
+                              "ref": "U91fd",
+                              "name": "Row / web-storefront",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "web-storefront"
+                                },
+                                "YdBOM": {
+                                  "content": "5d02b6e"
+                                },
+                                "TLssf": {
+                                  "content": "Lena Schulz"
+                                },
+                                "ynG2f": {
+                                  "content": "2m 15s"
+                                },
+                                "fhjEG": {
+                                  "content": "23 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "LS"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "pDX6i",
+                              "ref": "U91fd",
+                              "name": "Row / notifications",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "notifications"
+                                },
+                                "YdBOM": {
+                                  "content": "c94f310"
+                                },
+                                "TLssf": {
+                                  "content": "Priya Nair"
+                                },
+                                "ynG2f": {
+                                  "content": "—"
+                                },
+                                "fhjEG": {
+                                  "content": "24 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$warning-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$warning"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Queued",
+                                  "fill": "$warning"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "PN"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "rVSyD",
+                              "ref": "U91fd",
+                              "name": "Row / auth-gateway",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "auth-gateway"
+                                },
+                                "YdBOM": {
+                                  "content": "0fa7d58"
+                                },
+                                "TLssf": {
+                                  "content": "Maya Okafor"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 08s"
+                                },
+                                "fhjEG": {
+                                  "content": "41 min ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "MO"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "CgLUD",
+                              "ref": "U91fd",
+                              "name": "Row / inventory-sync",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "inventory-sync"
+                                },
+                                "YdBOM": {
+                                  "content": "b27e6c1"
+                                },
+                                "TLssf": {
+                                  "content": "David Kim"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 51s"
+                                },
+                                "fhjEG": {
+                                  "content": "1 h ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$surface-3"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$text-subtle"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Rolled back",
+                                  "fill": "$text-muted"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "DK"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "CovOL",
+                              "ref": "U91fd",
+                              "name": "Row / pricing-engine",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "pricing-engine"
+                                },
+                                "YdBOM": {
+                                  "content": "91ad4f3"
+                                },
+                                "TLssf": {
+                                  "content": "Kenji Ruiz"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 29s"
+                                },
+                                "fhjEG": {
+                                  "content": "2 h ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "KR"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "bTbtM",
+                              "ref": "U91fd",
+                              "name": "Row / media-resizer",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "media-resizer"
+                                },
+                                "YdBOM": {
+                                  "content": "3c6b8e0"
+                                },
+                                "TLssf": {
+                                  "content": "Lena Schulz"
+                                },
+                                "ynG2f": {
+                                  "content": "0m 47s"
+                                },
+                                "fhjEG": {
+                                  "content": "3 h ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "LS"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "6RYls",
+                              "ref": "U91fd",
+                              "name": "Row / admin-console",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "admin-console"
+                                },
+                                "YdBOM": {
+                                  "content": "f4e2a19"
+                                },
+                                "TLssf": {
+                                  "content": "Priya Nair"
+                                },
+                                "ynG2f": {
+                                  "content": "2m 03s"
+                                },
+                                "fhjEG": {
+                                  "content": "4 h ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "PN"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "JhZaC",
+                              "ref": "U91fd",
+                              "name": "Row / ledger-export",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "ledger-export"
+                                },
+                                "YdBOM": {
+                                  "content": "6a1d7c5"
+                                },
+                                "TLssf": {
+                                  "content": "Tomás Aguilar"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 12s"
+                                },
+                                "fhjEG": {
+                                  "content": "5 h ago"
+                                },
+                                "vdDzY": {
+                                  "fill": "$success-soft"
+                                },
+                                "vdDzY/wEqVr": {
+                                  "fill": "$success"
+                                },
+                                "vdDzY/0YDJf": {
+                                  "content": "Live",
+                                  "fill": "$success"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "TA"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "IPIsI",
+                              "ref": "U91fd",
+                              "name": "Row / feature-flags",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "feature-flags"
+                                },
+                                "YdBOM": {
+                                  "content": "2e9b0d4"
+                                },
+                                "TLssf": {
+                                  "content": "Maya Okafor"
+                                },
+                                "ynG2f": {
+                                  "content": "0m 39s"
+                                },
+                                "fhjEG": {
+                                  "content": "6 h ago"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "MO"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "qLAkk",
+                              "ref": "U91fd",
+                              "name": "Row / reports-api",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "reports-api"
+                                },
+                                "YdBOM": {
+                                  "content": "8f3c1a7"
+                                },
+                                "TLssf": {
+                                  "content": "David Kim"
+                                },
+                                "ynG2f": {
+                                  "content": "1m 55s"
+                                },
+                                "fhjEG": {
+                                  "content": "7 h ago"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "DK"
+                                }
+                              }
+                            },
+                            {
+                              "type": "ref",
+                              "id": "uDUei",
+                              "ref": "U91fd",
+                              "name": "Row / email-relay",
+                              "descendants": {
+                                "OND24": {
+                                  "content": "email-relay"
+                                },
+                                "YdBOM": {
+                                  "content": "d07a5e2"
+                                },
+                                "TLssf": {
+                                  "content": "Priya Nair"
+                                },
+                                "ynG2f": {
+                                  "content": "0m 51s"
+                                },
+                                "fhjEG": {
+                                  "content": "8 h ago"
+                                },
+                                "spdjJ/b1hYc": {
+                                  "content": "PN"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "ZHGA7": {
+                          "enabled": false
+                        }
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ydxKS",
+                      "name": "Right Column",
+                      "width": 360,
+                      "height": "fill_container",
+                      "layout": "vertical",
+                      "gap": "$space-4",
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "lg0ST",
+                          "ref": "QMiOB",
+                          "name": "Incidents Card",
+                          "width": "fill_container",
+                          "descendants": {
+                            "zyDE6": {
+                              "content": "Open incidents"
+                            },
+                            "yu0Bb": {
+                              "content": "On call: Tomás"
+                            },
+                            "ZHGA7": {
+                              "enabled": false
+                            },
+                            "t9aF0": {
+                              "children": [
+                                {
+                                  "type": "ref",
+                                  "id": "r5VIJ",
+                                  "ref": "CbEbq",
+                                  "name": "Incident / Billing",
+                                  "width": "fill_container",
+                                  "fill": "$danger-soft",
+                                  "stroke": "$danger",
+                                  "descendants": {
+                                    "JzpIp": {
+                                      "icon": "octagon-alert",
+                                      "fill": "$danger"
+                                    },
+                                    "L13H7": {
+                                      "content": "INC-482 · billing-worker 503s"
+                                    },
+                                    "AOKKd": {
+                                      "content": "3 of 4 replicas failing health checks after 7be04d9. Auto-rollback in progress."
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "ref",
+                                  "id": "mcv9l",
+                                  "ref": "CbEbq",
+                                  "name": "Incident / Latency",
+                                  "width": "fill_container",
+                                  "fill": "$warning-soft",
+                                  "stroke": "$warning",
+                                  "descendants": {
+                                    "JzpIp": {
+                                      "icon": "triangle-alert",
+                                      "fill": "$warning"
+                                    },
+                                    "L13H7": {
+                                      "content": "INC-481 · search p95 at 820 ms"
+                                    },
+                                    "AOKKd": {
+                                      "content": "Above the 600 ms budget in us-east-1 since 09:12."
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "NVfCg",
+                          "ref": "QMiOB",
+                          "name": "Release Guards Card",
+                          "width": "fill_container",
+                          "height": "fill_container",
+                          "descendants": {
+                            "zyDE6": {
+                              "content": "Release guards · production"
+                            },
+                            "yu0Bb": {
+                              "content": "Edit"
+                            },
+                            "ZHGA7": {
+                              "enabled": false
+                            },
+                            "t9aF0": {
+                              "gap": "$space-3",
+                              "padding": [
+                                14,
+                                12
+                              ],
+                              "children": [
+                                {
+                                  "type": "ref",
+                                  "id": "pPP6v",
+                                  "ref": "Au0DR",
+                                  "name": "Guard / Auto-rollback",
+                                  "descendants": {
+                                    "H4Kv3": {
+                                      "content": "Auto-rollback on error spike"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "ref",
+                                  "id": "ZG1L6",
+                                  "ref": "Au0DR",
+                                  "name": "Guard / Canary",
+                                  "descendants": {
+                                    "H4Kv3": {
+                                      "content": "Canary 10% for 15 minutes"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "ref",
+                                  "id": "QyJuY",
+                                  "ref": "Au0DR",
+                                  "name": "Guard / Freeze",
+                                  "descendants": {
+                                    "gSZTA": {
+                                      "fill": "$surface-3",
+                                      "justifyContent": "start"
+                                    },
+                                    "bdnUT": {
+                                      "fill": "$text-subtle"
+                                    },
+                                    "H4Kv3": {
+                                      "content": "Weekend deploy freeze"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "ref",
+                                  "id": "6kykX",
+                                  "ref": "p9uWt",
+                                  "name": "Guard / Approval",
+                                  "descendants": {
+                                    "geGmL": {
+                                      "content": "Require 2 approvals"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "ref",
+                                  "id": "ViPwQ",
+                                  "ref": "p9uWt",
+                                  "name": "Guard / Notify",
+                                  "descendants": {
+                                    "geGmL": {
+                                      "content": "Post failures to #deploys"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "bg": {
+      "type": "color",
+      "value": "#0B0C0E"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#121316"
+    },
+    "surface-2": {
+      "type": "color",
+      "value": "#17181C"
+    },
+    "surface-3": {
+      "type": "color",
+      "value": "#1F2125"
+    },
+    "border": {
+      "type": "color",
+      "value": "#26282D"
+    },
+    "border-strong": {
+      "type": "color",
+      "value": "#363940"
+    },
+    "text": {
+      "type": "color",
+      "value": "#E7E8EB"
+    },
+    "text-muted": {
+      "type": "color",
+      "value": "#A0A3AB"
+    },
+    "text-subtle": {
+      "type": "color",
+      "value": "#8A8E97"
+    },
+    "accent": {
+      "type": "color",
+      "value": "#1E6BFF"
+    },
+    "accent-hover": {
+      "type": "color",
+      "value": "#3A7FFF"
+    },
+    "accent-text": {
+      "type": "color",
+      "value": "#6FA3FF"
+    },
+    "accent-soft": {
+      "type": "color",
+      "value": "#0F1D3A"
+    },
+    "accent-line": {
+      "type": "color",
+      "value": "#1E6BFF66"
+    },
+    "on-accent": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "success": {
+      "type": "color",
+      "value": "#3DD68C"
+    },
+    "success-soft": {
+      "type": "color",
+      "value": "#0E2A1F"
+    },
+    "warning": {
+      "type": "color",
+      "value": "#F5B544"
+    },
+    "warning-soft": {
+      "type": "color",
+      "value": "#2B2313"
+    },
+    "danger": {
+      "type": "color",
+      "value": "#FF6B6B"
+    },
+    "danger-soft": {
+      "type": "color",
+      "value": "#2D1618"
+    },
+    "font-ui": {
+      "type": "string",
+      "value": "IBM Plex Sans"
+    },
+    "font-mono": {
+      "type": "string",
+      "value": "IBM Plex Mono"
+    },
+    "text-2xs": {
+      "type": "number",
+      "value": 11
+    },
+    "text-xs": {
+      "type": "number",
+      "value": 12
+    },
+    "text-sm": {
+      "type": "number",
+      "value": 13
+    },
+    "text-md": {
+      "type": "number",
+      "value": 14
+    },
+    "text-lg": {
+      "type": "number",
+      "value": 16
+    },
+    "text-xl": {
+      "type": "number",
+      "value": 22
+    },
+    "radius-xs": {
+      "type": "number",
+      "value": 3
+    },
+    "radius-sm": {
+      "type": "number",
+      "value": 4
+    },
+    "radius-md": {
+      "type": "number",
+      "value": 6
+    },
+    "radius-lg": {
+      "type": "number",
+      "value": 8
+    },
+    "space-1": {
+      "type": "number",
+      "value": 4
+    },
+    "space-2": {
+      "type": "number",
+      "value": 8
+    },
+    "space-3": {
+      "type": "number",
+      "value": 12
+    },
+    "space-4": {
+      "type": "number",
+      "value": 16
+    },
+    "space-5": {
+      "type": "number",
+      "value": 20
+    },
+    "space-6": {
+      "type": "number",
+      "value": 24
+    },
+    "space-8": {
+      "type": "number",
+      "value": 32
+    },
+    "control-h": {
+      "type": "number",
+      "value": 28
+    },
+    "transparent": {
+      "type": "color",
+      "value": "#00000000"
+    }
+  }
+}
