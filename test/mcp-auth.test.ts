@@ -92,6 +92,19 @@ describe("signing in to an added MCP server", () => {
     expect((await again.status(servers)).s).toEqual({ state: "needs-sign-in" });
   });
 
+  it("signs in as an agent starts, as Pen's does, and asks about each server only once", async () => {
+    const opened: string[] = [];
+    const a = new McpAuth(join(dir, "d"), vault, (u) => (opened.push(u), browser(u)), () => {});
+    const servers = { s: { url: `${base}/mcp` }, keyed: { url: `${base}/mcp`, headers: { Authorization: "Bearer x" } }, local: { command: "node" } };
+    expect(await a.wanted(servers)).toEqual([{ name: "s", url: `${base}/mcp` }]);
+    await a.signInForAgent(`${base}/mcp`);
+    expect(opened).toHaveLength(1);
+    expect((await a.forAgents(servers)).s!.headers).toMatchObject({ Authorization: expect.stringMatching(/^Bearer access-/) });
+    // Signed out again: the next agent doesn't open the browser by itself; Settings → MCP signs in.
+    a.signOut(`${base}/mcp`);
+    expect(await a.wanted(servers)).toEqual([]);
+  });
+
   it("leaves a server with its own key alone, and says when the server turns the key down", async () => {
     const a = new McpAuth(join(dir, "c"), vault, browser, () => {});
     valid.add("mine");

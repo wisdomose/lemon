@@ -354,7 +354,12 @@ async function main() {
     changed: fileListChanged,
     tabsChanged: () => window?.tell(),
     window: () => window?.win,
-    mcpServers: async () => (mcpAuth && mcpSettings ? mcpAuth.forAgents(mcpSettings.servers()) : {}),
+    // The agents' added servers, with their sign-ins (asked for as an agent starts, as in Pen).
+    signIns: {
+      wanted: async () => (mcpAuth && mcpSettings ? mcpAuth.wanted(mcpSettings.servers()) : []),
+      signIn: (url) => mcpAuth!.signInForAgent(url),
+      servers: async () => (mcpAuth && mcpSettings ? mcpAuth.forAgents(mcpSettings.servers()) : {}),
+    },
   };
   // The menu bar before any window opens (the app may start on the Dashboard alone).
   refreshMenu();

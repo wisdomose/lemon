@@ -21,7 +21,8 @@ import type { Globals } from "../sandbox/sandbox.js";
 import { runCodex, type CodexTool, type ToolResultContent } from "./codex.js";
 import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
 import { DEFAULT_MODEL, modelProvider } from "./models.js";
-import { forClaude, serverNames, type PersonServers } from "./mcp-servers.js";
+import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
+import { POPULAR_SERVERS } from "../mcp/settings.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
 const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
@@ -113,6 +114,8 @@ export interface AgentOptions {
   variants?: Variants;
   /** MCP servers the person added in Settings → MCP: their tools are the agent's too. */
   mcpServers?: PersonServers;
+  /** The added servers with their sign-ins: those wanting one are signed in to as the agent starts. */
+  signIns?: ServerSignIns;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
@@ -135,6 +138,12 @@ function nextVariation(mode: Variants["mode"]): string {
       ? "Give it a new style, not the first design's: take a different starting point (offered below) and set new variables, fonts and colours for it."
       : "Keep the first design's style: the same variables, fonts and colours.";
   return `Now design another variation of this page. Like a great product designer, find a source of inspiration that gives it depth, from your own knowledge: don't use the web for this. Study it, take it apart, and let what you learn shape the design, in whatever way you think best. Make it a completely new variation, beside the others. ${style}`;
+}
+
+/** The promise, or a rejection as soon as the run is stopped. */
+function untilAborted<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return Promise.race([p, new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(new Error("Stopped.")), { once: true }))]);
 }
 
 /** A step that never ran (its edits didn't fit the failed script). */
@@ -366,19 +375,23 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     if (!call) return;
     serverCalls.delete(id);
     const output = content.flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n\n");
+    serverStepEnd(call.index, call.title, ok, output, call.t0, JSON.stringify(call.input ?? {}, null, 2));
+  };
+  /** Ends an added server's card (a tool call, or a sign-in): its result as Markdown. */
+  const serverStepEnd = (index: number, title: string, ok: boolean, output: string, t0: number, input?: string) => {
     const step: StepRecord = {
-      index: call.index,
-      title: call.title,
+      index,
+      title,
       ok,
       ...(ok ? {} : { error: output }),
       issues: 0,
       issueKinds: {},
       pictures: 0,
       scriptChars: 0,
-      timings: { totalMs: performance.now() - call.t0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      timings: { totalMs: performance.now() - t0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
       at: (performance.now() - started) / 1000,
     };
-    emit({ type: "step-end", step, detail: { script: "", input: JSON.stringify(call.input ?? {}, null, 2), output, pictures: [], markdown: true }, frames: [] });
+    emit({ type: "step-end", step, detail: { script: "", ...(input ? { input } : {}), output, pictures: [], markdown: true }, frames: [] });
     lastActivity = performance.now();
   };
   // A browser call is a step of its own in the chat, as in Pen ("Used the browser").
@@ -457,11 +470,33 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     model,
   };
 
+  // Added servers that want a sign-in open it in the browser as the agent starts, as Pen's do. The
+  // agent waits for each (its card says so) and starts with the servers that are signed in.
+  let personServers: PersonServers = o.mcpServers ?? {};
+  if (o.signIns) {
+    for (const { name, url } of await o.signIns.wanted()) {
+      if (o.signal?.aborted) break;
+      const label = POPULAR_SERVERS[name]?.label ?? name;
+      const title = `Sign in to ${label}`;
+      const index = SERVER_STEP_BASE + ++serverSteps;
+      const t0 = performance.now();
+      emit({ type: "step-start", index, title });
+      try {
+        await untilAborted(o.signIns.signIn(url), o.signal);
+        serverStepEnd(index, title, true, `Signed in to ${label} in the browser.`, t0);
+      } catch (e) {
+        const why = e instanceof Error ? e.message : String(e);
+        serverStepEnd(index, title, false, `${why} Going on without ${label}; sign in to it from Settings → MCP.`, t0);
+      }
+    }
+    personServers = await o.signIns.servers();
+  }
+
   try {
     if (modelProvider(model) === "codex") {
       const result = await runCodex({
         system: INSTRUCTIONS, prompt: message, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
-        ...(o.mcpServers ? { mcpServers: o.mcpServers } : {}),
+        mcpServers: personServers,
         tools: {
           execute: {
             description: toolDescription,
@@ -509,9 +544,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
           systemPrompt: INSTRUCTIONS,
           tools: [], // no built-in tools at all
           // The person's servers from Settings → MCP, beside the canvas tools; every tool of theirs is allowed.
-          mcpServers: { ...forClaude(o.mcpServers ?? {}), [PRODUCT.slug]: server },
+          mcpServers: { ...forClaude(personServers), [PRODUCT.slug]: server },
           strictMcpConfig: true, // ignore MCP servers configured on this machine
-          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : []), ...serverNames(o.mcpServers ?? {}).map((n) => `mcp__${n}`)],
+          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : []), ...serverNames(personServers).map((n) => `mcp__${n}`)],
           permissionMode: "dontAsk", // anything not allowed above is refused, never asked
           settingSources: [], // ignore the person's Claude settings and memory files
           persistSession: false,

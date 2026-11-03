@@ -6,6 +6,16 @@ import { PRODUCT } from "../product.js";
 
 export type PersonServers = Record<string, Record<string, unknown>>;
 
+/** The added servers and their sign-ins, as an agent gets them when it starts (main/mcp-auth.ts). */
+export interface ServerSignIns {
+  /** Servers to sign in to now: they want it, and no agent has asked about them yet. */
+  wanted(): Promise<{ name: string; url: string }[]>;
+  /** Opens the server's sign-in in the browser; done when it's finished there (or given up on). */
+  signIn(url: string): Promise<void>;
+  /** The servers as the agent gets them, with the sign-ins it has. */
+  servers(): Promise<PersonServers>;
+}
+
 const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.map(String) : undefined);
 const record = (v: unknown): Record<string, string> | undefined =>
   v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, String(x)])) : undefined;

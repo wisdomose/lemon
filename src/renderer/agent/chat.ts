@@ -17,8 +17,20 @@ function push(item: ChatItem) {
 }
 type StepItem = Extract<ChatItem, { kind: "step" }>;
 const isStep = (c: ChatItem, agent: number | undefined, index: number): c is StepItem => c.kind === "step" && c.index === index && c.agent === agent;
+/** Where the agent's step `index` is in its current run (each run numbers its steps from 1 again): -1 if not yet there. */
+function stepAt(chat: ChatItem[], agent: number | undefined, index: number): number {
+  for (let i = chat.length - 1; i >= 0; i--) {
+    const c = chat[i]!;
+    if (isStep(c, agent, index)) return i;
+    if (c.kind === "agent-head" && c.agent === agent) return -1;
+  }
+  return -1;
+}
 function updateStep(agent: number | undefined, index: number, patch: Partial<StepItem>) {
-  store.set((s) => ({ chat: s.chat.map((c) => (isStep(c, agent, index) ? { ...c, ...patch } : c)) }));
+  store.set((s) => {
+    const at = stepAt(s.chat, agent, index);
+    return at < 0 ? {} : { chat: s.chat.map((c, i) => (i === at ? { ...(c as StepItem), ...patch } : c)) };
+  });
 }
 
 /** Top-level frames before this run; cleared once the view has been fitted to a new one. */
@@ -92,7 +104,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
     case "step-writing":
     case "step-start":
       store.set({ agentStatus: null });
-      if (store.get().chat.some((c) => isStep(c, agent, e.index))) updateStep(agent, e.index, { title: e.title });
+      if (stepAt(store.get().chat, agent, e.index) >= 0) updateStep(agent, e.index, { title: e.title });
       else push({ kind: "step", index: e.index, title: e.title, state: "running", ...tag });
       break;
     case "step-target": {

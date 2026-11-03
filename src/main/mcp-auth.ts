@@ -27,6 +27,8 @@ interface Saved {
 /** The page the browser comes back to (tried first; another free one if it's taken). */
 const CALLBACK_PORT = 38517;
 const SIGN_IN_TIMEOUT_MS = 5 * 60_000;
+/** How long an agent waits for a sign-in it asked for as it started, before going on without it. */
+const AGENT_SIGN_IN_TIMEOUT_MS = 2 * 60_000;
 /** A token this close to running out is refreshed before an agent gets it. */
 const REFRESH_EARLY_MS = 60_000;
 
@@ -37,6 +39,8 @@ export class McpAuth {
   private saved: Saved = { clients: {}, tokens: {} };
   private errors = new Map<string, string>();
   private signingIn = new Map<string, Promise<void>>();
+  /** Servers an agent has already asked to sign in to while the app runs: it asks only once. */
+  private asked = new Set<string>();
 
   constructor(
     private readonly file: string,
@@ -78,21 +82,40 @@ export class McpAuth {
   }
 
   /** Signs in to the server: its page opens in the browser; done once the browser comes back. */
-  signIn(url: string): Promise<void> {
+  signIn(url: string, timeoutMs = SIGN_IN_TIMEOUT_MS): Promise<void> {
     const running = this.signingIn.get(url);
     if (running) return running;
-    const run = this.runSignIn(url).finally(() => this.signingIn.delete(url));
+    const run = this.runSignIn(url, timeoutMs).finally(() => this.signingIn.delete(url));
     this.signingIn.set(url, run);
     return run;
   }
 
-  private async runSignIn(url: string): Promise<void> {
+  /**
+   * The added servers an agent starting now should sign in to, as Pen's does: those that want a
+   * sign-in nobody has given, and that no agent has asked about yet while the app runs (after that,
+   * Settings → MCP signs in).
+   */
+  async wanted(servers: PersonServers): Promise<{ name: string; url: string }[]> {
+    const candidates = Object.entries(servers).flatMap(([name, s]) =>
+      typeof s.url === "string" && !hasAuthHeader(s) && !this.saved.tokens[s.url] && !this.asked.has(s.url) ? [{ name, url: s.url }] : [],
+    );
+    const answers = await Promise.all(candidates.map(async (c) => ((await probe(c.url)) === "needs-sign-in" ? c : undefined)));
+    return answers.filter((c) => c !== undefined);
+  }
+
+  /** The sign-in an agent asks for as it starts: once per server, and it waits less than Settings does. */
+  signInForAgent(url: string): Promise<void> {
+    this.asked.add(url);
+    return this.signIn(url, AGENT_SIGN_IN_TIMEOUT_MS);
+  }
+
+  private async runSignIn(url: string, timeoutMs: number): Promise<void> {
     this.errors.delete(url);
     const callback = await listen();
     try {
       const provider = this.provider(url, callback.redirect, true);
       if ((await auth(provider, { serverUrl: url })) === "AUTHORIZED") return;
-      const code = await callback.code(provider.expectedState);
+      const code = await callback.code(provider.expectedState, timeoutMs);
       await auth(provider, { serverUrl: url, authorizationCode: code });
       this.log(`mcp sign-in: signed in to ${url}`);
     } catch (e) {
@@ -227,7 +250,7 @@ const PAGE = (title: string, text: string) =>
   `<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:15px system-ui;background:#1b1b1d;color:#eee;display:grid;place-items:center;height:90vh"><div style="text-align:center"><h1 style="font-size:20px">${title}</h1><p style="color:#aaa">${text}</p></div>`;
 
 /** The page on this computer the browser comes back to with the sign-in's code. */
-async function listen(): Promise<{ redirect: string; code: (state: string) => Promise<string>; close: () => void }> {
+async function listen(): Promise<{ redirect: string; code: (state: string, timeoutMs: number) => Promise<string>; close: () => void }> {
   let deliver: (q: URLSearchParams) => void = () => {};
   const arrived = new Promise<URLSearchParams>((r) => (deliver = r));
   const server: Server = createServer((req, res) => {
@@ -248,8 +271,8 @@ async function listen(): Promise<{ redirect: string; code: (state: string) => Pr
   let timer: NodeJS.Timeout | undefined;
   return {
     redirect: `http://127.0.0.1:${port}/callback`,
-    code: async (state) => {
-      const timeout = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error("The sign-in wasn't finished in the browser.")), SIGN_IN_TIMEOUT_MS)));
+    code: async (state, timeoutMs) => {
+      const timeout = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error("The sign-in wasn't finished in the browser.")), timeoutMs)));
       const q = await Promise.race([arrived, timeout]);
       const error = q.get("error");
       if (error) throw new Error(q.get("error_description") ?? `The server said: ${error}`);

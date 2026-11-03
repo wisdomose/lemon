@@ -15,6 +15,7 @@ import type { Sandbox } from "../sandbox/sandbox.js";
 import { AGENTS, type Team } from "../agent/models.js";
 import { runAgent, type AgentStats, type Variants } from "../agent/agent.js";
 import { runTeam, type TaggedEvent } from "../agent/team.js";
+import type { ServerSignIns } from "../agent/mcp-servers.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
 import { page, type FileTab, type TabInfo } from "./shell.js";
@@ -79,8 +80,8 @@ export interface Shared {
   tabsChanged: () => void;
   /** The window, for dialogs. */
   window: () => BaseWindow | undefined;
-  /** The MCP servers the person added in Settings → MCP, for the agents (with their sign-ins). */
-  mcpServers: () => Promise<Record<string, Record<string, unknown>>>;
+  /** The MCP servers the person added in Settings → MCP, with their sign-ins, for the agents. */
+  signIns?: ServerSignIns;
 }
 
 export class Editor implements FileTab {
@@ -356,7 +357,7 @@ export class Editor implements FileTab {
         setTimeout(() => this.page.capturePage().then((img) => writeFileSync(join(film, `step-${n}${who ? `-${e.agent}` : ""}.png`), img.toPNG())), 600);
       }
     };
-    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, mcpServers: await this.shared.mcpServers(), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, prompt, browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;
