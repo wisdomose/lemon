@@ -124,7 +124,7 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (on: boolea
       onCheckedChange={onChange}
       className="relative h-4 w-7 rounded-full bg-switch-off transition-colors duration-150 data-[state=checked]:bg-foreground"
     >
-      <S.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-muted-foreground transition-transform duration-150 data-[state=checked]:translate-x-[14px] data-[state=checked]:bg-background" />
+      <S.Thumb className="block h-3 w-3 translate-x-0.5 rounded-full bg-background transition-transform duration-150 data-[state=checked]:translate-x-[14px]" />
     </S.Root>
   );
 }
