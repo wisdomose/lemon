@@ -428,6 +428,7 @@ const SIGN_IN_NOTES: Record<ServerStatus["state"], string> = {
   "needs-sign-in": "Sign in to give the agents its tools",
   open: "No sign-in needed",
   "api-key": "Uses the key in its headers",
+  "key-rejected": "Its server didn't accept the key in its headers",
   local: "Runs on this computer",
   unreachable: "Couldn't reach it",
 };

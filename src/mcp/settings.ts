@@ -58,8 +58,10 @@ export type SignInState =
   | "needs-sign-in"
   /** It answered without a sign-in. */
   | "open"
-  /** Its own headers carry a key. */
+  /** Its own headers carry a key, which it accepts. */
   | "api-key"
+  /** Its own headers carry a key, which it turns down. */
+  | "key-rejected"
   /** It runs on this computer (a command). */
   | "local"
   | "unreachable";

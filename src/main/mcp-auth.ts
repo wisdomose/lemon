@@ -58,8 +58,8 @@ export class McpAuth {
     const out: Record<string, ServerStatus> = {};
     await Promise.all(
       Object.entries(servers).map(async ([name, s]) => {
-        const error = typeof s.url === "string" ? this.errors.get(s.url) : undefined;
         const state = await this.stateOf(s);
+        const error = state === "key-rejected" ? rejectedKey(s) : typeof s.url === "string" ? this.errors.get(s.url) : undefined;
         out[name] = { state, ...(error && state !== "signed-in" ? { error } : {}) };
       }),
     );
@@ -68,7 +68,11 @@ export class McpAuth {
 
   private async stateOf(s: Record<string, unknown>): Promise<SignInState> {
     if (typeof s.url !== "string") return "local";
-    if (hasAuthHeader(s)) return "api-key";
+    // A key in its headers is tried, so a wrong one shows here instead of only as missing tools.
+    if (hasAuthHeader(s)) {
+      const answer = await probe(s.url, s.headers as Record<string, string>);
+      return answer === "needs-sign-in" ? "key-rejected" : answer === "open" ? "api-key" : answer;
+    }
     if (this.saved.tokens[s.url]) return "signed-in";
     return probe(s.url);
   }
@@ -196,16 +200,24 @@ export class McpAuth {
 }
 
 /** Asks an HTTP MCP server to start a session: 401 means it wants a sign-in. */
-async function probe(url: string): Promise<SignInState> {
+/** Why a server didn't take the key in its headers (a missing "Bearer " is the usual slip). */
+function rejectedKey(s: Record<string, unknown>): string {
+  const value = Object.entries((s.headers as Record<string, unknown>) ?? {}).find(([k]) => k.toLowerCase() === "authorization")?.[1];
+  return typeof value === "string" && !/^\S+\s/.test(value.trim())
+    ? `Its server didn't accept the key. The Authorization header usually reads "Bearer <key>".`
+    : "Its server didn't accept the key in its headers.";
+}
+
+async function probe(url: string, headers: Record<string, string> = {}): Promise<SignInState> {
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...headers },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: PRODUCT.slug, version: "0.0.1" } } }),
       signal: AbortSignal.timeout(8000),
     });
     void res.body?.cancel();
-    return res.status === 401 ? "needs-sign-in" : res.ok ? "open" : "unreachable";
+    return res.status === 401 || res.status === 403 ? "needs-sign-in" : res.ok ? "open" : "unreachable";
   } catch {
     return "unreachable";
   }

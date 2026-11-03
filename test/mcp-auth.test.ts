@@ -18,7 +18,8 @@ beforeAll(async () => {
     let body = "";
     for await (const chunk of req) body += chunk;
     if (u.pathname === "/mcp") {
-      const token = req.headers.authorization?.replace(/^Bearer /, "");
+      // Like Linear's: only "Bearer <token>" is read.
+      const token = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
       if (token && valid.has(token)) return json(200, { jsonrpc: "2.0", id: 1, result: {} });
       return json(401, { error: "invalid_token" }, { "WWW-Authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` });
     }
@@ -91,10 +92,17 @@ describe("signing in to an added MCP server", () => {
     expect((await again.status(servers)).s).toEqual({ state: "needs-sign-in" });
   });
 
-  it("leaves a server with its own key alone", async () => {
+  it("leaves a server with its own key alone, and says when the server turns the key down", async () => {
     const a = new McpAuth(join(dir, "c"), vault, browser, () => {});
+    valid.add("mine");
     const keyed = { s: { url: `${base}/mcp`, headers: { Authorization: "Bearer mine" } } };
     expect((await a.status(keyed)).s).toEqual({ state: "api-key" });
     expect(await a.forAgents(keyed)).toEqual(keyed);
+    // A key without "Bearer " (the usual slip), and a wrong key.
+    expect((await a.status({ s: { url: `${base}/mcp`, headers: { Authorization: "mine" } } })).s).toEqual({
+      state: "key-rejected",
+      error: `Its server didn't accept the key. The Authorization header usually reads "Bearer <key>".`,
+    });
+    expect((await a.status({ s: { url: `${base}/mcp`, headers: { Authorization: "Bearer wrong" } } })).s).toEqual({ state: "key-rejected", error: "Its server didn't accept the key in its headers." });
   });
 });
