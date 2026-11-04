@@ -1,16 +1,11 @@
 // Runs Pen-format fragment shaders (render/shader-source.ts) on a WebGL 1.0 context of their own, for
 // the canvas's shader fills and effects and the gallery's shader cards. CanvasKit (Skia) can't run GLSL,
 // so a shader draws here and the result is handed back as a picture.
-import { colorNumbers, shaderUniforms, webglSource, type ShaderUniform } from "../../render/shader-source.js";
+import { shaderUniforms, uniformNumbers, webglSource, type ShaderUniform } from "../../render/shader-source.js";
+import type { Pixels } from "../../render/sdf.js";
 
-/** A texture's pixels: RGBA, premultiplied, top row first. */
-export interface Pixels {
-  width: number;
-  height: number;
-  data: Uint8Array | Uint8ClampedArray | Float32Array;
-  /** Float data (an SDF: distance, then its gradient). */
-  float?: boolean;
-}
+export type { Pixels };
+
 
 export interface Run {
   /** Output size in node units, and device pixels per unit. */
@@ -179,15 +174,7 @@ function toBytes(f: Float32Array): Uint8Array {
   return out;
 }
 
-function numbers(v: unknown, count: number): number[] {
-  if (typeof v === "string") {
-    const c = colorNumbers(v);
-    // A colour fills a vec4 with opaque alpha when it has none.
-    if (c) return [...c, 1, 1, 1, 1].slice(0, count);
-  }
-  const list = Array.isArray(v) ? v.map(Number) : typeof v === "number" ? [v] : typeof v === "boolean" ? [v ? 1 : 0] : [];
-  return Array.from({ length: count }, (_, i) => list[i] ?? 0);
-}
+const numbers = uniformNumbers;
 
 function setUniform(gl: WebGLRenderingContext, loc: WebGLUniformLocation | null, u: ShaderUniform, v: unknown) {
   if (!loc) return;

@@ -361,7 +361,7 @@ function draw() {
   surface.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
   // itself is a recorded picture, so a frame costs little).
-  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) || shaders?.animating) schedule();
+  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) ) schedule();
 }
 
 /** Shader fills and effects; bumped when one has more to show (its file read, a picture decoded). */
@@ -378,9 +378,8 @@ function documentPicture(s: Scene): SkPicture {
   const scale = shaderScale();
   const same = recorded?.scene === s && recorded.pages === pagesVersion && recorded.shaders === shadersVersion && (recorded.scale === scale || !hasShaders(s.tree));
   // An animated shader draws the page again, at most 30 times a second (the rest of the page is kept).
-  if (same && (!shaders.animating || performance.now() - recorded!.at < 1000 / 30)) return recorded!.picture;
+  if (same) return recorded!.picture;
   const { ck } = engine;
-  shaders.begin(!same);
   shaders.scale = scale;
   const context: DrawContext = { ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput, shaders };
   // What's behind a node: the page drawn into a picture of its box, up to the node.
@@ -394,6 +393,7 @@ function documentPicture(s: Scene): SkPicture {
   for (const frame of s.tree.children) drawNode(context, c, frame);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
+  shaders.flush();
   recorded?.picture.delete();
   recorded = { scene: s, pages: pagesVersion, shaders: shadersVersion, scale, picture, at: performance.now() };
   return picture;
