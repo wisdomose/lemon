@@ -8,6 +8,7 @@ import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import { inProcess, type LiveScript } from "../agent/runs.js";
+import { thumbnail } from "../render/thumbnail.js";
 import type { FromWorker, OriginData, ToWorker } from "./script-protocol.js";
 
 interface Port {
@@ -82,6 +83,15 @@ port.on("message", ({ data }) => {
         live.delete(m.run);
         send({ type: "result", run: m.run, result });
       });
+      return;
+    }
+    case "thumbnail": {
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, m.state);
+      void thumbnail(engine, doc)
+        .then((png) => send({ type: "thumbnail", req: m.req, ...(png ? { png } : {}) }))
+        .catch((e: unknown) => send({ type: "thumbnail", req: m.req, error: e instanceof Error ? e.message : String(e) }))
+        .finally(() => doc.destroy());
       return;
     }
     case "cancel": {

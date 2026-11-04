@@ -44,6 +44,7 @@ export class WorkerScripts implements ScriptRuns {
   private runs = new Map<number, Run>();
   private nextDoc = 1;
   private nextRun = 1;
+  private thumbs = new Map<number, (r: { png?: Uint8Array; error?: string }) => void>();
   /** Changes from the worker being applied here (not sent back). */
   private applying = false;
 
@@ -79,6 +80,8 @@ export class WorkerScripts implements ScriptRuns {
       this.ids = new WeakMap();
       for (const r of this.runs.values()) (r.result?.(stopped()), r.cancelled?.());
       this.runs.clear();
+      for (const done of this.thumbs.values()) done({ error: "The script runner stopped." });
+      this.thumbs.clear();
     });
   }
 
@@ -114,6 +117,11 @@ export class WorkerScripts implements ScriptRuns {
         const r = this.runs.get(m.run);
         this.runs.delete(m.run);
         return r?.result?.(m.result);
+      }
+      case "thumbnail": {
+        const done = this.thumbs.get(m.req);
+        this.thumbs.delete(m.req);
+        return done?.(m);
       }
       case "cancelled": {
         const r = this.runs.get(m.run);
@@ -188,6 +196,15 @@ export class WorkerScripts implements ScriptRuns {
 
   execute(doc: Y.Doc, script: string, origin: AgentChange | string, protect?: Parameters<ScriptRuns["live"]>[2], globals: Parameters<ScriptRuns["live"]>[3] = {}): Promise<ExecuteResult> {
     return this.live(doc, origin, protect, globals).finish(script);
+  }
+
+  /** The Dashboard's picture of `doc`, drawn and encoded in the worker. */
+  thumbnail(doc: Y.Doc): Promise<Uint8Array | undefined> {
+    const req = this.nextRun++;
+    return new Promise((resolve, reject) => {
+      this.thumbs.set(req, (r) => (r.error ? reject(new Error(r.error)) : resolve(r.png)));
+      this.send({ type: "thumbnail", req, state: Y.encodeStateAsUpdate(doc) });
+    });
   }
 
   dispose(): void {

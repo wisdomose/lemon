@@ -15,7 +15,9 @@ export type ToWorker =
   | { type: "start"; run: number; doc: number; origin: OriginData; protect?: Touched; globals: Globals; progress: boolean }
   | { type: "feed"; run: number; text: string }
   | { type: "finish"; run: number; script: string }
-  | { type: "cancel"; run: number };
+  | { type: "cancel"; run: number }
+  /** The Dashboard's picture of a document (its whole state). */
+  | { type: "thumbnail"; req: number; state: Uint8Array };
 
 export type FromWorker =
   | { type: "ready" }
@@ -24,4 +26,5 @@ export type FromWorker =
   | { type: "started"; run: number }
   | { type: "progress"; run: number; focus: Focus }
   | { type: "result"; run: number; result: ExecuteResult }
-  | { type: "cancelled"; run: number };
+  | { type: "cancelled"; run: number }
+  | { type: "thumbnail"; req: number; png?: Uint8Array; error?: string };

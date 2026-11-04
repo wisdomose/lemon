@@ -143,11 +143,21 @@ try {
     const info = gl?.getExtension("WEBGL_debug_renderer_info");
     return gl ? String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : "no WebGL";
   });
-  const notSelected = await frames(SECONDS);
+  /** Whether the shader's area changes between two screenshots 400 ms apart (it animates). */
+  const moves = async () => {
+    const clip = { x: 470, y: 20, width: 300, height: 200 };
+    const a = await page.screenshot({ clip });
+    await sleep(400);
+    const b = await page.screenshot({ clip });
+    return !a.equals(b);
+  };
+  const notSelectedMoves = await moves();
+  const notSelected = { ...(await frames(SECONDS)), moves: notSelectedMoves };
   await at("?view=-40,-500,0.5&select=aurora");
   page = await findPage();
   await ready();
-  const selected = await frames(SECONDS);
+  const selectedMoves = await moves();
+  const selected = { ...(await frames(SECONDS)), moves: selectedMoves };
   await at("?view=-40,-500,0.5");
   page = await findPage();
   await ready();
@@ -164,7 +174,8 @@ try {
   ].join("\n");
   await page.evaluate(() => {
     const w = window as unknown as { __watch: { frames: number[]; pings: number[]; stop: boolean } };
-    w.__watch = { frames: [], pings: [], stop: false };
+    w.__watch = { frames: [], pings: [], longTasks: [], stop: false } as typeof w.__watch;
+    new PerformanceObserver((list) => list.getEntries().forEach((e) => (w.__watch as unknown as { longTasks: number[] }).longTasks.push(e.duration))).observe({ type: "longtask" });
     let last = performance.now();
     const tick = (now: number) => {
       w.__watch.frames.push(now - last);
@@ -183,6 +194,9 @@ try {
     };
     void ping();
   });
+  // BENCH_PROFILE=1: where the window's time goes during the run (self time by function).
+  const profiler = process.env.BENCH_PROFILE ? await page.context().newCDPSession(page) : undefined;
+  if (profiler) (await profiler.send("Profiler.enable"), await profiler.send("Profiler.start"));
   const t0 = Date.now();
   const reply = await mcpExecute(pipe, script);
   const runMs = Date.now() - t0;
@@ -192,8 +206,20 @@ try {
   const watch = await page.evaluate(() => {
     const w = (window as unknown as { __watch: { frames: number[]; pings: number[]; stop: boolean } }).__watch;
     w.stop = true;
-    return { frames: w.frames.slice(1), pings: w.pings };
+    return { frames: w.frames.slice(1), pings: w.pings, longTasks: (w as unknown as { longTasks: number[] }).longTasks };
   });
+  if (profiler) {
+    const { profile } = await profiler.send("Profiler.stop");
+    const self = new Map<string, number>();
+    const byId = new Map(profile.nodes.map((n: { id: number }) => [n.id, n]));
+    const dt = profile.timeDeltas as number[];
+    (profile.samples as number[]).forEach((id, k) => {
+      const n = byId.get(id) as { callFrame: { functionName: string; url: string; lineNumber: number } };
+      const name = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop()}:${n.callFrame.lineNumber}`;
+      self.set(name, (self.get(name) ?? 0) + (dt[k] ?? 0) / 1000);
+    });
+    console.error([...self].sort((a, b) => b[1] - a[1]).slice(0, 25).map(([n, ms]) => `${ms.toFixed(0).padStart(6)} ms  ${n}`).join("\n"));
+  }
   const stalled = (list: number[], over: number) => list.filter((g) => g > over).reduce((a, b) => a + b, 0);
   const agent = {
     statements: STATEMENTS,
@@ -203,6 +229,10 @@ try {
     framesOver100ms: watch.frames.filter((g: number) => g > 100).length,
     windowStalledMs: +stalled(watch.frames, 100).toFixed(0),
     longestAppReplyMs: +Math.max(...watch.pings).toFixed(0),
+    // The window's own main thread: tasks over 50 ms (time it couldn't answer input).
+    windowLongTasks: watch.longTasks.length,
+    windowLongestTaskMs: +Math.max(0, ...watch.longTasks).toFixed(0),
+    windowBlockedMs: +watch.longTasks.reduce((a: number, b: number) => a + b, 0).toFixed(0),
     appStalledMs: +stalled(watch.pings, 100).toFixed(0),
   };
   console.log(JSON.stringify({ app: appDir, gpu, shaderNotSelected: notSelected, shaderSelected: selected, agent }, null, 2));

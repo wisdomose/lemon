@@ -77,7 +77,7 @@ export interface Shared {
   engine: Engine;
   sandbox: Sandbox;
   /** Where agents' scripts run (a utility process); `forget` lets go of a closed document's copy. */
-  runs?: ScriptRuns & { forget?(doc: Y.Doc): void };
+  runs?: ScriptRuns & { forget?(doc: Y.Doc): void; thumbnail?(doc: Y.Doc): Promise<Uint8Array | undefined> };
   /** The address of one of the window's pages ("index" is the editor, "dashboard" the Dashboard). */
   pageUrl: (page: "index" | "dashboard") => string;
   preload: string;
@@ -281,7 +281,8 @@ export class Editor implements FileTab {
     const path = this.path;
     if (!path) return;
     try {
-      writeThumb(path, await thumbnail(this.shared.engine, this.doc));
+      // Drawn and encoded in the scripts' utility process when there is one.
+      writeThumb(path, await (this.shared.runs?.thumbnail?.(this.doc) ?? thumbnail(this.shared.engine, this.doc)));
       this.shared.changed();
     } catch (e) {
       this.shared.log(`picture failed: ${e instanceof Error ? e.message : String(e)}`);

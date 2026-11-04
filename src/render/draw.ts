@@ -35,7 +35,7 @@ export interface DrawContext {
   scripts?: (id: string) => ScriptOutput | undefined;
   /** Runs shader fills and effects (in the editor). */
   shaders?: ShaderHost;
-  /** What is drawn behind `node` within `box`, without it (for a shader's "pencil:background"). */
+  /** What is drawn behind `node` within `box`, without it (for a shader's "pencil:background"); kept by its maker. */
   backdrop?: (node: TreeNode, box: Box) => Image | null;
   /** Drawing stops at this node, which isn't drawn (see `backdrop`). */
   stop?: { id: string; hit: boolean };
@@ -431,7 +431,8 @@ function shaderInputs(c: DrawContext, node: TreeNode, box: Box, object: () => Im
   let o: Image | null | undefined, b: Image | null | undefined, s: Image | null | undefined;
   return {
     object: () => (o === undefined ? (o = keep(object())) : o),
-    background: () => (b === undefined ? (b = keep(c.backdrop?.(node, box) ?? null)) : b),
+    // What's behind belongs to whoever made it (the editor keeps it while nothing behind changes).
+    background: () => (b === undefined ? (b = c.backdrop?.(node, box) ?? null) : b),
     shape: () => (s === undefined ? (s = keep(shape())) : s),
     shapeKey,
     done: () => made.forEach((i) => i.delete()),
