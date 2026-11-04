@@ -1,6 +1,6 @@
 // Font files from Google Fonts, cached on disk, and the icon fonts Pen's icon libraries are drawn with
 // (text/icon-fonts.ts). Node only (the app's main process and scripts).
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -42,7 +42,7 @@ export class GoogleFonts implements FontSource {
         catalogue.families[f.family] = Object.keys(f.fonts);
         catalogue.categories[f.family] = f.category;
       }
-      await writeFile(path, JSON.stringify(catalogue));
+      await writeWhole(path, JSON.stringify(catalogue));
     }
     // Icon fonts: Material Symbols is served by Google Fonts but not listed; Phosphor comes with the app.
     Object.assign(catalogue.families, ICON_FONT_STYLES);
@@ -72,8 +72,24 @@ export class GoogleFonts implements FontSource {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Google Fonts: ${url}: HTTP ${res.status}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
-    await writeFile(file, bytes);
+    await writeWhole(file, bytes);
     return toArrayBuffer(bytes);
+  }
+}
+
+/**
+ * Writes a cache file so a reader never sees it half written: to a file of its own first, then moved
+ * into place. Two processes (the test files run side by side) may fill the same cache at once; if the
+ * other one's file is already there, theirs is kept.
+ */
+async function writeWhole(path: string, data: string | Uint8Array): Promise<void> {
+  const part = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.part`;
+  await writeFile(part, data);
+  try {
+    await rename(part, path);
+  } catch (e) {
+    await rm(part, { force: true });
+    if (!existsSync(path)) throw e;
   }
 }
 
