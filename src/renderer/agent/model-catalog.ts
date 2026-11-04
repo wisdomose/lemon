@@ -9,6 +9,8 @@ import { BUILT_IN_PROVIDERS, parseProviderModel, type ProviderRecord } from "../
  * doesn't know ("minimal") into "high", so only what it passes on is offered.
  */
 const SDK_EFFORTS = ["low", "medium", "high", "xhigh"];
+/** Claude's own models also offer Max, as in Pen (4 Nov 2026: every Claude 5.x model, Low to Max). */
+const CLAUDE_EFFORTS = [...SDK_EFFORTS, "max"];
 /** What the SDK sends when no effort is chosen (read from its requests): high for Fable, else medium. */
 const CLAUDE_DEFAULT_EFFORT: Record<string, string> = {
   "claude-fable-5-1": "high",
@@ -29,7 +31,7 @@ export function effortChoices(
   providers: readonly ProviderRecord[] = [],
 ): { levels: string[]; fallback?: string } {
   const backend = modelProvider(model);
-  if (backend === "claude") return { levels: SDK_EFFORTS, ...(CLAUDE_DEFAULT_EFFORT[model] ? { fallback: CLAUDE_DEFAULT_EFFORT[model] } : {}) };
+  if (backend === "claude") return { levels: CLAUDE_EFFORTS, ...(CLAUDE_DEFAULT_EFFORT[model] ? { fallback: CLAUDE_DEFAULT_EFFORT[model] } : {}) };
   if (backend === "provider") {
     const id = parseProviderModel(model)?.providerId;
     const provider = providers.find((p) => p.id === id) ?? BUILT_IN_PROVIDERS.find((p) => p.id === id);

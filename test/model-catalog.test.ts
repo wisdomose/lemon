@@ -67,9 +67,9 @@ describe("model catalog refresh", () => {
 
 describe("effort choices", () => {
   const sdk = ["low", "medium", "high", "xhigh"];
-  it("offers the SDK's levels for Claude, ticking what the SDK sends when none is chosen", () => {
-    expect(effortChoices("claude-opus-5-5", [])).toEqual({ levels: sdk, fallback: "medium" });
-    expect(effortChoices("claude-fable-5-1", [])).toEqual({ levels: sdk, fallback: "high" });
+  it("offers Claude's levels up to Max (as Pen does), marking what the SDK sends when none is chosen", () => {
+    expect(effortChoices("claude-opus-5-5", [])).toEqual({ levels: [...sdk, "max"], fallback: "medium" });
+    expect(effortChoices("claude-fable-5-1", [])).toEqual({ levels: [...sdk, "max"], fallback: "high" });
   });
 
   it("offers a Codex model's own levels with its default", () => {

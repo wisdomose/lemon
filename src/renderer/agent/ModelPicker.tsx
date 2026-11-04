@@ -1,10 +1,12 @@
 // Shared picker for the Dashboard and editor: static Claude choices, a live Codex catalog, and the
-// models of every AI provider a person has connected. A built-in without its key shows its models
-// locked, with a row to go set it up. A model's row picks it at its default
-// effort; one that takes a reasoning effort opens its levels from a chevron button on the row.
+// models of every AI provider a person has connected. As Pen's (4 Nov 2026): rows highlight grey; a
+// built-in provider without its key shows its models greyed at the end, each offering "Setup" while
+// hovered; a model's row picks it at its default effort, and one that takes a reasoning effort opens
+// its levels from a chevron on the row. At most 587px tall, the list scrolling between the search and
+// the footer.
 import { Fragment, useState } from "react";
 import { DropdownMenu as M } from "radix-ui";
-import { ChevronDown, ChevronRight, Image as ImageIcon, Lock, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Image as ImageIcon, Plus, Search } from "lucide-react";
 import { MODELS, modelLabel } from "../../agent/models.js";
 import { providerModelId } from "../../agent/providers.js";
 import { store, useEditor } from "../store.js";
@@ -51,9 +53,11 @@ function ModelMenu({ model }: { model: string }) {
   const providerGroups = providers
     .filter((p) => p.models.length && `${p.name} ${p.models.map((m) => `${m.label ?? ""} ${m.id}`).join(" ")}`.toLowerCase().includes(search))
     .map((p) => ({ id: p.id, name: p.name, models: p.models, locked: !!p.builtIn && !p.keyMasked }));
+  const ready = providerGroups.filter((g) => !g.locked);
+  const notSetUp = providerGroups.filter((g) => g.locked);
   return (
-    <MenuContent side="top" align="end" sideOffset={8} className="w-[228px] max-w-[calc(100vw-24px)] text-[12px]">
-      <div className="flex h-7 items-center gap-2 px-2 text-muted-foreground">
+    <MenuContent side="top" align="end" sideOffset={8} className="flex max-h-[min(587px,var(--radix-dropdown-menu-content-available-height))] w-[237px] max-w-[calc(100vw-24px)] flex-col text-[12px]">
+      <div className="flex h-7 shrink-0 items-center gap-2 px-2 text-muted-foreground">
         <Search size={13} strokeWidth={1.5} />
         <input
           autoFocus
@@ -66,8 +70,7 @@ function ModelMenu({ model }: { model: string }) {
         />
       </div>
       <MenuSeparator />
-      {/* Pen shows the whole list; it scrolls only when the window is too short for it. */}
-      <div className="max-h-[calc(var(--radix-dropdown-menu-content-available-height)-120px)] overflow-x-hidden overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         {claude.length > 0 && (
           <>
             <MenuLabel>Anthropic</MenuLabel>
@@ -101,44 +104,43 @@ function ModelMenu({ model }: { model: string }) {
         {state === "ready" && model.startsWith("codex:") && !selected && (
           <div role="status" className="px-2 py-1.5 whitespace-normal text-muted-foreground">The selected model isn't offered any more. Choose another.</div>
         )}
-        {providerGroups.map((g) => (
+        {ready.map((g) => (
           <Fragment key={g.id}>
             <MenuSeparator />
             <MenuLabel>{g.name}</MenuLabel>
             {g.models.map((m) => {
               const id = providerModelId(g.id, m.id);
-              return g.locked ? (
-                // Without its key the provider can't run: the row stays, but locked.
-                <MenuItem
-                  key={id}
-                  disabled
-                  label={<span className="block max-w-[180px] truncate font-medium">{m.label ?? m.id}</span>}
-                  current={id === model}
-                  plain
-                  hint={<Lock size={12} strokeWidth={1.5} />}
-                />
-              ) : (
-                <ModelRow key={id} id={id} label={m.label ?? m.id} model={model} />
-              );
+              return <ModelRow key={id} id={id} label={m.label ?? m.id} model={model} />;
             })}
-            {g.locked && (
-              <MenuItem
-                label={`Set up ${g.name} to use`}
-                hint={<ChevronRight size={12} strokeWidth={1.5} />}
-                onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents", provider: g.id } })}
-              />
-            )}
           </Fragment>
         ))}
+        {/* Providers without their key: their models greyed, together at the end; "Setup" takes you there. */}
+        {notSetUp.length > 0 && <MenuSeparator />}
+        {notSetUp.flatMap((g) =>
+          g.models.map((m) => (
+            <M.Item
+              key={providerModelId(g.id, m.id)}
+              className={cx(ROW, "group data-[highlighted]:!bg-input")}
+              onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents", provider: g.id } })}
+            >
+              <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{m.label ?? m.id}</span>
+              <span className="hidden text-[11px] text-foreground group-data-[highlighted]:inline">Setup</span>
+            </M.Item>
+          )),
+        )}
         {claude.length === 0 && codex.length === 0 && providerGroups.length === 0 && <MenuLabel>No matching models</MenuLabel>}
       </div>
-      <MenuSeparator />
-      <MenuItem icon={<ImageIcon size={13} strokeWidth={1.5} />} label="Image model" hint={<>Not set <ChevronRight size={12} strokeWidth={1.5} /></>} disabled />
-      <MenuItem
-        icon={<Plus size={13} strokeWidth={1.5} />}
-        label="Add more providers"
-        onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents" } })}
-      />
+      {/* The footer keeps its height; the list above gives way. */}
+      <div className="shrink-0">
+        <MenuSeparator />
+        <MenuItem grey icon={<ImageIcon size={13} strokeWidth={1.5} />} label="Image model" hint={<>Not set <ChevronRight size={12} strokeWidth={1.5} /></>} disabled />
+        <MenuItem
+          grey
+          icon={<Plus size={13} strokeWidth={1.5} />}
+          label="Add more providers"
+          onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents" } })}
+        />
+      </div>
     </MenuContent>
   );
 }
@@ -159,9 +161,10 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
   const [open, setOpen] = useState(false);
   const { levels, fallback } = effortChoices(id, codexModels, providers);
   const current = id === model;
-  const name = <span className="block max-w-[180px] truncate font-medium">{label}</span>;
+  // The selected model's name is dimmer than the others' (Pen).
+  const name = <span className={cx("block max-w-[180px] truncate", current && "text-muted-foreground group-data-[highlighted]:text-foreground")}>{label}</span>;
   const pick = () => store.set({ model: id, effort: undefined });
-  if (!levels.length) return <MenuItem label={name} current={current} plain onSelect={pick} />;
+  if (!levels.length) return <MenuItem grey label={name} current={current} plain onSelect={pick} />;
   const shown = current ? (effort ?? fallback) : undefined;
   const descriptions = codexModels.find((m) => m.id === id)?.efforts;
   return (
@@ -170,7 +173,7 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
       className={cx(
         "group/row relative rounded-[6px]",
         current && "bg-input",
-        "has-[[data-highlighted]]:bg-[#3b82f6] has-[[data-highlighted]]:text-white has-[[data-state=open]]:bg-[#3b82f6] has-[[data-state=open]]:text-white",
+        "has-[[data-highlighted]]:bg-input has-[[data-state=open]]:bg-input",
       )}
     >
       <M.Item
@@ -188,7 +191,11 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
       <M.Sub open={open} onOpenChange={setOpen}>
         <M.SubTrigger
           aria-label={`${label} effort`}
-          className="absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-white/80 opacity-0 outline-none group-hover/row:opacity-100 group-has-[[data-highlighted]]/row:opacity-100 data-[highlighted]:bg-white/20 data-[state=open]:bg-white/20 data-[state=open]:opacity-100"
+          // Shown on the selected model and on a hovered one (Pen).
+          className={cx(
+            "absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-muted-foreground outline-none group-hover/row:opacity-100 group-has-[[data-highlighted]]/row:opacity-100 data-[highlighted]:bg-foreground/10 data-[state=open]:opacity-100",
+            current ? "opacity-100" : "opacity-0",
+          )}
           onClick={() => setOpen(true)}
         >
           <ChevronRight size={12} strokeWidth={1.5} />
@@ -196,11 +203,14 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
         <M.Portal>
           <M.SubContent sideOffset={4} className={cx(PANEL, "min-w-[120px]")}>
             <MenuLabel>Effort</MenuLabel>
+            {/* The level the next run uses has the grey row (Pen), not a tick. */}
             {levels.map((level) => (
               <MenuItem
                 key={level}
+                grey
+                plain
                 label={<span title={descriptions?.find((e) => e.id === level)?.description}>{effortLabel(level)}</span>}
-                checked={shown === level}
+                current={shown === level}
                 onSelect={() => store.set({ model: id, effort: level })}
               />
             ))}
