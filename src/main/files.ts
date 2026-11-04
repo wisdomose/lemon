@@ -1,0 +1,186 @@
+// Where design files live on disk: the Drafts folder for files never saved anywhere else, the list of
+// recently opened files, each file's picture for the Dashboard, and writing a file so a crash mid-write
+// never leaves it half written.
+import { app } from "electron";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import type * as Y from "yjs";
+import { fileText, picturesOf, readFile, type ReadReport } from "../doc/file.js";
+import { PRODUCT } from "../product.js";
+
+export const EXT = `.${PRODUCT.fileExtension}`;
+/** How many files Open Recent remembers. */
+const MAX_RECENTS = 20;
+
+/** New files are auto-saved here until Save As puts them somewhere else (as in Pen). */
+export function draftsFolder(): string {
+  const dir = join(app.getPath("userData"), "Drafts");
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export const isDraft = (path: string) => path.startsWith(draftsFolder());
+
+/** A free name in the Drafts folder: "Untitled" (or `name`), then "Untitled 2", … */
+export function newDraftPath(name = "Untitled"): string {
+  const dir = draftsFolder();
+  for (let n = 1; ; n++) {
+    const path = join(dir, `${name}${n > 1 ? ` ${n}` : ""}${EXT}`);
+    if (!existsSync(path)) return path;
+  }
+}
+
+/** The name a window shows for a file: its file name. */
+export const displayName = (path: string | null) => (path ? basename(path) : `untitled${EXT}`);
+export const withoutExt = (path: string) => basename(path, extname(path));
+
+/** Writes beside the file first and then swaps it in, so the file is always whole. */
+export function writeWhole(path: string, text: string | Uint8Array): void {
+  const temp = `${path}.saving`;
+  writeFileSync(temp, text);
+  renameSync(temp, path);
+}
+
+/** Where a picture url in a .pen file points: relative to the file's folder. */
+const pictureFile = (penPath: string, url: string) => resolve(dirname(penPath), decodeURIComponent(url.replace(/^file:\/\//, "")));
+
+/** Reads a .pen file into an empty document, with its pictures from beside it. */
+export function readPen(path: string, into: Y.Doc): ReadReport {
+  return readFile(readFileSync(path, "utf8"), into, (url) => {
+    const file = pictureFile(path, url);
+    return existsSync(file) ? new Uint8Array(readFileSync(file)) : undefined;
+  });
+}
+
+/** Writes the document as a .pen file, and the pictures it uses that aren't beside it yet. */
+export function writePen(path: string, doc: Y.Doc): void {
+  for (const { url, bytes } of picturesOf(doc)) {
+    const file = pictureFile(path, url);
+    if (existsSync(file)) continue;
+    mkdirSync(dirname(file), { recursive: true });
+    writeWhole(file, bytes);
+  }
+  writeWhole(path, fileText(doc));
+}
+
+// ---- Recent files ----------------------------------------------------------------------------------
+export interface Recent {
+  path: string;
+  openedAt: number;
+}
+
+const recentsFile = () => join(app.getPath("userData"), "recents.json");
+
+export function recents(): Recent[] {
+  try {
+    const list = JSON.parse(readFileSync(recentsFile(), "utf8")) as Recent[];
+    return list.filter((r) => existsSync(r.path));
+  } catch {
+    return [];
+  }
+}
+
+export function addRecent(path: string): void {
+  const list = [{ path, openedAt: Date.now() }, ...recents().filter((r) => r.path !== path)].slice(0, MAX_RECENTS);
+  writeFileSync(recentsFile(), JSON.stringify(list, null, 2));
+  app.addRecentDocument(path);
+}
+
+export function forgetRecent(path: string): void {
+  writeFileSync(recentsFile(), JSON.stringify(recents().filter((r) => r.path !== path), null, 2));
+}
+
+export function clearRecents(): void {
+  writeFileSync(recentsFile(), "[]");
+  app.clearRecentDocuments();
+}
+
+// ---- Pictures for the Dashboard ---------------------------------------------------------------------
+/** A file's picture, kept with the app's data (by the file's path) rather than inside the file. */
+export function thumbPath(path: string): string {
+  const dir = join(app.getPath("userData"), "Thumbnails");
+  mkdirSync(dir, { recursive: true });
+  return join(dir, `${createHash("sha1").update(path).digest("hex").slice(0, 20)}.png`);
+}
+
+export function writeThumb(path: string, png: Uint8Array | undefined): void {
+  if (png) writeWhole(thumbPath(path), png);
+  else rmSync(thumbPath(path), { force: true });
+}
+
+// ---- The Dashboard's lists ---------------------------------------------------------------------------
+export interface FileCard {
+  path: string;
+  name: string;
+  /** The folder it is in (Home shows "folder / name"); none for a draft. */
+  folder?: string;
+  draft: boolean;
+  /** When the person last opened it (Recents only). */
+  openedAt?: number;
+  editedAt: number;
+  createdAt: number;
+  /** Its picture as a data URL; none until it has been saved with something on the page. */
+  thumb?: string;
+}
+
+function card(path: string, openedAt?: number): FileCard | undefined {
+  try {
+    const st = statSync(path);
+    const thumb = thumbPath(path);
+    const draft = isDraft(path);
+    return {
+      path,
+      name: basename(path),
+      ...(draft ? {} : { folder: basename(dirname(path)) }),
+      draft,
+      ...(openedAt ? { openedAt } : {}),
+      editedAt: st.mtimeMs,
+      createdAt: st.birthtimeMs || st.ctimeMs,
+      ...(existsSync(thumb) ? { thumb: `data:image/png;base64,${readFileSync(thumb).toString("base64")}` } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Recently opened files, and every draft, newest first. */
+export function dashboardFiles(): { recents: FileCard[]; drafts: FileCard[] } {
+  const dir = draftsFolder();
+  const drafts = readdirSync(dir)
+    .filter((f) => f.endsWith(EXT))
+    .map((f) => card(join(dir, f)))
+    .filter((c) => !!c)
+    .sort((a, b) => b.editedAt - a.editedAt);
+  const recent = recents()
+    .map((r) => card(r.path, r.openedAt))
+    .filter((c) => !!c)
+    .sort((a, b) => Math.max(b.openedAt!, b.editedAt) - Math.max(a.openedAt!, a.editedAt));
+  return { recents: recent, drafts };
+}
+
+/**
+ * Renames a design file on disk (Home's Rename, as in Pen), keeping its picture and its place in
+ * Recents. Returns the new path. A name without the extension gets it.
+ */
+export function renameDesign(path: string, name: string): string {
+  const clean = name.trim();
+  if (!clean || /[\/:*?"<>|]/.test(clean)) throw new Error("That name can't be used for a file.");
+  const to = join(dirname(path), clean.toLowerCase().endsWith(EXT) ? clean : `${clean}${EXT}`);
+  if (to === path) return path;
+  if (existsSync(to)) throw new Error(`There is already a file called ${basename(to)} there.`);
+  // Recents leaves out files that aren't there any more, so it is read before the move.
+  const list = recents().map((r) => (r.path === path ? { ...r, path: to } : r));
+  renameSync(path, to);
+  if (existsSync(thumbPath(path))) renameSync(thumbPath(path), thumbPath(to));
+  writeFileSync(recentsFile(), JSON.stringify(list, null, 2));
+  return to;
+}
+
+/** Deletes a draft for good, with its picture. */
+export function deleteDraft(path: string): void {
+  if (!isDraft(path)) throw new Error("Only drafts can be deleted here.");
+  rmSync(path, { force: true });
+  rmSync(thumbPath(path), { force: true });
+  forgetRecent(path);
+}

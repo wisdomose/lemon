@@ -1,0 +1,265 @@
+/* Design tokens: the one source for colours, type, radii and shadows in the window. Values from the
+   PRD's token tables (dark theme on .dark, the default; light on :root). Measured island geometry
+   (8px gaps, 42px top bar) comes from the reference captures. */
+@import "tailwindcss";
+
+/* Selawik carries Segoe UI's line metrics (ascender 2210, descender 514 per 2048 em) so text sits on the same baseline. */
+@font-face { font-family: "Selawik"; font-weight: 300; src: url("./ui-fonts/selawkl.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 350; src: url("./ui-fonts/selawksl.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 400; src: url("./ui-fonts/selawk.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 600; src: url("./ui-fonts/selawksb.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Selawik"; font-weight: 700; src: url("./ui-fonts/selawkb.ttf") format("truetype"); ascent-override: 107.91%; descent-override: 25.1%; line-gap-override: 0%; }
+@font-face { font-family: "Roboto Mono"; font-weight: 400; src: url("./ui-fonts/RobotoMono-400.ttf") format("truetype"); }
+@font-face { font-family: "Roboto Mono"; font-weight: 500; src: url("./ui-fonts/RobotoMono-500.ttf") format("truetype"); }
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #fafafa;
+  --foreground: #020202;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --accent-active: #3b82f6;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #d4d4d8;
+  --canvas-bg: #f6f6f6;
+  --island-bg: var(--background);
+  --island-ring: #00000014;
+  --light-blue: #3d99ff;
+  --scroll-thumb: #00000038;
+  --scroll-thumb-active: #0000006b;
+  /* Chrome colours measured from the reference captures (light: 18, 19; dark: 02–17). */
+  --field: #efefef;
+  --line: #ebebeb;
+  --tab-active: #ededed;
+  --seg-active: #ffffff;
+  --select-bg: #fafafa;
+  --bubble: #efefef;
+  --rail-icon: #52525b;
+  --rail-active: #f4f4f5;
+  --nav-active: #e6e6e7;
+  --row-line: #ededef;
+  --switch-off: #d5d5d5;
+  /* Not in the light captures; chosen to match their system (light blue selection, pale thumbnails). */
+  --layer-active: #dbeafe;
+  --layer-active-text: #1e40af;
+  --layer-inside: #eff6ff;
+  --thumb: #f4f4f5;
+  --send-off: #52525b;
+  --send-off-icon: #ffffff;
+  /* The Dashboard is always dark (capture 01), so these have one value. */
+  --sidebar: #1d1d1d;
+  --sidebar-accent: #2e2e2e;
+  --card-picture: #222225;
+  --tile: #161618;
+  --tile-line: #1a1a1a;
+  --chip-on: #262626;
+  --chip-on-line: #a5a5a5;
+}
+.dark {
+  --background: #18181b;
+  --foreground: #c8c8c8;
+  --card: #141414;
+  --card-foreground: #bebebe;
+  --popover: #27272a;
+  --popover-foreground: #f4f4f5;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #828282;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #3f3f46;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f87171;
+  --destructive-foreground: #18181b;
+  --border: #202020;
+  --input: #3f3f46;
+  --ring: #52525b;
+  --canvas-bg: #18181b;
+  --island-bg: var(--popover);
+  --island-ring: #ffffff14;
+  --scroll-thumb: #ffffff3d;
+  --scroll-thumb-active: #ffffff73;
+  --field: #37373a;
+  --line: #313134;
+  --tab-active: #3a3a3c;
+  --seg-active: #4e4e51;
+  --select-bg: #2b2b2f;
+  --bubble: #323238;
+  --rail-icon: #f4f4f5;
+  --rail-active: #2e2e32;
+  --nav-active: #313134;
+  --row-line: #1d1d1e;
+  --switch-off: #38383a;
+  --layer-active: #283751;
+  --layer-active-text: #bfdbfe;
+  /* Rows inside a selected layer (measured from the reference). */
+  --layer-inside: #272d3b;
+  --thumb: #202023;
+  --send-off: #3f3f46;
+  --send-off-icon: #18181b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-active: var(--accent-active);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-canvas: var(--canvas-bg);
+  --color-island: var(--island-bg);
+  --color-island-ring: var(--island-ring);
+  --color-light-blue: var(--light-blue);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-tab-active: var(--tab-active);
+  --color-seg-active: var(--seg-active);
+  --color-select-bg: var(--select-bg);
+  --color-bubble: var(--bubble);
+  --color-rail-icon: var(--rail-icon);
+  --color-rail-active: var(--rail-active);
+  --color-nav-active: var(--nav-active);
+  --color-row-line: var(--row-line);
+  --color-switch-off: var(--switch-off);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-card-picture: var(--card-picture);
+  --color-tile: var(--tile);
+  --color-tile-line: var(--tile-line);
+  --color-chip-on: var(--chip-on);
+  --color-chip-on-line: var(--chip-on-line);
+  --color-layer-active: var(--layer-active);
+  --color-layer-active-text: var(--layer-active-text);
+  --color-layer-inside: var(--layer-inside);
+  --color-thumb: var(--thumb);
+  --color-send-off: var(--send-off);
+  --color-send-off-icon: var(--send-off-icon);
+
+  /* Pen's stack starts with system-ui, which is Segoe UI on Windows. Naming Segoe UI first keeps that,
+     and Selawik (its open, same-width twin, bundled) stands in elsewhere. */
+  --font-sans: "Segoe UI", "Selawik", -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+
+  --text-3xs: 9px;
+  --text-2xs: 10px;
+  --text-xxs: 11px;
+  --text-xxs--line-height: 16px;
+
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-island: 20px;
+
+  /* The ring sits inside the island: measured #37393f at the edge = #ffffff14 over #27272a, not over the canvas. */
+  --shadow-island: inset 0 0 0 1px var(--island-ring), 0 12px 32px #00000012;
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    background: var(--canvas-bg);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:active { background: var(--scroll-thumb-active); background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  /* A scroller whose bar shows only while the pointer is over it (the prompt's attachment tray). */
+  .scroll-quiet:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
+}
+
+/* The Dashboard prompt's border (Pen's prompt starter): two soft spots of the picked kind's colour
+   (--glow) travel round the 1px ring at an even speed, with a blurred copy outside as the glow. The
+   colour fades when the kind changes. */
+@property --glow { syntax: "<color>"; inherits: true; initial-value: #f59e0b; }
+@keyframes glow-flow { to { offset-distance: 100%; } }
+/* Tooltips fade in and out, as Pen's do (measured 4 Nov 2026: about 150ms in, 100ms out). */
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tip-out { from { opacity: 1; } to { opacity: 0; } }
+@layer components {
+  .glow-ring { transition: --glow 0.7s var(--ease-ui); }
+  .glow-spot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 380px;
+    height: 380px;
+    background: radial-gradient(closest-side, var(--glow), transparent);
+    offset-path: inset(0 round 15px);
+    offset-rotate: 0deg;
+    offset-distance: 8%;
+  }
+  .glow-spot + .glow-spot { width: 300px; height: 300px; offset-distance: 58%; }
+  .glow-moving .glow-spot { animation: glow-flow 14s linear infinite; }
+  .glow-moving .glow-spot + .glow-spot { animation-delay: -7s; }
+  .glow-halo { filter: blur(12px); opacity: 0.55; }
+}
+
+@utility island {
+  background: var(--island-bg);
+  box-shadow: var(--shadow-island);
+  border-radius: var(--radius-island);
+}
+
+/* The agent's replies (markdown): measured from the reference's finished report. */
+@layer components {
+  .chat-md p { margin: 0 0 8px; }
+  .chat-md p:last-child, .chat-md ol:last-child, .chat-md ul:last-child { margin-bottom: 0; }
+  .chat-md ol { list-style: decimal; margin: 0 0 8px; padding-left: 16px; }
+  .chat-md ul { list-style: disc; margin: 0 0 8px; padding-left: 16px; }
+  .chat-md li { margin-bottom: 4px; padding-left: 2px; }
+  .chat-md strong { font-weight: 600; }
+  /* Headings, as Pen draws them in a tool's result. */
+  .chat-md h1 { font-size: 24px; line-height: 30px; font-weight: 600; margin: 4px 0 8px; }
+  .chat-md h2 { font-size: 20px; line-height: 26px; font-weight: 600; margin: 4px 0 8px; }
+  .chat-md h3 { font-size: 15px; line-height: 22px; font-weight: 600; margin: 4px 0 6px; }
+  .chat-md code { font-family: var(--font-mono); font-size: 10px; background: var(--input); border-radius: 4px; padding: 1px 4px; }
+}
+
+/* The prompt editor (ProseMirror): 13px text at 1.5 line height, two lines tall when empty, placeholder
+   from data-placeholder. Measured from the reference's chat box. */
+@layer components {
+  .prompt-editor .ProseMirror { position: relative; min-height: 40px; outline: none; font-size: 13px; line-height: 1.5; color: var(--foreground); }
+  .prompt-editor .ProseMirror p { margin: 0; }
+  .prompt-editor.large .ProseMirror { font-size: 16px; min-height: 64px; }
+  .prompt-editor .ProseMirror.is-empty::before {
+    content: attr(data-placeholder);
+    position: absolute;
+    color: #71717a;
+    pointer-events: none;
+  }
+}

@@ -1,21 +1,42 @@
-// The designer agent: Claude, through the Claude Agent SDK and the person's own Claude login, with one
-// tool (`execute`) and nothing else — no shell, files or web.
+// Designer agents share canvas execution, rollback, and events across Claude and Codex.
+// Each provider uses its own local login and receives only the canvas tools: execute, and browser when
+// the document's browser nodes can be driven.
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type SDKPartialAssistantMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type * as Y from "yjs";
 import { z } from "zod";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
-import { execute, type ExecuteResult } from "./execute.js";
+import type { ExecuteResult, Focus } from "./execute.js";
+import { inProcess, type LiveScript, type ScriptRuns } from "./runs.js";
+import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
-import { pickStartingPoints } from "./directions.js";
-import { toTree } from "../doc/store.js";
-import { DEFAULT_MODEL } from "./models.js";
+import { pickStartingPoints, type Direction } from "./directions.js";
+import { exists, nodesOf, toTree } from "../doc/store.js";
+import { partialField, scriptTarget, type Target } from "./live-script.js";
+import { FailedScripts } from "./patches.js";
+import type { Globals } from "../sandbox/sandbox.js";
+import { runCodex, type CodexTool, type ToolResultContent } from "./codex.js";
+import { BROWSER_DESCRIPTION, browserSchema, runBrowser, type PageDriver } from "./browser-tool.js";
+import { DEFAULT_MODEL, modelProvider } from "./models.js";
+import { forClaude, serverNames, type PersonServers, type ServerSignIns } from "./mcp-servers.js";
+import { POPULAR_SERVERS } from "../mcp/settings.js";
+import { claudeContent, type Attachment } from "./attachments.js";
+import { runOpenAICompat } from "./openai.js";
+import { connectServers } from "./mcp-client.js";
+import type { ResolvedProvider } from "./providers.js";
 
 const TOOL_NAME = `mcp__${PRODUCT.slug}__execute`;
+const BROWSER_TOOL_NAME = `mcp__${PRODUCT.slug}__browser`;
+/** Where the numbers of the cards for an added server's tools start (apart from the canvas steps). */
+const SERVER_STEP_BASE = 100_000;
+/** A browser call's card in the chat (as in Pen). */
+const BROWSER_STEP_TITLE = "Used the browser";
+/** How often the script being written is re-read for where it will work next. */
+const READ_EVERY_MS = 100;
 
 export interface StepRecord {
   index: number;
@@ -31,11 +52,32 @@ export interface StepRecord {
   at: number;
 }
 
+/** What a step card shows when opened: the script, what it returned, and any pictures. */
+export interface StepDetail {
+  script: string;
+  output: string;
+  /** A browser call's input (JSON), shown instead of a script. */
+  input?: string;
+  /** The output is Markdown (an added server's tool), shown formatted. */
+  markdown?: boolean;
+  pictures: { id: string; png: Uint8Array; width: number; height: number }[];
+}
+
 export type AgentEvent =
-  | { type: "started"; directions: string[] }
+  | { type: "started"; directions: string[]; name: string; model: string; prompt: string }
+  /** Time the model spent before its next action (shown as "Thought for Ns"). */
+  | { type: "thought"; seconds: number }
+  /** The agent has begun writing a step's script (sent once its title is written). */
+  | { type: "step-writing"; index: number; title: string }
+  /** Where the script being written will work next, read from the unfinished script. */
+  | { type: "step-target"; index: number; target: Target }
+  /** A statement of the script being written has landed on the document; `focus` is where it worked. */
+  | { type: "step-progress"; index: number; focus: Focus }
   | { type: "step-start"; index: number; title: string }
-  | { type: "step-end"; step: StepRecord; focus?: ExecuteResult["focus"]; frames: string[] }
-  | { type: "text"; text: string }
+  | { type: "step-end"; step: StepRecord; detail: StepDetail; focus?: ExecuteResult["focus"]; frames: string[] }
+  | { type: "text"; text: string; streamId?: string }
+  /** A design is done and the agent goes on to the next variation ("Let it cook"); `seconds` is how long the last one took. */
+  | { type: "iterating"; seconds: number }
   | { type: "done"; stats: AgentStats }
   | { type: "error"; message: string };
 
@@ -56,28 +98,103 @@ export interface AgentOptions {
   doc: Y.Doc;
   engine: Engine;
   sandbox: Sandbox;
+  /** Where its scripts run (in this process unless given; the app runs them in a utility process). */
+  runs?: ScriptRuns;
   prompt: string;
   model?: string;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  /** Codex effort identifiers come from model/list rather than a fixed enum. */
+  effort?: string;
+  /** An API-key provider run (a "prov:…" model), resolved by the caller with its key. */
+  provider?: ResolvedProvider;
   /** The agent's name, shown on its cursor and in the chat. */
   name?: string;
   recentDirections?: string[];
+  /** Starting points chosen by the caller (a team gives each agent different ones); null for none. */
+  directions?: Direction[] | null;
+  /** What this agent does in a team: added to the request (see team.ts). */
+  brief?: string;
+  /** Values its first script starts with (a team agent's own frame, as `mine`). */
+  globals?: Globals;
+  /** Frames whose "being built" mark the team owns: this agent leaves them marked when it ends. */
+  leaveMarked?: string[];
+  /** The pages of the document's browser nodes; without it the agent has no browser tool. */
+  browser?: PageDriver;
+  /** "Let it cook": how many variations to design in all (1: just the one), and how they differ. */
+  variants?: Variants;
+  /** Files attached to the prompt; the agent gets them before it. */
+  attachments?: Attachment[];
+  /** MCP servers the person added in Settings → MCP: their tools are the agent's too. */
+  mcpServers?: PersonServers;
+  /** The added servers with their sign-ins: those wanting one are signed in to as the agent starts. */
+  signIns?: ServerSignIns;
   signal?: AbortSignal;
   onEvent?: (e: AgentEvent) => void;
 }
 
-function summarise(r: ExecuteResult): string {
+/** "Let it cook", as in Pen: after the first design the agent designs more variations of it on its own. */
+export interface Variants {
+  /** Designs in all, 1–6 (1: no variations). */
+  count: number;
+  /** "layout": new variations keep the first design's style; "style": each gets a new one. */
+  mode: "layout" | "style";
+}
+
+/** Added to the request when variations will follow (what Pen asks for, in our words). */
+const FIRST_OF_VARIANTS = `This is the first of several variations. Design one focused screen, unless the person asked for a flow or for several screens, and even then keep it as small as you can. For a broad request ("a fitness tracker", "an app for a sports team") design its main screen: the one people land on first, which sets the look and the idea for the rest. Don't design the whole product. The variations after this one will try other directions for whatever you design here.`;
+
+/** The follow-up for each further variation (what Pen sends, in our words). */
+function nextVariation(mode: Variants["mode"]): string {
+  const style =
+    mode === "style"
+      ? "Give it a new style, not the first design's: take a different starting point (offered below) and set new variables, fonts and colours for it."
+      : "Keep the first design's style: the same variables, fonts and colours.";
+  return `Now design another variation of this page. Like a great product designer, find a source of inspiration that gives it depth, from your own knowledge: don't use the web for this. Study it, take it apart, and let what you learn shape the design, in whatever way you think best. Make it a completely new variation, beside the others. ${style}`;
+}
+
+/** The promise, or a rejection as soon as the run is stopped. */
+function untilAborted<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return p;
+  return Promise.race([p, new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(new Error("Stopped.")), { once: true }))]);
+}
+
+/** A step that never ran (its edits didn't fit the failed script). */
+export function notRun(message: string, globals: Globals): ExecuteResult {
+  return {
+    ok: false,
+    error: { name: "EditError", message },
+    globals,
+    created: [],
+    logs: [],
+    leftAlone: [],
+    issues: [],
+    frames: [],
+    pictures: [],
+    timings: { totalMs: 0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+  };
+}
+
+export function summarise(r: ExecuteResult, editId?: string): string {
   const lines: string[] = [];
   if (!r.ok) {
     lines.push(`FAILED — nothing from this script was kept.`);
     lines.push(`${r.error?.name ?? "Error"}${r.error?.line ? ` at line ${r.error.line}` : ""}: ${r.error?.message}`);
+    if (editId) lines.push(`Fix it with \`edits\` and editId "${editId}" — don't send the script again.`);
   } else {
     lines.push("Done — the change is on the canvas.");
     if (r.value !== undefined && r.value !== null) {
       const v = JSON.stringify(r.value);
       lines.push(`Returned: ${v.length > 6000 ? v.slice(0, 6000) + " …(cut)" : v}`);
     }
-    if (Object.keys(r.refs).length) lines.push(`Refs: ${JSON.stringify(r.refs)}`);
+    const named = r.created.filter((c) => c.name);
+    if (named.length) {
+      const shown = named.slice(0, 120);
+      lines.push(`Created (name → id):\n${shown.map((c) => `- ${c.name} → ${c.id}`).join("\n")}${named.length > shown.length ? `\n…and ${named.length - shown.length} more` : ""}`);
+    }
+    const kept = Object.keys(r.globals);
+    if (kept.length) lines.push(`Globals kept for your next scripts: ${kept.join(", ")}.`);
+    if (r.leftAlone.length) {
+      lines.push(`Left alone — the person changed these while you were working, so their values stay:\n${r.leftAlone.map((l) => `- ${l}`).join("\n")}`);
+    }
   }
   if (r.logs.length) lines.push(`Log:\n${r.logs.join("\n")}`);
   if (r.ok) {
@@ -98,25 +215,144 @@ function canvasSummary(doc: Y.Doc): string {
   return `On the canvas: ${frames.map((f) => `"${f.props.name ?? f.type}" (${f.id})`).join(", ")}.`;
 }
 
+/**
+ * The Claude SDK's environment for an Anthropic-compatible provider: its base URL and its key. The
+ * environment replaces the subprocess's, so the rest of the process's variables are carried over —
+ * except any Claude or Anthropic setting, which could make the subprocess sign in as the person
+ * (a host's login, an OAuth token) and send that to someone else's endpoint instead of the key. A
+ * provider without a key still gets a stand-in token, so nothing falls back to the person's own.
+ */
+export function providerEnv(p: ResolvedProvider): Record<string, string | undefined> {
+  const token = p.apiKey ?? "no-key";
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(ANTHROPIC_|CLAUDE_|CLAUDECODE$)/.test(name)));
+  return {
+    ...inherited,
+    ANTHROPIC_BASE_URL: p.baseUrl,
+    ANTHROPIC_AUTH_TOKEN: token,
+    ANTHROPIC_API_KEY: token,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+  };
+}
+
 export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const model = o.model ?? DEFAULT_MODEL;
+  // The provider's own id for its model; the chat gets the picker's id, which the window can label.
+  const apiModel = o.provider?.model ?? model;
   const emit = o.onEvent ?? (() => {});
   const started = performance.now();
   const steps: StepRecord[] = [];
-  const directions = pickStartingPoints(o.recentDirections);
-  emit({ type: "started", directions: directions.map((d) => d.id) });
+  // People's edits during this run: a step doesn't overwrite what the agent couldn't have seen.
+  const personEdits = new PersonEdits(o.doc);
+  const runs = o.runs ?? inProcess(o.engine, o.sandbox);
+  const directions = o.directions === null ? [] : (o.directions ?? pickStartingPoints(o.recentDirections));
+  emit({ type: "started", directions: directions.map((d) => d.id), name: o.name ?? "agent", model, prompt: o.prompt });
+  // "Thought for Ns": time from the last thing the agent did to its next action.
+  let lastActivity = performance.now();
+  const thought = () => {
+    const seconds = Math.round((performance.now() - lastActivity) / 1000);
+    if (seconds >= 1) emit({ type: "thought", seconds });
+  };
 
-  const executeTool = tool(
-    "execute",
-    "Run a JavaScript script against the design document (global `doc`). All-or-nothing: if it throws, nothing is kept. Returns the result, ref ids, log lines, the automatic layout check and any pictures requested with doc.screenshot().",
-    {
+  // The execute call the model is writing right now, read as it streams (see live-script.ts).
+  let writing: { block: number; index: number; json: string; titled: boolean; target: string; readAt: number } | undefined;
+  let blocksInMessage = 0;
+  /** Steps whose card appeared while being written (their thinking time is already shown). */
+  const announced = new Set<number>();
+  /** Values the agent's scripts left on the global object, carried into its next script. */
+  let globals: Globals = o.globals ?? {};
+  /** Top-level frames this agent's steps touched (its "being built" marks are cleared at the end). */
+  const touched = new Set<string>();
+  const failed = new FailedScripts();
+  /** Each step's origin (its changes' label in the document), made when the step is first seen. */
+  const origins = new Map<number, AgentChange>();
+  const originOf = (index: number) => origins.get(index) ?? origins.set(index, new AgentChange(o.name ?? "agent", index)).get(index)!;
+  /** Steps whose statements are landing while the model writes them, until their call arrives. */
+  const live = new Map<number, LiveScript>();
+  const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
+    if (ev.type === "message_start") blocksInMessage = 0;
+    else if (ev.type === "content_block_start") {
+      if (ev.content_block.type === "tool_use" && ev.content_block.name === TOOL_NAME) {
+        writing = { block: ev.index, index: steps.length + 1 + blocksInMessage++, json: "", titled: false, target: "", readAt: 0 };
+        // The same step written again (the model's reply was restarted): drop what the first try landed.
+        void live.get(writing.index)?.cancel();
+        live.delete(writing.index);
+      // Only the canvas tools are numbered steps (an added server's tool gets a card of its own).
+      } else if (ev.content_block.type === "tool_use" && ev.content_block.name === BROWSER_TOOL_NAME) blocksInMessage++;
+    } else if (ev.type === "content_block_delta") {
+      if (!writing || ev.index !== writing.block || ev.delta.type !== "input_json_delta") return;
+      writing.json += ev.delta.partial_json;
+      const title = writing.titled ? undefined : partialField(writing.json, "title");
+      if (title?.done) {
+        writing.titled = true;
+        thought();
+        announced.add(writing.index);
+        emit({ type: "step-writing", index: writing.index, title: title.value });
+      }
+      const now = performance.now();
+      if (!writing.titled || now - writing.readAt < READ_EVERY_MS) return;
+      writing.readAt = now;
+      const script = partialField(writing.json, "script")?.value;
+      if (script === undefined) return;
+      // Statements land as they are written: only for the step the agent is on (a second call in the
+      // same message runs once it arrives, after the first).
+      let run = live.get(writing.index);
+      if (!run && writing.index === steps.length + 1) {
+        const index = writing.index;
+        run = runs.live(o.doc, originOf(index), personEdits.peek(), globals, (focus) => emit({ type: "step-progress", index, focus }));
+        live.set(index, run);
+      }
+      run?.feed(script);
+      // Until its first statement lands, the cursor goes where the script is about to work.
+      if (run?.started) return;
+      const target = scriptTarget(script, (id) => exists(o.doc, id), globals);
+      const key = JSON.stringify(target ?? null);
+      if (target && key !== writing.target) {
+        writing.target = key;
+        emit({ type: "step-target", index: writing.index, target });
+      }
+    } else if (ev.type === "content_block_stop" && ev.index === writing?.block) writing = undefined;
+  };
+
+  const toolDescription = "Run a JavaScript snippet against the .pen document (Insert, Copy, Update, Replace, Move, Delete, Get, SetVariables, GetVariables, FindEmptySpace, Print, TakeScreenshot). Each statement lands on the canvas as soon as it is written. All-or-nothing: if it throws, everything it did is removed and the result gives an editId; fix it by sending `edits` with that editId instead of a script. Returns the names → ids of the nodes it made, Print lines, the automatic layout check and any screenshots taken with TakeScreenshot.";
+  const toolSchema = z.object({
       title: z.string().describe("A short plain-language name for this step, shown to the person."),
-      script: z.string().describe("The script: a function body; `return` a value to get it back."),
-    },
-    async ({ title, script }) => {
+      script: z.string().optional().describe("The script: a function body; `return` a value to get it back. Leave out when sending edits."),
+      editId: z.string().optional().describe("The editId of the failed script that `edits` fix."),
+      edits: z
+        .array(z.object({ find: z.string(), replace: z.string() }))
+        .optional()
+        .describe("Find-and-replace edits applied in order to the failed script; each `find` must match exactly once."),
+    });
+  const executeCall = async ({ title, script: written, editId, edits }: z.infer<typeof toolSchema>) => {
       const index = steps.length + 1;
+      // "Thought for Ns" was already shown when the agent began writing this step.
+      if (!announced.has(index)) thought();
       emit({ type: "step-start", index, title });
-      const r = await execute(o.doc, o.engine, o.sandbox, script, { agent: o.name ?? "agent" });
+      let script = written ?? "";
+      let problem: string | undefined;
+      try {
+        if (editId) script = failed.patch(editId, edits ?? []);
+        else if (!written) problem = "Send a `script`, or `edits` with the `editId` of a failed one.";
+      } catch (e) {
+        problem = (e as Error).message;
+      }
+      const run = live.get(index);
+      live.delete(index);
+      let r: ExecuteResult;
+      if (problem) r = notRun(problem, globals);
+      else if (run && !editId && run.writes(script)) r = await run.finish(script);
+      else {
+        await run?.cancel();
+        r = await runs.execute(o.doc, script, originOf(index), personEdits.peek(), globals);
+      }
+      let failedId: string | undefined;
+      if (r.ok) {
+        globals = r.globals;
+        if (editId) failed.done(editId);
+      } else if (r.timings.attempts) failedId = failed.keep(script, editId);
+      else failedId = editId;
+      // From here the agent has reported back; edits after this are ones its next script can't know about.
+      personEdits.take();
       const issueKinds: Record<string, number> = {};
       for (const i of r.issues) issueKinds[i.kind] = (issueKinds[i.kind] ?? 0) + 1;
       const step: StepRecord = {
@@ -132,10 +368,19 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         at: (performance.now() - started) / 1000,
       };
       steps.push(step);
-      emit({ type: "step-end", step, ...(r.focus ? { focus: r.focus } : {}), frames: r.frames });
+      r.frames.forEach((f) => touched.add(f));
+      const output = summarise(r, failedId);
+      emit({
+        type: "step-end",
+        step,
+        detail: { script, output, pictures: r.pictures },
+        ...(r.focus ? { focus: r.focus } : {}),
+        frames: r.frames,
+      });
+      lastActivity = performance.now();
       return {
         content: [
-          { type: "text" as const, text: summarise(r) },
+          { type: "text" as const, text: output },
           ...r.pictures.map((p) => ({
             type: "image" as const,
             data: Buffer.from(p.png).toString("base64"),
@@ -144,21 +389,104 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
         ],
         ...(r.ok ? {} : { isError: true }),
       };
-    },
-  );
-
-  const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool] });
+    };
+  // A call to a tool of a server the person added (Settings → MCP) gets a card as in Pen: the tool's
+  // own name, its result as Markdown, and what it was sent. Those cards are numbered apart from the
+  // canvas steps, which the live script reading counts.
+  const serverCalls = new Map<string, { index: number; title: string; input: unknown; t0: number }>();
+  let serverSteps = 0;
+  const serverToolStart = (id: string, tool: string, input: unknown) => {
+    thought();
+    const index = SERVER_STEP_BASE + ++serverSteps;
+    serverCalls.set(id, { index, title: tool, input, t0: performance.now() });
+    emit({ type: "step-start", index, title: tool });
+  };
+  const serverToolEnd = (id: string, ok: boolean, content: ToolResultContent[]) => {
+    const call = serverCalls.get(id);
+    if (!call) return;
+    serverCalls.delete(id);
+    const output = content.flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n\n");
+    serverStepEnd(call.index, call.title, ok, output, call.t0, JSON.stringify(call.input ?? {}, null, 2));
+  };
+  /** Ends an added server's card (a tool call, or a sign-in): its result as Markdown. */
+  const serverStepEnd = (index: number, title: string, ok: boolean, output: string, t0: number, input?: string) => {
+    const step: StepRecord = {
+      index,
+      title,
+      ok,
+      ...(ok ? {} : { error: output }),
+      issues: 0,
+      issueKinds: {},
+      pictures: 0,
+      scriptChars: 0,
+      timings: { totalMs: performance.now() - t0, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    emit({ type: "step-end", step, detail: { script: "", ...(input ? { input } : {}), output, pictures: [], markdown: true }, frames: [] });
+    lastActivity = performance.now();
+  };
+  // A browser call is a step of its own in the chat, as in Pen ("Used the browser").
+  const browserCall = async (input: z.infer<typeof browserSchema>) => {
+    const index = steps.length + 1;
+    const t0 = performance.now();
+    thought();
+    emit({ type: "step-start", index, title: BROWSER_STEP_TITLE });
+    const r = await runBrowser(input, { pages: o.browser!, doc: o.doc, engine: o.engine, origin: originOf(index) });
+    personEdits.take();
+    const totalMs = performance.now() - t0;
+    const step: StepRecord = {
+      index,
+      title: BROWSER_STEP_TITLE,
+      ok: r.ok,
+      ...(r.ok ? {} : { error: r.content.map((c) => (c.type === "text" ? c.text : "")).join("") }),
+      issues: 0,
+      issueKinds: {},
+      pictures: r.pictures.length,
+      scriptChars: 0,
+      timings: { totalMs, scriptMs: 0, layoutMs: 0, picturesMs: 0, fontsMs: 0, attempts: 0 },
+      at: (performance.now() - started) / 1000,
+    };
+    steps.push(step);
+    const output = r.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    emit({ type: "step-end", step, detail: { script: "", input: JSON.stringify(input, null, 2), output, pictures: r.pictures }, frames: [] });
+    lastActivity = performance.now();
+    return { content: r.content, ...(r.ok ? {} : { isError: true }) };
+  };
   const abort = new AbortController();
   o.signal?.addEventListener("abort", () => abort.abort(), { once: true });
   const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
   mkdirSync(cwd, { recursive: true });
 
+  const startingPoints = (list: Direction[]) =>
+    list.length ? [`<starting-points>For a new design, start from: ${list.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`] : [];
+  /** What the agent is told of the canvas and the browser, fresh for each turn. */
+  const context = () => [`<canvas>${canvasSummary(o.doc)}</canvas>`, ...(o.browser ? [`<browser>${o.browser.summary()}</browser>`] : [])];
+  const variants = Math.max(1, Math.min(6, Math.round(o.variants?.count ?? 1)));
   const message = [
     o.prompt.trim(),
+    ...(variants > 1 ? ["", FIRST_OF_VARIANTS] : []),
     "",
-    `<canvas>${canvasSummary(o.doc)}</canvas>`,
-    `<starting-points>For a new design, start from: ${directions.map((d) => `${d.name} (${d.id})`).join("; ")}.</starting-points>`,
+    ...context(),
+    ...startingPoints(directions),
+    ...(o.brief ? [`<team>${o.brief}</team>`] : []),
   ].join("\n");
+  // Each further variation is another turn of the same conversation, so the agent knows what it made.
+  let variation = 1;
+  let variationStarted = started;
+  const used = directions.map((d) => d.id);
+  /** The next variation's message, once a design is done; undefined when there are no more. */
+  const nextTurn = (): string | undefined => {
+    if (variation >= variants || o.signal?.aborted) return undefined;
+    emit({ type: "iterating", seconds: Math.round((performance.now() - variationStarted) / 1000) });
+    variation++;
+    variationStarted = lastActivity = performance.now();
+    let fresh: Direction[] = [];
+    if (o.variants?.mode === "style") {
+      fresh = pickStartingPoints([...(o.recentDirections ?? []), ...used]);
+      used.push(...fresh.map((d) => d.id));
+    }
+    return [nextVariation(o.variants?.mode ?? "layout"), "", ...context(), ...startingPoints(fresh)].join("\n");
+  };
 
   const stats: AgentStats = {
     ok: false,
@@ -170,43 +498,168 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     steps,
     directions: directions.map((d) => d.id),
-    model,
+    model: apiModel,
   };
 
+  // Added servers that want a sign-in open it in the browser as the agent starts, as Pen's do. The
+  // agent waits for each (its card says so) and starts with the servers that are signed in.
+  let personServers: PersonServers = o.mcpServers ?? {};
+  if (o.signIns) {
+    for (const { name, url } of await o.signIns.wanted()) {
+      if (o.signal?.aborted) break;
+      const label = POPULAR_SERVERS[name]?.label ?? name;
+      const title = `Sign in to ${label}`;
+      const index = SERVER_STEP_BASE + ++serverSteps;
+      const t0 = performance.now();
+      emit({ type: "step-start", index, title });
+      try {
+        await untilAborted(o.signIns.signIn(url), o.signal);
+        serverStepEnd(index, title, true, `Signed in to ${label} in the browser.`, t0);
+      } catch (e) {
+        const why = e instanceof Error ? e.message : String(e);
+        serverStepEnd(index, title, false, `${why} Going on without ${label}; sign in to it from Settings → MCP.`, t0);
+      }
+    }
+    personServers = await o.signIns.servers();
+  }
+
   try {
-    for await (const m of query({
-      prompt: message,
-      options: {
-        model,
-        ...(o.effort ? { effort: o.effort } : {}),
-        systemPrompt: INSTRUCTIONS,
-        tools: [], // no built-in tools at all
-        mcpServers: { [PRODUCT.slug]: server },
-        strictMcpConfig: true, // ignore MCP servers configured on this machine
-        allowedTools: [TOOL_NAME],
-        permissionMode: "dontAsk", // anything not allowed above is refused, never asked
-        settingSources: [], // ignore the person's Claude settings and memory files
-        persistSession: false,
-        maxTurns: 60,
-        cwd,
-        abortController: abort,
-      },
-    })) {
-      if (m.type === "assistant" && !m.parent_tool_use_id) {
-        for (const block of m.message.content) {
-          if (block.type === "text" && block.text.trim()) emit({ type: "text", text: block.text });
+    if (modelProvider(model) === "codex") {
+      const result = await runCodex({
+        system: INSTRUCTIONS, prompt: message, attachments: o.attachments, model, effort: o.effort, signal: o.signal, followUp: nextTurn,
+        mcpServers: personServers,
+        tools: {
+          execute: {
+            description: toolDescription,
+            inputSchema: z.toJSONSchema(toolSchema),
+            // Validate external arguments before touching the document, just like the Claude SDK.
+            call: (input) => executeCall(toolSchema.parse(input)),
+          },
+          ...(o.browser
+            ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
+            : {}),
+        },
+        onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+        onServerTool: (e) => ("tool" in e ? serverToolStart(e.id, e.tool, e.input) : serverToolEnd(e.id, e.ok, e.content)),
+      });
+      stats.ok = true;
+      stats.reply = result.reply;
+      stats.tokens = result.tokens;
+      stats.apiMs = result.durationMs;
+      stats.turns = steps.length + 1;
+      // Codex subscription turns expose token usage but no dollar charge.
+    } else if (o.provider?.apiType === "openai-completions") {
+      // This engine doesn't speak MCP, so the app reaches the added servers for it; one it can't
+      // reach gets a card saying so, and the run goes on without it.
+      const servers = await connectServers(personServers, (name, why) => {
+        const label = POPULAR_SERVERS[name]?.label ?? name;
+        const index = SERVER_STEP_BASE + ++serverSteps;
+        emit({ type: "step-start", index, title: `Connect to ${label}` });
+        serverStepEnd(index, `Connect to ${label}`, false, `Couldn't reach ${label}: ${why} Going on without it.`, performance.now());
+      });
+      const result = await runOpenAICompat({
+        system: INSTRUCTIONS, prompt: message, attachments: o.attachments, baseUrl: o.provider.baseUrl, apiKey: o.provider.apiKey,
+        headers: o.provider.headers, model: apiModel, maxTokens: o.provider.maxTokens, images: o.provider.images, signal: o.signal,
+        followUp: nextTurn,
+        tools: {
+          execute: {
+            description: toolDescription,
+            inputSchema: z.toJSONSchema(toolSchema),
+            call: (input) => executeCall(toolSchema.parse(input)),
+          },
+          ...(o.browser
+            ? { browser: { description: BROWSER_DESCRIPTION, inputSchema: z.toJSONSchema(browserSchema), call: (input) => browserCall(browserSchema.parse(input)) } satisfies CodexTool }
+            : {}),
+        },
+        serverTools: servers.tools,
+        onServerTool: (e) => ("tool" in e ? serverToolStart(e.id, e.tool, e.input) : serverToolEnd(e.id, e.ok, e.content)),
+        onText: (text, streamId) => { emit({ type: "text", text, streamId }); lastActivity = performance.now(); },
+      }).finally(() => servers.close());
+      stats.ok = true;
+      stats.reply = result.reply;
+      stats.tokens = result.tokens;
+      stats.apiMs = result.durationMs;
+      stats.turns = steps.length + 1;
+    } else {
+      // A provider model that didn't resolve (its provider or model was removed since it was picked).
+      if (modelProvider(model) === "provider" && !o.provider) throw new Error("That provider isn't configured any more. Choose another model.");
+      // Claude's SDK accepts a fixed set; Codex efforts must not leak into its options. Anthropic-type
+      // providers take it too: the SDK sends it as output_config.effort, which Z.AI honours.
+      const effort = o.effort === "low" || o.effort === "medium" || o.effort === "high" || o.effort === "xhigh" || o.effort === "max" ? o.effort : undefined;
+      const executeTool = tool("execute", toolDescription, toolSchema.shape, executeCall);
+      const browserTool = o.browser ? [tool("browser", BROWSER_DESCRIPTION, browserSchema.shape, browserCall)] : [];
+      const server = createSdkMcpServer({ name: PRODUCT.slug, version: "0.0.1", tools: [executeTool, ...browserTool] });
+      // With variations to come, the conversation stays open and each next message is sent when the
+      // design before it is done (undefined ends it). A turn can end before the conversation asks for
+      // its next message, so what's sent waits in a queue. Attachments need a message of blocks, which
+      // only this form takes.
+      const attachments = o.attachments ?? [];
+      const streamed = variants > 1 || attachments.length > 0;
+      const queued: (string | undefined)[] = [];
+      let waiting: ((text: string | undefined) => void) | undefined;
+      const sendNext = (text: string | undefined) => (waiting ? (waiting(text), (waiting = undefined)) : queued.push(text));
+      const turns = async function* (): AsyncGenerator<SDKUserMessage> {
+        yield { type: "user", message: { role: "user", content: attachments.length ? claudeContent(attachments, message) : message }, parent_tool_use_id: null };
+        let text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
+        while (text !== undefined) {
+          yield { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+          text = queued.length ? queued.shift() : await new Promise<string | undefined>((r) => (waiting = r));
         }
-      } else if (m.type === "result") {
-        stats.ok = m.subtype === "success" && !m.is_error;
-        stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
-        stats.apiMs = m.duration_api_ms;
-        stats.turns = m.num_turns;
-        stats.costUsd = m.total_cost_usd;
-        for (const u of Object.values(m.modelUsage)) {
-          stats.tokens.input += u.inputTokens;
-          stats.tokens.output += u.outputTokens;
-          stats.tokens.cacheRead += u.cacheReadInputTokens;
-          stats.tokens.cacheWrite += u.cacheCreationInputTokens;
+      };
+      for await (const m of query({
+        prompt: streamed ? turns() : message,
+        options: {
+          model: apiModel,
+          ...(effort ? { effort } : {}),
+          ...(o.provider ? { env: providerEnv(o.provider) } : {}),
+          systemPrompt: INSTRUCTIONS,
+          tools: [], // no built-in tools at all
+          // The person's servers from Settings → MCP, beside the canvas tools; every tool of theirs is allowed.
+          mcpServers: { ...forClaude(personServers), [PRODUCT.slug]: server },
+          strictMcpConfig: true, // ignore MCP servers configured on this machine
+          allowedTools: [TOOL_NAME, ...(o.browser ? [BROWSER_TOOL_NAME] : []), ...serverNames(personServers).map((n) => `mcp__${n}`)],
+          permissionMode: "dontAsk", // anything not allowed above is refused, never asked
+          settingSources: [], // ignore the person's Claude settings and memory files
+          persistSession: false,
+          maxTurns: 60,
+          includePartialMessages: true, // the script as it is written, for the live cursor
+          cwd,
+          abortController: abort,
+        },
+      })) {
+        if (m.type === "stream_event" && !m.parent_tool_use_id) onStream(m.event);
+        else if (m.type === "assistant" && !m.parent_tool_use_id) {
+          for (const block of m.message.content) {
+            if (block.type === "text" && block.text.trim()) {
+              thought();
+              emit({ type: "text", text: block.text });
+              lastActivity = performance.now();
+            } else if (block.type === "tool_use" && block.name.startsWith("mcp__") && block.name !== TOOL_NAME && block.name !== BROWSER_TOOL_NAME) {
+              // mcp__<server>__<tool>: the card is titled with the tool's own name, as in Pen.
+              serverToolStart(block.id, block.name.replace(/^mcp__.+?__/, ""), block.input);
+            }
+          }
+        } else if (m.type === "user" && !m.parent_tool_use_id && Array.isArray(m.message.content)) {
+          for (const block of m.message.content) {
+            if (block.type !== "tool_result" || !serverCalls.has(block.tool_use_id)) continue;
+            const content: ToolResultContent[] = typeof block.content === "string" ? [{ type: "text", text: block.content }] : ((block.content ?? []) as ToolResultContent[]);
+            serverToolEnd(block.tool_use_id, !block.is_error, content);
+          }
+        } else if (m.type === "result") {
+          stats.ok = m.subtype === "success" && !m.is_error;
+          stats.reply = m.subtype === "success" ? m.result : `Stopped: ${m.subtype}`;
+          stats.apiMs = m.duration_api_ms;
+          stats.turns = m.num_turns;
+          // Running totals for the whole conversation (each turn's result carries them so far).
+          stats.costUsd = m.total_cost_usd;
+          stats.tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+          for (const u of Object.values(m.modelUsage)) {
+            stats.tokens.input += u.inputTokens;
+            stats.tokens.output += u.outputTokens;
+            stats.tokens.cacheRead += u.cacheReadInputTokens;
+            stats.tokens.cacheWrite += u.cacheCreationInputTokens;
+          }
+          if (streamed) sendNext(stats.ok ? nextTurn() : undefined);
         }
       }
     }
@@ -214,7 +667,14 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
     emit({ type: "error", message: e instanceof Error ? e.message : String(e) });
     stats.reply = stats.reply || `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
+  // Steps whose call never came (the run stopped while the agent was writing): remove what landed.
+  for (const run of live.values()) await run.cancel();
+  // A frame the agent left marked as being built (it stopped, or forgot) is no longer being built.
+  // Only its own: other agents may still be building theirs.
+  const marked = [...touched].filter((id) => nodesOf(o.doc).get(id)?.get("placeholder") && !o.leaveMarked?.includes(id));
+  if (marked.length) o.doc.transact(() => marked.forEach((id) => nodesOf(o.doc).get(id)!.delete("placeholder")), new AgentChange(o.name ?? "agent", steps.length));
   stats.durationMs = performance.now() - started;
+  personEdits.dispose();
   emit({ type: "done", stats });
   return stats;
 }

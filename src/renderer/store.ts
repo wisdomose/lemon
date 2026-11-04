@@ -1,0 +1,198 @@
+// The window's state: what panel is open, what is selected, and the agent chat. One small store read
+// by React through useSyncExternalStore; the canvas reads it directly.
+import { useSyncExternalStore } from "react";
+import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
+import type { ProviderRecord } from "../agent/providers.js";
+import { PRODUCT } from "../product.js";
+import type { FileInfo } from "../main/editor.js";
+import type { SidebarState } from "../main/browser-pages.js";
+import type { Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
+import type { PromptPart } from "./agent/prompt-doc.js";
+
+export type Tab = "agent" | "layers" | "slides" | "components" | "libraries";
+export type Tool = "move" | "rect" | "ellipse" | "polygon" | "icon" | "script" | "pen" | "text" | "frame" | "note" | "browser" | "hand" | "comment";
+
+/**
+ * One thing in the chat. Items from one of several agents carry `agent` (its place in the team), and
+ * the chat groups them under that agent.
+ */
+export type ChatItem = (
+  | { kind: "user"; text: string; attachments?: SentAttachment[]; parts?: PromptPart[] }
+  | { kind: "agent-head"; name: string; model: string }
+  | { kind: "thought"; seconds: number }
+  /** Several agents start on a request. */
+  | { kind: "team"; mode: Team["mode"]; count: number }
+  /** One agent's proposal while the team plans (Split Work). */
+  | { kind: "proposal"; text: string }
+  /** The plan the team agreed: the look, and who builds what. */
+  | { kind: "plan"; text: string; parts: { agent: number; name: string }[] }
+  | {
+      kind: "step";
+      index: number;
+      title: string;
+      state: "running" | "ok" | "failed";
+      script?: string;
+      /** A browser call's input (JSON), shown instead of a script. */
+      input?: string;
+      output?: string;
+      /** The output is Markdown (an added server's tool), shown formatted as in Pen. */
+      markdown?: boolean;
+      pictures?: { url: string; width: number; height: number }[];
+    }
+  | { kind: "text"; text: string; streamId?: string }
+  | { kind: "designed"; seconds: number }
+  /** The person stopped the run. */
+  | { kind: "stopped" }
+  | { kind: "error"; text: string }
+) & { agent?: number };
+
+/** An attachment as the chat shows it: a picture (data URL), or a file whose text can be shown. */
+export interface SentAttachment {
+  name: string;
+  kind: Attachment["kind"];
+  /** An image's data URL (not kept in the history). */
+  url?: string;
+  /** A text file's contents. */
+  text?: string;
+}
+
+/** A file attached to the prompt being written, with its id in the tray. */
+export type PendingAttachment = Attachment & { id: string };
+
+export interface EditorState {
+  tab: Tab;
+  tool: Tool;
+  /** Selected nodes, in the order they were picked (the last is the one panels show first). */
+  selection: string[];
+  hover: string | null;
+  zoom: number;
+  /** Bumped on every document change, so panels that show the document re-read it. */
+  docVersion: number;
+  chat: ChatItem[];
+  /** The agent is working: "planning" before its first step, "thinking" between steps. */
+  agentStatus: "planning" | "thinking" | null;
+  /** The chat session's title (its first prompt). */
+  session: string | null;
+  model: string;
+  /** Session cache stays visible while the picker refreshes its live Codex catalog. */
+  codexModels: CodexModel[];
+  codexModelsState: "idle" | "loading" | "ready" | "error";
+  codexModelsError?: string;
+  /** Selected reasoning effort (Claude or Codex); undefined delegates to the model's own default. */
+  effort?: string;
+  /** The AI providers (built-ins with their key state, then this person's own). */
+  providers: ProviderRecord[];
+  /** How many agents the next request goes to, and how they share it (the ⚡ choice). */
+  team: Team;
+  /** "Let it cook" (the ▦ choice): how many variations the next request gets, and how they differ. Back to 1 once sent, as in Pen. */
+  cook: Variants;
+  /** Files attached to the prompt being written ("+" → Add image or file, paste, drop). */
+  attachments: PendingAttachment[];
+  settingsOpen: boolean;
+  /** The page an "open settings" ask wants (the model picker's provider rows); read once on open. */
+  settingsPage: { page: "agents"; provider?: string } | null;
+  /** Past conversations, newest first. */
+  history: Session[];
+  /** The file this window shows. */
+  file: FileInfo;
+  /** A card's kind menu, open at a screen point (a click on a selected card's header). */
+  cardMenu: { id: string; x: number; y: number } | null;
+  /** The browser node whose address is being typed. */
+  urlEdit: string | null;
+  /** The browser node whose page is in use (a double-click): the pointer, wheel and keys go to the page. */
+  browserLive: string | null;
+  /** A comment being written where the Comment tool clicked (on a node, from its corner, or on the page). */
+  commentDraft: { node?: string; x: number; y: number } | null;
+  /** The comment thread shown beside its pin. */
+  commentOpen: string | null;
+  /** Comment pins on the canvas (Shift+C, or the eye in the Comments panel). */
+  showComments: boolean;
+  shortcutsOpen: boolean;
+  paletteOpen: boolean;
+  /** The left column (panel and chat box), Ctrl+\. */
+  panelOpen: boolean;
+  /** The integrated browser (the sidebar), as the host last told it; null until then. */
+  sidebar: SidebarState | null;
+  /** The sidebar's element picker is on: a click in its page picks the element there. */
+  browserPicking: boolean;
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  at: number;
+  chat: ChatItem[];
+}
+
+const initial: EditorState = {
+  tab: "agent",
+  tool: "move",
+  selection: [],
+  hover: null,
+  zoom: 1,
+  docVersion: 0,
+  chat: [],
+  agentStatus: null,
+  session: null,
+  model: DEFAULT_MODEL,
+  codexModels: [],
+  codexModelsState: "idle",
+  providers: [],
+  team: { count: 1, mode: "split" },
+  cook: { count: 1, mode: "layout" },
+  attachments: [],
+  settingsOpen: false,
+  settingsPage: null,
+  history: [],
+  file: { name: `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: true },
+  cardMenu: null,
+  urlEdit: null,
+  browserLive: null,
+  commentDraft: null,
+  commentOpen: null,
+  showComments: true,
+  shortcutsOpen: false,
+  paletteOpen: false,
+  panelOpen: true,
+  sidebar: null,
+  browserPicking: false,
+};
+
+let state = initial;
+const listeners = new Set<() => void>();
+
+// Listeners hear of changes once a frame: an agent's burst of changes (and the chat events with them)
+// re-renders the panels once, not once per change. A change made while handling the person's own input
+// (a click, a key) is told at once, so what they type and click answers in the same frame.
+let notifyQueued = false;
+function notify(): void {
+  notifyQueued = false;
+  listeners.forEach((l) => l());
+}
+function notifySoon(): void {
+  if (typeof window !== "undefined" && window.event) return notify();
+  if (notifyQueued) return;
+  notifyQueued = true;
+  if (typeof requestAnimationFrame === "undefined") return void queueMicrotask(() => notifyQueued && notify());
+  requestAnimationFrame(() => notifyQueued && notify());
+  // A hidden window gets no frames: hear of it anyway.
+  setTimeout(() => notifyQueued && notify(), 100);
+}
+
+export const store = {
+  get: () => state,
+  set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) {
+    state = { ...state, ...(typeof patch === "function" ? patch(state) : patch) };
+    notifySoon();
+  },
+  subscribe(l: () => void) {
+    listeners.add(l);
+    return () => listeners.delete(l);
+  },
+};
+
+/** Reads one value from the store; re-renders when it changes. Return primitives or stable objects. */
+export function useEditor<T>(select: (s: EditorState) => T): T {
+  return useSyncExternalStore(store.subscribe, () => select(state));
+}

@@ -1,16 +1,85 @@
-// Resolving property values: variable references ("$primary") and colours.
-import type { Vars } from "./schema.js";
+// Resolving property values: variable references ("$primary") under a theme, and colours.
+import type { Theme, Themes, VariableDef, VariableValue, Variables, Vars } from "./schema.js";
 
 export class ValueError extends Error {}
 
+/** Where a resolved set of variables came from, so a node that sets a theme can switch (withTheme). */
+const CONTEXT = Symbol("variables and theme");
+interface Context {
+  variables: Variables;
+  themes: Themes;
+  theme: Theme;
+  cache: Map<string, Vars>;
+}
+
+/** A themed value's value for the active theme: the entry matching it most closely, else the one without a theme. */
+function pick(value: VariableDef["value"], active: Theme): VariableValue | undefined {
+  if (!Array.isArray(value)) return value;
+  let best: VariableValue | undefined;
+  let bestScore = -1;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const axes = Object.entries(entry.theme ?? {});
+    if (!axes.every(([axis, v]) => active[axis] === v)) continue;
+    if (axes.length > bestScore) {
+      best = entry.value;
+      bestScore = axes.length;
+    }
+  }
+  return best ?? value[0]?.value;
+}
+
+/** Each theme axis's default: its first value. */
+const defaultTheme = (themes: Themes): Theme =>
+  Object.fromEntries(Object.entries(themes).flatMap(([axis, values]) => (Array.isArray(values) && values.length ? [[axis, String(values[0])]] : [])));
+
+/** The variables resolved for a theme (each axis not given takes its default); variables naming other variables are followed. */
+export function varsFor(variables: Variables, themes: Themes, theme: Theme = {}, cache = new Map<string, Vars>()): Vars {
+  const active = { ...defaultTheme(themes), ...theme };
+  const key = JSON.stringify(Object.entries(active).sort());
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const raw: Record<string, VariableValue> = {};
+  for (const [name, def] of Object.entries(variables)) {
+    const v = def && typeof def === "object" ? pick(def.value, active) : undefined;
+    if (v !== undefined) raw[name] = v;
+  }
+  const out: Vars = {};
+  for (const name of Object.keys(raw)) {
+    let v = raw[name]!;
+    for (let i = 0; i < 16 && typeof v === "string" && v.startsWith("$") && raw[v.slice(1)] !== undefined; i++) v = raw[v.slice(1)]!;
+    out[name] = v;
+  }
+  Object.defineProperty(out, CONTEXT, { value: { variables, themes, theme: active, cache } satisfies Context, enumerable: false });
+  cache.set(key, out);
+  return out;
+}
+
+/** The variables inside a node that sets `theme` (its own and everything inside it). */
+export function withTheme(vars: Vars, theme: Theme | undefined): Vars {
+  if (!theme || typeof theme !== "object" || !Object.keys(theme).length) return vars;
+  const ctx = (vars as { [CONTEXT]?: Context })[CONTEXT];
+  if (!ctx) return vars;
+  return varsFor(ctx.variables, ctx.themes, { ...ctx.theme, ...theme }, ctx.cache);
+}
+
 /** Replaces a "$name" reference with the variable's value; other values pass through. */
-export function resolve<T>(value: T, vars: Vars): T | string | number {
+export function resolve<T>(value: T, vars: Vars): T | VariableValue {
   if (typeof value === "string" && value.startsWith("$")) {
     const v = vars[value.slice(1)];
-    if (v === undefined) throw new ValueError(`Unknown variable "${value}". Define it with doc.setVars().`);
+    if (v === undefined) throw new ValueError(`Unknown variable "${value}". Define it with SetVariables.`);
     return v;
   }
   return value;
+}
+
+/** A resolved value, or `fallback` when it can't be resolved (a missing variable in a file). */
+export function resolveOr<T, F>(value: T, vars: Vars, fallback: F): T | VariableValue | F {
+  try {
+    return resolve(value, vars);
+  } catch {
+    return fallback;
+  }
 }
 
 export function isVarRef(value: unknown): boolean {

@@ -1,0 +1,406 @@
+// Codex's local app server owns authentication; Lemon handles only canvas tools and public account data.
+// Lemon ships its own Codex (the @openai/codex package, pinned) and starts its program directly: the
+// app-server protocol is experimental, so the person's installed Codex could speak another version of
+// it, and on Windows the installed `codex` is an npm .cmd shim that Node can't start without a shell.
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createInterface } from "node:readline";
+import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { z } from "zod";
+import type { CodexModel } from "./models.js";
+import { PRODUCT } from "../product.js";
+import { forCodex, serverNames, type PersonServers } from "./mcp-servers.js";
+import { codexInput, type Attachment } from "./attachments.js";
+
+interface RpcMessage {
+  id?: number | string;
+  method?: string;
+  params?: Record<string, unknown>;
+  result?: unknown;
+  error?: { code?: number; message: string };
+}
+
+/** Codex's build for each platform: its package (an optional dependency of @openai/codex) and target. */
+const TARGETS: Record<string, string> = {
+  "win32-x64": "x86_64-pc-windows-msvc",
+  "win32-arm64": "aarch64-pc-windows-msvc",
+  "darwin-x64": "x86_64-apple-darwin",
+  "darwin-arm64": "aarch64-apple-darwin",
+  "linux-x64": "x86_64-unknown-linux-musl",
+  "linux-arm64": "aarch64-unknown-linux-musl",
+};
+
+/** The bundled Codex program for this computer (outside the app archive, where programs can run). */
+export function codexBinary(): string {
+  const platform = `${process.platform}-${process.arch}`;
+  const target = TARGETS[platform];
+  if (!target) throw new Error(`Codex doesn't run on this computer (${platform}).`);
+  let pkg: string;
+  try {
+    const codex = createRequire(import.meta.url).resolve("@openai/codex/package.json");
+    pkg = createRequire(codex).resolve(`@openai/codex-${platform}/package.json`);
+  } catch {
+    throw new Error(`This copy of ${PRODUCT.name} has no Codex for ${platform}. Reinstall ${PRODUCT.name}.`);
+  }
+  const exe = join(dirname(pkg), "vendor", target, "bin", process.platform === "win32" ? "codex.exe" : "codex").replace(/app\.asar(?=[\\/])/, "app.asar.unpacked");
+  if (!existsSync(exe)) throw new Error(`Codex is missing from this copy of ${PRODUCT.name} (${exe}). Reinstall ${PRODUCT.name}.`);
+  return exe;
+}
+
+/** One piece of an MCP tool's result, as servers send it. */
+export type ToolResultContent = { type: string; text?: string; data?: string; mimeType?: string };
+
+/** A local JSON-lines connection, with request deadlines and deterministic process cleanup. */
+export class CodexConnection {
+  private child: ChildProcessWithoutNullStreams;
+  private nextId = 0;
+  private pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  private failure?: Error;
+  onMessage?: (message: RpcMessage) => void;
+  onClose?: (error: Error) => void;
+
+  constructor() {
+    this.child = spawn(codexBinary(), ["app-server"], { stdio: "pipe", windowsHide: true });
+    // Drain diagnostics without exposing potentially sensitive configuration in the UI.
+    this.child.stderr.resume();
+    const lines = createInterface({ input: this.child.stdout });
+    lines.on("line", (line) => {
+      let m: RpcMessage;
+      try { m = JSON.parse(line) as RpcMessage; }
+      catch { this.fail(new Error("Codex returned invalid JSON.")); return; }
+      if (m.id !== undefined && !m.method) {
+        const pending = this.pending.get(Number(m.id));
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        this.pending.delete(Number(m.id));
+        if (m.error) pending.reject(new Error(m.error.message));
+        else pending.resolve(m.result);
+      } else this.onMessage?.(m);
+    });
+    this.child.on("error", (e) => this.fail(new Error(`Could not start Codex: ${e.message}`)));
+    this.child.on("exit", () => this.fail(new Error("Codex app server stopped.")));
+    this.child.stdin.on("error", () => this.fail(new Error("Codex connection closed.")));
+  }
+
+  private fail(error: Error) {
+    if (this.failure) return;
+    this.failure = error;
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+    this.onClose?.(error);
+  }
+
+  async initialize() {
+    await this.request("initialize", {
+      clientInfo: { name: PRODUCT.slug, title: PRODUCT.name, version: "0.0.1" },
+      capabilities: { experimentalApi: true, requestAttestation: false },
+    });
+    this.send({ method: "initialized", params: {} });
+  }
+
+  request<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+    if (this.failure) return Promise.reject(this.failure);
+    const id = ++this.nextId;
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Codex ${method} timed out.`));
+      }, 30_000);
+      this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
+      this.send({ id, method, params });
+    });
+  }
+
+  send(message: RpcMessage) {
+    if (!this.failure) this.child.stdin.write(JSON.stringify(message) + "\n");
+  }
+
+  close() {
+    this.fail(new Error("Codex connection closed."));
+    this.child.stdin.end();
+    this.child.kill();
+  }
+}
+
+export interface ProviderStatus {
+  loggedIn: boolean;
+  email?: string;
+  plan?: string;
+  /** Why Codex couldn't be asked (it didn't start, or stopped): not the same as being signed out. */
+  error?: string;
+}
+
+/** Read account metadata through Codex, without opening its credential files. */
+export async function codexStatus(): Promise<ProviderStatus> {
+  let connection: CodexConnection | undefined;
+  try {
+    connection = new CodexConnection();
+    await connection.initialize();
+    const { account } = await connection.request<{ account: { email?: string; planType?: string } | null }>("account/read", { refreshToken: false });
+    return { loggedIn: !!account, ...(account?.email ? { email: account.email } : {}), ...(account?.planType ? { plan: account.planType } : {}) };
+  } catch (e) {
+    return { loggedIn: false, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    connection?.close();
+  }
+}
+
+/** How long a sign-in in the browser may take before it is given up. */
+const SIGN_IN_MS = 10 * 60_000;
+
+/**
+ * Signs in to Codex with a ChatGPT account: Codex gives a link, `open` shows it in the browser, and
+ * Codex keeps the credentials (as `codex login` would). Resolves with the account once done.
+ */
+export async function codexSignIn(open: (url: string) => void): Promise<ProviderStatus> {
+  let connection: CodexConnection | undefined;
+  try {
+    connection = new CodexConnection();
+    const c = connection;
+    let loginId: string | undefined;
+    const finished = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Sign-in took too long. Try again.")), SIGN_IN_MS);
+      c.onClose = (e) => (clearTimeout(timer), reject(e));
+      c.onMessage = (m) => {
+        if (m.method !== "account/login/completed") return;
+        const p = (m.params ?? {}) as { success?: boolean; error?: string | null; loginId?: string | null };
+        if (p.loginId && loginId && p.loginId !== loginId) return;
+        clearTimeout(timer);
+        if (p.success) resolve();
+        else reject(new Error(p.error || "Sign-in didn't finish."));
+      };
+    });
+    void finished.catch(() => {});
+    await c.initialize();
+    const started = await c.request<{ type: string; authUrl?: string; loginId?: string }>("account/login/start", { type: "chatgpt" });
+    if (!started.authUrl) throw new Error("Codex didn't give a sign-in link.");
+    loginId = started.loginId;
+    open(started.authUrl);
+    await finished;
+  } catch (e) {
+    connection?.close();
+    return { loggedIn: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  connection.close();
+  return codexStatus();
+}
+
+// Validate the public protocol boundary; malformed or partial catalogs must not replace cached models.
+const modelPage = z.object({
+  data: z.array(z.object({
+    model: z.string().min(1),
+    displayName: z.string().min(1),
+    description: z.string().default(""),
+    hidden: z.boolean().default(false),
+    supportedReasoningEfforts: z.array(z.object({ reasoningEffort: z.string().min(1), description: z.string().default("") })).default([]),
+    defaultReasoningEffort: z.string().nullable().optional(),
+    isDefault: z.boolean().default(false),
+  })),
+  nextCursor: z.string().nullable().default(null),
+});
+
+/** How long a discovered model list is reused before Codex is asked again (each ask starts Codex). */
+const MODELS_FRESH_MS = 10 * 60_000;
+let known: { at: number; models: Promise<CodexModel[]> } | undefined;
+
+/** The models Codex offers: asked again only when the last answer is old (or `fresh` is asked for). */
+export function codexModels(fresh = false): Promise<CodexModel[]> {
+  if (!fresh && known && performance.now() - known.at < MODELS_FRESH_MS) return known.models;
+  const models = discoverModels();
+  known = { at: performance.now(), models };
+  // A failed ask is not remembered.
+  models.catch(() => known?.models === models && (known = undefined));
+  return models;
+}
+
+/** Discover every picker-visible model through the signed-in CLI, without starting a model turn. */
+async function discoverModels(): Promise<CodexModel[]> {
+  const connection = new CodexConnection();
+  try {
+    await connection.initialize();
+    const models = new Map<string, CodexModel>();
+    const seen = new Set<string>();
+    let cursor: string | null = null;
+    do {
+      const page = modelPage.parse(await connection.request("model/list", { limit: 100, includeHidden: false, ...(cursor ? { cursor } : {}) }));
+      for (const m of page.data) {
+        if (m.hidden) continue;
+        const efforts = [...new Map(m.supportedReasoningEfforts.map((e) => [e.reasoningEffort, { id: e.reasoningEffort, description: e.description }])).values()];
+        const id = `codex:${m.model}`;
+        models.set(id, {
+          id, provider: "codex", label: m.displayName, description: m.description, efforts,
+          ...(m.defaultReasoningEffort && efforts.some((e) => e.id === m.defaultReasoningEffort) ? { defaultEffort: m.defaultReasoningEffort } : {}),
+          isDefault: m.isDefault,
+        });
+      }
+      cursor = page.nextCursor;
+      if (cursor && seen.has(cursor)) throw new Error("Codex repeated a model-list cursor. Try refreshing models.");
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+    return [...models.values()];
+  } finally {
+    connection.close();
+  }
+}
+
+export interface CodexTool {
+  description: string;
+  inputSchema: Record<string, unknown>;
+  call(input: unknown): Promise<{ content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean }>;
+}
+
+interface CodexResult {
+  reply: string;
+  tokens: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  durationMs: number;
+}
+
+/** One ephemeral design turn; the same transport also runs tool-free team planning. */
+export async function runCodex(o: {
+  system: string;
+  prompt: string;
+  /** Files attached to the prompt, sent before it. */
+  attachments?: Attachment[];
+  model: string;
+  effort?: string;
+  signal?: AbortSignal;
+  /** The canvas tools by name (execute, browser); every other tool is refused. */
+  tools?: Record<string, CodexTool>;
+  onText?: (text: string, streamId: string) => void;
+  /** A call to a tool of an MCP server the person added starts, and ends (Codex runs those itself). */
+  onServerTool?: (e: { id: string; tool: string; input: unknown } | { id: string; ok: boolean; content: ToolResultContent[] }) => void;
+  /** Asked when a turn is done: another message to send on the same thread, or undefined to finish. */
+  followUp?: () => string | undefined;
+  /** MCP servers the person added in Settings → MCP; their tools are allowed too. */
+  mcpServers?: PersonServers;
+}): Promise<CodexResult> {
+  o.signal?.throwIfAborted();
+  const connection = new CodexConnection();
+  const started = performance.now();
+  let threadId: string | undefined;
+  let turnId: string | undefined;
+  let calls = 0;
+  const activeCalls = new Set<Promise<void>>();
+  let settled = false;
+  const result: CodexResult = { reply: "", durationMs: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+  let complete!: () => void;
+  let reject!: (error: Error) => void;
+  const done = new Promise<void>((resolve, fail) => { complete = resolve; reject = fail; });
+  // Attach immediately: an exit during initialization must never cause an unhandled rejection.
+  void done.catch(() => {});
+  const abort = () => {
+    if (threadId && turnId) void connection.request("turn/interrupt", { threadId, turnId }).catch(() => {});
+    reject(new Error("Codex run cancelled."));
+    connection.close();
+  };
+  connection.onClose = (error) => { if (!settled) reject(error); };
+  connection.onMessage = (m) => {
+    const p = m.params ?? {};
+    if (m.method === "item/tool/call" && m.id !== undefined) {
+      const id = m.id;
+      // Reject every unregistered tool, including any future server-initiated approval flow.
+      const tool = typeof p.tool === "string" && Object.hasOwn(o.tools ?? {}, p.tool) ? o.tools![p.tool] : undefined;
+      if (!tool || ++calls > 60 || o.signal?.aborted) {
+        connection.send({ id, result: { success: false, contentItems: [{ type: "inputText", text: "Tool unavailable or step limit reached." }] } });
+        if (calls > 60) { reject(new Error("Codex reached the 60-step limit.")); connection.close(); }
+        return;
+      }
+      const call = Promise.resolve().then(() => tool.call(p.arguments)).then((r) => {
+        connection.send({ id, result: {
+          success: !r.isError,
+          contentItems: r.content.map((c) => c.type === "text" ? { type: "inputText", text: c.text } : { type: "inputImage", imageUrl: `data:${c.mimeType};base64,${c.data}` }),
+        } });
+      }).catch((e: unknown) => connection.send({ id, result: { success: false, contentItems: [{ type: "inputText", text: String(e) }] } }));
+      activeCalls.add(call);
+      void call.finally(() => activeCalls.delete(call));
+    } else if (m.id !== undefined && m.method) {
+      connection.send({ id: m.id, error: { code: -32601, message: "Lemon only permits its canvas tools." } });
+    } else if ((m.method === "item/started" || m.method === "item/completed") && (p.item as { type?: string })?.type === "mcpToolCall") {
+      const item = p.item as { id: string; tool: string; arguments: unknown; status: string; result: { content: ToolResultContent[] } | null; error: { message: string } | null };
+      if (m.method === "item/started") o.onServerTool?.({ id: item.id, tool: item.tool, input: item.arguments });
+      else
+        o.onServerTool?.({
+          id: item.id,
+          ok: item.status === "completed" && !item.error,
+          content: item.error ? [{ type: "text", text: item.error.message }] : (item.result?.content ?? []),
+        });
+    } else if (m.method === "item/agentMessage/delta") {
+      const text = typeof p.delta === "string" ? p.delta : "";
+      result.reply += text;
+      o.onText?.(text, String(p.itemId));
+    } else if (m.method === "thread/tokenUsage/updated") {
+      const total = (p.tokenUsage as { total?: { inputTokens: number; outputTokens: number; cachedInputTokens: number; cacheWriteInputTokens?: number } })?.total;
+      if (total) result.tokens = { input: total.inputTokens, output: total.outputTokens, cacheRead: total.cachedInputTokens, cacheWrite: total.cacheWriteInputTokens ?? 0 };
+    } else if (m.method === "turn/started") {
+      turnId = (p.turn as { id: string }).id;
+    } else if (m.method === "turn/completed") {
+      const turn = p.turn as { status: string; error?: { message: string } };
+      if (turn.status !== "completed") reject(new Error(turn.error?.message ?? `Codex turn ${turn.status}.`));
+      else {
+        const next = threadId ? o.followUp?.() : undefined;
+        if (next === undefined) complete();
+        else {
+          // The reply is the last turn's, and the step limit is for each turn.
+          result.reply = "";
+          calls = 0;
+          connection
+            .request<{ turn: { id: string } }>("turn/start", { threadId, input: [{ type: "text", text: next, text_elements: [] }], ...(o.effort ? { effort: o.effort } : {}) })
+            .then((t) => (turnId = t.turn.id), (e: unknown) => reject(e instanceof Error ? e : new Error(String(e))));
+        }
+      }
+    }
+  };
+  o.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    await connection.initialize();
+    o.signal?.throwIfAborted();
+    const cwd = join(tmpdir(), `${PRODUCT.slug}-agent`);
+    mkdirSync(cwd, { recursive: true });
+    // Disable inherited integrations explicitly: table overrides otherwise merge with user settings.
+    const { config } = await connection.request<{ config: { mcp_servers?: Record<string, unknown> } }>("config/read", { includeLayers: false });
+    const personServers = serverNames(o.mcpServers ?? {});
+    const thread = await connection.request<{ thread: { id: string } }>("thread/start", {
+      ...(o.model === "codex" ? {} : { model: o.model.replace(/^codex:/, "") }),
+      cwd, ephemeral: true, approvalPolicy: "never", sandbox: "read-only",
+      baseInstructions: o.system,
+      developerInstructions: (o.tools?.browser
+        ? "Use only execute to work on the canvas, and browser to use the web pages of its browser nodes. Never use shell, files, other web access, or external integrations"
+        : "Use only execute to work on the canvas. Never use shell, files, web, or external integrations") +
+        (personServers.length ? ` other than the MCP servers the person added (${personServers.join(", ")}), whose tools you may use.` : "."),
+      config: {
+        "features.shell_tool": false, "features.hooks": false,
+        "features.plugins": false, "features.remote_plugin": false, "features.apps": false,
+        "features.browser_use": false, "features.computer_use": false,
+        "features.image_generation": false, "features.view_image": false,
+        "features.skip_host_skill_discovery": true,
+        "agents.enabled": false, "tools.view_image": false, "web_search": "disabled",
+        "project_doc_max_bytes": 0,
+        ...Object.fromEntries(Object.keys(config.mcp_servers ?? {}).map((name) => [`mcp_servers.${name}.enabled`, false])),
+        // The person's servers from Settings → MCP, on over any of the same name above.
+        ...forCodex(o.mcpServers ?? {}),
+      },
+      dynamicTools: Object.entries(o.tools ?? {}).map(([name, t]) => ({ type: "function", name, description: t.description, inputSchema: t.inputSchema })),
+    });
+    threadId = thread.thread.id;
+    o.signal?.throwIfAborted();
+    const turn = await connection.request<{ turn: { id: string } }>("turn/start", {
+      threadId, input: codexInput(o.attachments ?? [], o.prompt),
+      ...(o.effort ? { effort: o.effort } : {}),
+    });
+    turnId = turn.turn.id;
+    await done;
+    result.durationMs = performance.now() - started;
+    return result;
+  } finally {
+    settled = true;
+    o.signal?.removeEventListener("abort", abort);
+    connection.close();
+    // Finish in-flight canvas work before runAgent clears marks and edit tracking.
+    await Promise.allSettled(activeCalls);
+  }
+}

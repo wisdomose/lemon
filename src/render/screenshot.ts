@@ -1,5 +1,6 @@
 // Off-screen pictures of a node, for the agent to look at (and for reports).
 import type { CanvasKit } from "canvaskit-wasm";
+import type { Assets } from "../doc/assets.js";
 import type { TreeNode, Vars } from "../doc/schema.js";
 import type { Boxes } from "../layout/layout.js";
 import type { TextEngine } from "../text/paragraph.js";
@@ -31,6 +32,7 @@ export function screenshot(
   boxes: Boxes,
   vars: Vars,
   text: TextEngine,
+  assets: Assets,
   id: string,
   maxSide = 1568,
 ): Picture {
@@ -47,7 +49,7 @@ export function screenshot(
     canvas.clear(ck.WHITE);
     canvas.scale(scale, scale);
     canvas.translate(-box.x, -box.y);
-    drawNode({ ck, text, vars, boxes }, canvas, node);
+    drawNode({ ck, text, vars, boxes, assets }, canvas, node);
     const image = surface.makeImageSnapshot();
     const png = image.encodeToBytes();
     image.delete();

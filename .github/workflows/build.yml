@@ -1,10 +1,15 @@
 name: Build
 
+# The app's executables, on pull requests into main only (tests for pull requests into dev are in
+# test.yml). The tests run here too, before packaging, so main never gets a build that fails them.
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -15,9 +20,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      # pnpm's version comes from package.json ("packageManager").
       - uses: pnpm/action-setup@v6
-        with:
-          version: 12
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -37,20 +41,24 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $env:LEMON_OPEN = "$PWD\test\fixtures\sample.yjs"
+          $env:LEMON_OPEN = "$PWD\test\fixtures\sample.pen"
           $env:LEMON_CAPTURE = "$PWD\smoke.png"
           $env:LEMON_LOG = "$PWD\smoke.log"
           $p = Start-Process -FilePath "dist\win-unpacked\lemon.exe" -PassThru
           if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "app did not finish" }
           Get-Content smoke.log
           if (-not (Test-Path smoke.png)) { throw "no picture" }
+          # The Codex that comes with the app is there and runs.
+          & "dist\win-unpacked\resources\app.asar.unpacked\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "bundled Codex did not run" }
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'
         run: |
-          LEMON_OPEN=$PWD/test/fixtures/sample.yjs LEMON_CAPTURE=$PWD/smoke.png LEMON_LOG=$PWD/smoke.log \
+          LEMON_OPEN=$PWD/test/fixtures/sample.pen LEMON_CAPTURE=$PWD/smoke.png LEMON_LOG=$PWD/smoke.log \
             timeout 120 xvfb-run -a dist/linux-unpacked/lemon --no-sandbox || true
           cat smoke.log
           test -f smoke.png
+          dist/linux-unpacked/resources/app.asar.unpacked/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex --version
 
       - uses: actions/upload-artifact@v7
         with:

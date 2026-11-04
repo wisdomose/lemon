@@ -9,12 +9,13 @@ import * as Y from "yjs";
 import { createEngine } from "../src/engine.js";
 import { GoogleFonts } from "../src/text/google-fonts.js";
 import { Sandbox } from "../src/sandbox/sandbox.js";
-import { AGENT_NAME } from "../src/agent/models.js";
+import { AGENTS } from "../src/agent/models.js";
 import { runAgent, type AgentEvent } from "../src/agent/agent.js";
 import { getVars, toTree } from "../src/doc/store.js";
 import { layout } from "../src/layout/layout.js";
 import { check } from "../src/layout/check.js";
 import { screenshot } from "../src/render/screenshot.js";
+import { assetLookup } from "../src/doc/assets.js";
 
 const { values } = parseArgs({
   options: {
@@ -42,7 +43,7 @@ function snapshot(file: string, maxSide: number): void {
   const vars = getVars(doc);
   const boxes = layout(tree, vars, engine.text);
   for (const frame of tree.children) {
-    const pic = screenshot(engine.ck, tree, boxes, vars, engine.text, frame.id, maxSide);
+    const pic = screenshot(engine.ck, tree, boxes, vars, engine.text, assetLookup(doc), frame.id, maxSide);
     writeFileSync(`${file}-${frame.id}.png`, pic.png);
   }
 }
@@ -52,13 +53,16 @@ const stats = await runAgent({
   engine,
   sandbox,
   prompt: values.prompt,
-  name: AGENT_NAME,
+  name: AGENTS[0].name,
   ...(values.model ? { model: values.model } : {}),
   ...(values.effort ? { effort: values.effort as "high" } : {}),
   onEvent(e: AgentEvent) {
     const at = ((performance.now() - t0) / 1000).toFixed(1);
     appendFileSync(events, JSON.stringify({ at: Number(at), ...e }) + "\n");
-    if (e.type === "step-start") console.log(`[${at}s] step ${e.index}: ${e.title}`);
+    if (e.type === "step-writing") console.log(`[${at}s] writing step ${e.index}: ${e.title}`);
+    if (e.type === "step-target") console.log(`[${at}s]   target ${JSON.stringify(e.target)}`);
+    if (e.type === "step-progress") console.log(`[${at}s]   lands ${e.focus.id}`);
+    if (e.type === "step-start") console.log(`[${at}s] step ${e.index} runs`);
     if (e.type === "step-end") {
       const s = e.step;
       console.log(

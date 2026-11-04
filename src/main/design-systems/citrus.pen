@@ -1,0 +1,3145 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "f6VdQ",
+      "name": "Button",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 0,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "BCGxO",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "mJMaG",
+              "name": "Board title",
+              "content": "Button",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "F2Ktz",
+              "name": "Board note",
+              "content": "Primary for the one main action, secondary for the rest, ghost for quiet ones.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "6NAyD",
+          "name": "Variants",
+          "gap": "$s-4",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ZvoDv",
+              "name": "Button/Primary",
+              "reusable": true,
+              "gap": "$s-2",
+              "padding": [
+                "$s-3",
+                "$s-5"
+              ],
+              "cornerRadius": "$r-full",
+              "fill": "$lime",
+              "alignItems": "center",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 2
+                },
+                "blur": 6,
+                "color": "$shadow"
+              },
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "hcYyd",
+                  "width": 18,
+                  "height": 18,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "plus",
+                  "fill": "$on-accent"
+                },
+                {
+                  "type": "text",
+                  "id": "e3NqC",
+                  "name": "Label",
+                  "content": "New invoice",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$on-accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uEA6q",
+              "name": "Button/Secondary",
+              "reusable": true,
+              "gap": "$s-2",
+              "padding": [
+                "$s-3",
+                "$s-5"
+              ],
+              "cornerRadius": "$r-full",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": 1,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "e5spI",
+                  "width": 18,
+                  "height": 18,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "download",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "text",
+                  "id": "Dej4O",
+                  "name": "Label",
+                  "content": "Export",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ObWoF",
+              "name": "Button/Ghost",
+              "reusable": true,
+              "gap": "$s-2",
+              "padding": [
+                "$s-3",
+                "$s-4"
+              ],
+              "cornerRadius": "$r-full",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "TTxcg",
+                  "name": "Label",
+                  "content": "View all",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$orange-ink"
+                },
+                {
+                  "type": "icon",
+                  "id": "63kHE",
+                  "width": 16,
+                  "height": 16,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "arrow-right",
+                  "fill": "$orange-ink"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "m9lEj",
+      "name": "Icon Button",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 582,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "ngQGk",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "BBLJu",
+              "name": "Board title",
+              "content": "Icon Button",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "aiV56",
+              "name": "Board note",
+              "content": "Square, soft and tappable — for toolbars and compact actions.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "t5FZV",
+          "name": "Examples",
+          "gap": "$s-4",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "VgPzy",
+              "name": "Icon Button",
+              "reusable": true,
+              "width": 44,
+              "height": 44,
+              "cornerRadius": "$r-md",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 2
+                },
+                "blur": 6,
+                "color": "$shadow"
+              },
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "5XFig",
+                  "width": 20,
+                  "height": 20,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "bell",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "ztqTA",
+              "ref": "VgPzy",
+              "name": "Icon Button — settings",
+              "descendants": {
+                "5XFig": {
+                  "icon": "settings"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "eFNJ5",
+              "ref": "VgPzy",
+              "name": "Icon Button — accent",
+              "fill": "$lime",
+              "stroke": "$lime",
+              "descendants": {
+                "5XFig": {
+                  "icon": "sparkles",
+                  "fill": "$on-accent"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "wHNmZ",
+      "name": "Input",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 1080,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "aNwiV",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "dGJTw",
+              "name": "Board title",
+              "content": "Input",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "Xjav8",
+              "name": "Board note",
+              "content": "Single-line text entry with a leading icon.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "NooNc",
+          "name": "Examples",
+          "gap": "$s-5",
+          "children": [
+            {
+              "type": "frame",
+              "id": "fh2K4",
+              "name": "Input",
+              "reusable": true,
+              "layout": "vertical",
+              "gap": "$s-2",
+              "width": 300,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "dZ0kG",
+                  "name": "Label",
+                  "content": "Search",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "frame",
+                  "id": "CXhiR",
+                  "name": "Field",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": "$s-2",
+                  "padding": [
+                    0,
+                    "$s-4"
+                  ],
+                  "cornerRadius": "$r-md",
+                  "fill": "$surface",
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ZZRNG",
+                      "width": 18,
+                      "height": 18,
+                      "library": "lucide",
+                      "name": "Icon",
+                      "icon": "search",
+                      "fill": "$ink-faint"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kKT7D",
+                      "name": "Placeholder",
+                      "content": "Invoices, clients, amounts…",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-sm",
+                      "fill": "$ink-faint",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "M8qRX",
+              "ref": "fh2K4",
+              "name": "Input — focused",
+              "descendants": {
+                "dZ0kG": {
+                  "content": "Email"
+                },
+                "CXhiR": {
+                  "stroke": "$orange",
+                  "strokeWidth": 2
+                },
+                "ZZRNG": {
+                  "icon": "mail",
+                  "fill": "$orange-ink"
+                },
+                "kKT7D": {
+                  "content": "ada@grovebooks.co",
+                  "fill": "$ink"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "qos2Y",
+      "name": "Select",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 1808,
+      "y": 0,
+      "children": [
+        {
+          "type": "frame",
+          "id": "L6uDr",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "12CZU",
+              "name": "Board title",
+              "content": "Select",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "9fCZw",
+              "name": "Board note",
+              "content": "Pick one option from a short list.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Tpl5D",
+          "name": "Select",
+          "reusable": true,
+          "layout": "vertical",
+          "gap": "$s-2",
+          "width": 240,
+          "children": [
+            {
+              "type": "text",
+              "id": "Z8SPC",
+              "name": "Label",
+              "content": "Client",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "frame",
+              "id": "i4hwA",
+              "name": "Field",
+              "width": "fill_container",
+              "height": 44,
+              "gap": "$s-2",
+              "padding": [
+                0,
+                "$s-3",
+                0,
+                "$s-4"
+              ],
+              "cornerRadius": "$r-md",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": 1,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "2kGNP",
+                  "name": "Value",
+                  "content": "All clients",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "500",
+                  "fill": "$ink",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "icon",
+                  "id": "t3ra5",
+                  "width": 18,
+                  "height": 18,
+                  "library": "lucide",
+                  "name": "Chevron",
+                  "icon": "chevron-down",
+                  "fill": "$ink-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "h3uBW",
+      "name": "Checkbox",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 0,
+      "y": 243,
+      "children": [
+        {
+          "type": "frame",
+          "id": "nsRHj",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "7XMfx",
+              "name": "Board title",
+              "content": "Checkbox",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "5Mxa4",
+              "name": "Board note",
+              "content": "Checked and unchecked, label to the right.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "9qjg1",
+          "name": "Examples",
+          "layout": "vertical",
+          "gap": "$s-3",
+          "children": [
+            {
+              "type": "frame",
+              "id": "C6sfV",
+              "name": "Checkbox",
+              "reusable": true,
+              "gap": "$s-3",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JQTbQ",
+                  "name": "Box",
+                  "width": 22,
+                  "height": 22,
+                  "cornerRadius": 7,
+                  "fill": "$lime",
+                  "stroke": "$lime",
+                  "strokeWidth": 1.5,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "jNIuO",
+                      "width": 14,
+                      "height": 14,
+                      "library": "lucide",
+                      "name": "Check",
+                      "icon": "check",
+                      "fill": "$on-accent"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "EUk8U",
+                  "name": "Label",
+                  "content": "Attach PDF to reminder emails",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "SNG1R",
+              "ref": "C6sfV",
+              "name": "Checkbox — off",
+              "descendants": {
+                "JQTbQ": {
+                  "fill": "$surface",
+                  "stroke": "$border"
+                },
+                "jNIuO": {
+                  "enabled": false
+                },
+                "EUk8U": {
+                  "content": "CC the account owner"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "LkLJ3",
+      "name": "Switch",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 371,
+      "y": 243,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Mio9x",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "EN3Zm",
+              "name": "Board title",
+              "content": "Switch",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "LKM3M",
+              "name": "Board note",
+              "content": "Instant on/off settings.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "uhwml",
+          "name": "Examples",
+          "layout": "vertical",
+          "gap": "$s-3",
+          "children": [
+            {
+              "type": "frame",
+              "id": "0JWC9",
+              "name": "Switch",
+              "reusable": true,
+              "gap": "$s-3",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "wHFG3",
+                  "name": "Track",
+                  "layout": "none",
+                  "width": 44,
+                  "height": 26,
+                  "cornerRadius": "$r-full",
+                  "fill": "$lime",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "DRFer",
+                      "width": 20,
+                      "height": 20,
+                      "name": "Knob",
+                      "x": 21,
+                      "y": 3,
+                      "fill": "$surface",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "offset": {
+                          "x": 0,
+                          "y": 1
+                        },
+                        "blur": 3,
+                        "color": "$shadow-strong"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "MqGLn",
+                  "name": "Label",
+                  "content": "Auto-send reminders",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "QZGM1",
+              "ref": "0JWC9",
+              "name": "Switch — off",
+              "descendants": {
+                "wHFG3": {
+                  "fill": "$border"
+                },
+                "DRFer": {
+                  "x": 3
+                },
+                "MqGLn": {
+                  "content": "Weekly digest"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "EpS5M",
+      "name": "Badge",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 664,
+      "y": 243,
+      "children": [
+        {
+          "type": "frame",
+          "id": "u1OXq",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "1mNPY",
+              "name": "Board title",
+              "content": "Badge",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "EWcjt",
+              "name": "Board note",
+              "content": "Status at a glance: paid, due soon, overdue, draft.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "B2lKw",
+          "name": "Examples",
+          "gap": "$s-3",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "JoKl3",
+              "name": "Badge",
+              "reusable": true,
+              "gap": 6,
+              "padding": [
+                "$s-1",
+                10
+              ],
+              "cornerRadius": "$r-full",
+              "fill": "$lime-soft",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "HKFdM",
+                  "width": 6,
+                  "height": 6,
+                  "name": "Dot",
+                  "fill": "$lime-ink"
+                },
+                {
+                  "type": "text",
+                  "id": "2x4Fe",
+                  "name": "Text",
+                  "content": "Paid",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-xs",
+                  "fontWeight": "700",
+                  "fill": "$lime-ink"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "gG96O",
+              "ref": "JoKl3",
+              "name": "Badge — due soon",
+              "fill": "$orange-soft",
+              "descendants": {
+                "HKFdM": {
+                  "fill": "$orange-ink"
+                },
+                "2x4Fe": {
+                  "content": "Due soon",
+                  "fill": "$orange-ink"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "8qXyS",
+              "ref": "JoKl3",
+              "name": "Badge — overdue",
+              "fill": "$danger-soft",
+              "descendants": {
+                "HKFdM": {
+                  "fill": "$danger-ink"
+                },
+                "2x4Fe": {
+                  "content": "Overdue",
+                  "fill": "$danger-ink"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "Ys3Ja",
+              "ref": "JoKl3",
+              "name": "Badge — draft",
+              "fill": "$surface-sunk",
+              "descendants": {
+                "HKFdM": {
+                  "fill": "$ink-muted"
+                },
+                "2x4Fe": {
+                  "content": "Draft",
+                  "fill": "$ink-muted"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "E0ZBU",
+      "name": "Avatar",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 1085,
+      "y": 243,
+      "children": [
+        {
+          "type": "frame",
+          "id": "3OV66",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "ZdV3x",
+              "name": "Board title",
+              "content": "Avatar",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "qh1EW",
+              "name": "Board note",
+              "content": "Initials on a warm tint — no photos needed.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "UnVrh",
+          "name": "Examples",
+          "gap": "$s-3",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "lRVPg",
+              "name": "Avatar",
+              "reusable": true,
+              "width": 40,
+              "height": 40,
+              "cornerRadius": "$r-full",
+              "fill": "$orange-soft",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "7lXcM",
+                  "name": "Initials",
+                  "content": "AO",
+                  "fontFamily": "$font-display",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$orange-ink"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "sGkAG",
+              "ref": "lRVPg",
+              "name": "Avatar — lime",
+              "fill": "$lime-soft",
+              "descendants": {
+                "7lXcM": {
+                  "content": "MK",
+                  "fill": "$lime-ink"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "tQd0X",
+              "ref": "lRVPg",
+              "name": "Avatar — neutral",
+              "fill": "$surface-sunk",
+              "descendants": {
+                "7lXcM": {
+                  "content": "TR",
+                  "fill": "$ink-muted"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uu53M",
+      "name": "Tabs",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 1462,
+      "y": 243,
+      "children": [
+        {
+          "type": "frame",
+          "id": "v5tMQ",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "Gy3lR",
+              "name": "Board title",
+              "content": "Tabs",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "wZfN7",
+              "name": "Board note",
+              "content": "Segmented switch between views of the same data.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "i7z2a",
+          "name": "Tabs",
+          "reusable": true,
+          "gap": "$s-1",
+          "padding": "$s-1",
+          "cornerRadius": "$r-full",
+          "fill": "$surface-sunk",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "lYW7t",
+              "name": "Tab 1",
+              "padding": [
+                "$s-2",
+                "$s-4"
+              ],
+              "cornerRadius": "$r-full",
+              "fill": "$surface",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 1
+                },
+                "blur": 4,
+                "color": "$shadow-strong"
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "0nAj3",
+                  "name": "Tab 1 label",
+                  "content": "This month",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "600",
+                  "fill": "$ink"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "b4YFX",
+              "name": "Tab 2",
+              "padding": [
+                "$s-2",
+                "$s-4"
+              ],
+              "cornerRadius": "$r-full",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "EWkwC",
+                  "name": "Tab 2 label",
+                  "content": "Quarter",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "500",
+                  "fill": "$ink-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "V3EVB",
+              "name": "Tab 3",
+              "padding": [
+                "$s-2",
+                "$s-4"
+              ],
+              "cornerRadius": "$r-full",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mF2mZ",
+                  "name": "Tab 3 label",
+                  "content": "Year",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "500",
+                  "fill": "$ink-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "2diEo",
+              "name": "Tab 4",
+              "padding": [
+                "$s-2",
+                "$s-4"
+              ],
+              "cornerRadius": "$r-full",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ir73Z",
+                  "name": "Tab 4 label",
+                  "content": "All time",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "500",
+                  "fill": "$ink-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "c5SH7",
+      "name": "Sidebar Item",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 0,
+      "y": 481,
+      "children": [
+        {
+          "type": "frame",
+          "id": "VZcXS",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "qZHLT",
+              "name": "Board title",
+              "content": "Sidebar Item",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "0fjEg",
+              "name": "Board note",
+              "content": "Navigation rows; the current page sits on lime.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "JM3tA",
+          "name": "Examples",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "width": 240,
+          "children": [
+            {
+              "type": "frame",
+              "id": "XLfW3",
+              "name": "Sidebar Item",
+              "reusable": true,
+              "width": "fill_container",
+              "gap": "$s-3",
+              "padding": [
+                10,
+                "$s-3"
+              ],
+              "cornerRadius": "$r-md",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "vxT4h",
+                  "width": 20,
+                  "height": 20,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "file-text",
+                  "fill": "$ink-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "JO9yo",
+                  "name": "Label",
+                  "content": "Invoices",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "500",
+                  "fill": "$ink-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "frame",
+                  "id": "YXGQf",
+                  "name": "Count",
+                  "padding": [
+                    2,
+                    "$s-2"
+                  ],
+                  "cornerRadius": "$r-full",
+                  "fill": "$surface-sunk",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZWVCE",
+                      "name": "Count text",
+                      "content": "12",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-xs",
+                      "fontWeight": "700",
+                      "fill": "$ink-muted"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "Qlrr5",
+              "ref": "XLfW3",
+              "name": "Sidebar Item — active",
+              "fill": "$lime-soft",
+              "descendants": {
+                "vxT4h": {
+                  "icon": "layout-dashboard",
+                  "fill": "$lime-ink"
+                },
+                "JO9yo": {
+                  "content": "Overview",
+                  "fill": "$ink",
+                  "fontWeight": "600"
+                },
+                "YXGQf": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "HtSAM",
+      "name": "Card",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 395,
+      "y": 481,
+      "children": [
+        {
+          "type": "frame",
+          "id": "W58rp",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "uWS9Y",
+              "name": "Board title",
+              "content": "Card",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "5Z8Fk",
+              "name": "Board note",
+              "content": "A soft surface with a header and a content slot.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "f8Clp",
+          "name": "Card",
+          "reusable": true,
+          "layout": "vertical",
+          "width": 420,
+          "gap": "$s-4",
+          "padding": "$s-5",
+          "cornerRadius": "$r-lg",
+          "fill": "$surface",
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 6
+            },
+            "blur": 20,
+            "color": "$shadow"
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "Ktkp6",
+              "name": "Header",
+              "width": "fill_container",
+              "gap": "$s-3",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "H2C4O",
+                  "name": "Titles",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "blZb6",
+                      "name": "Title",
+                      "content": "Recent invoices",
+                      "fontFamily": "$font-display",
+                      "fontSize": "$fs-lg",
+                      "fontWeight": "600",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "qAFuC",
+                      "name": "Subtitle",
+                      "content": "Sent in the last 30 days",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-sm",
+                      "fill": "$ink-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "vmIdN",
+                  "ref": "ObWoF",
+                  "name": "Action"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "w52iH",
+              "name": "Content",
+              "layout": "vertical",
+              "width": "fill_container",
+              "gap": "$s-2",
+              "slot": [],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GimP9",
+                  "name": "Slot hint",
+                  "content": "Drop any content here — lists, rows, settings.",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fill": "$ink-faint"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "m2PDO",
+      "name": "Stat",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 919,
+      "y": 481,
+      "children": [
+        {
+          "type": "frame",
+          "id": "4MxJM",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "vFiZ9",
+              "name": "Board title",
+              "content": "Stat",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "gRCP1",
+              "name": "Board note",
+              "content": "One headline number, its trend and context.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yA8kI",
+          "name": "Examples",
+          "gap": "$s-4",
+          "children": [
+            {
+              "type": "frame",
+              "id": "uaYbD",
+              "name": "Stat",
+              "reusable": true,
+              "layout": "vertical",
+              "width": 260,
+              "gap": "$s-2",
+              "padding": 20,
+              "cornerRadius": "$r-lg",
+              "fill": "$surface",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 6
+                },
+                "blur": 20,
+                "color": "$shadow"
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "816D2",
+                  "name": "Top",
+                  "width": "fill_container",
+                  "alignItems": "center",
+                  "gap": "$s-2",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ML2fD",
+                      "name": "Label",
+                      "content": "Outstanding",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-sm",
+                      "fontWeight": "500",
+                      "fill": "$ink-muted",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EPPar",
+                      "name": "Icon chip",
+                      "width": 32,
+                      "height": 32,
+                      "cornerRadius": "$r-sm",
+                      "fill": "$lime-soft",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Aigx3",
+                          "width": 18,
+                          "height": 18,
+                          "library": "lucide",
+                          "name": "Icon",
+                          "icon": "wallet",
+                          "fill": "$lime-ink"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "8OpHb",
+                  "name": "Value",
+                  "content": "$48,320",
+                  "fontFamily": "$font-display",
+                  "fontSize": "$fs-xl",
+                  "fontWeight": "600",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "frame",
+                  "id": "ar83F",
+                  "name": "Delta",
+                  "gap": "$s-1",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "rGoIQ",
+                      "width": 16,
+                      "height": 16,
+                      "library": "lucide",
+                      "name": "Trend",
+                      "icon": "trending-up",
+                      "fill": "$lime-ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "KfXho",
+                      "name": "Delta text",
+                      "content": "+8.2% vs last month",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-xs",
+                      "fontWeight": "600",
+                      "fill": "$lime-ink"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "g4Kzt",
+              "ref": "uaYbD",
+              "name": "Stat — orange",
+              "descendants": {
+                "ML2fD": {
+                  "content": "Overdue"
+                },
+                "EPPar": {
+                  "fill": "$orange-soft"
+                },
+                "Aigx3": {
+                  "icon": "clock-alert",
+                  "fill": "$orange-ink"
+                },
+                "8OpHb": {
+                  "content": "$9,870"
+                },
+                "rGoIQ": {
+                  "icon": "trending-up",
+                  "fill": "$orange-ink"
+                },
+                "KfXho": {
+                  "content": "3 invoices past 14 days",
+                  "fill": "$orange-ink"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uf91T",
+      "name": "Table Row",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 0,
+      "y": 794,
+      "children": [
+        {
+          "type": "frame",
+          "id": "KFKAi",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "JzRY2",
+              "name": "Board title",
+              "content": "Table Row",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "ANHds",
+              "name": "Board note",
+              "content": "Client, reference, amount, due date and status in one scannable line.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "5Ddib",
+          "name": "Examples",
+          "layout": "vertical",
+          "width": 860,
+          "fill": "$surface",
+          "cornerRadius": "$r-lg",
+          "clip": true,
+          "children": [
+            {
+              "type": "frame",
+              "id": "qhpL5",
+              "name": "Table Row",
+              "reusable": true,
+              "width": "fill_container",
+              "gap": "$s-4",
+              "padding": [
+                "$s-3",
+                20
+              ],
+              "alignItems": "center",
+              "fill": "$surface",
+              "stroke": "$border",
+              "strokeWidth": {
+                "top": 0,
+                "right": 0,
+                "bottom": 1,
+                "left": 0
+              },
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "T17D6",
+                  "ref": "lRVPg",
+                  "name": "Avatar",
+                  "descendants": {
+                    "7lXcM": {
+                      "content": "MS"
+                    }
+                  }
+                },
+                {
+                  "type": "frame",
+                  "id": "M7cCp",
+                  "name": "Client",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "N7Pih",
+                      "name": "Client name",
+                      "content": "Marigold Studio",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-sm",
+                      "fontWeight": "600",
+                      "fill": "$ink",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Yp84K",
+                      "name": "Reference",
+                      "content": "INV-2041 · Brand refresh, phase 2",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-xs",
+                      "fill": "$ink-muted",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "tz0pe",
+                  "name": "Due",
+                  "content": "Due Nov 12",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fill": "$ink-muted",
+                  "width": 100,
+                  "textGrowth": "fixed-width"
+                },
+                {
+                  "type": "frame",
+                  "id": "iCymt",
+                  "name": "Status cell",
+                  "width": 100,
+                  "children": [
+                    {
+                      "type": "ref",
+                      "id": "Qbvi5",
+                      "ref": "JoKl3",
+                      "name": "Status"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "8Lp9f",
+                  "name": "Amount",
+                  "content": "$6,400.00",
+                  "fontFamily": "$font-display",
+                  "fontSize": "$fs-md",
+                  "fontWeight": "600",
+                  "fill": "$ink",
+                  "width": 110,
+                  "textGrowth": "fixed-width",
+                  "textAlign": "right"
+                },
+                {
+                  "type": "icon",
+                  "id": "jXoMp",
+                  "width": 20,
+                  "height": 20,
+                  "library": "lucide",
+                  "name": "More",
+                  "icon": "ellipsis",
+                  "fill": "$ink-faint"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "AdCPt",
+              "ref": "qhpL5",
+              "name": "Table Row — overdue",
+              "width": "fill_container",
+              "descendants": {
+                "T17D6": {
+                  "fill": "$lime-soft"
+                },
+                "T17D6/7lXcM": {
+                  "content": "NB",
+                  "fill": "$lime-ink"
+                },
+                "Qbvi5": {
+                  "fill": "$danger-soft"
+                },
+                "Qbvi5/HKFdM": {
+                  "fill": "$danger-ink"
+                },
+                "Qbvi5/2x4Fe": {
+                  "content": "Overdue",
+                  "fill": "$danger-ink"
+                },
+                "N7Pih": {
+                  "content": "Northbound Coffee"
+                },
+                "Yp84K": {
+                  "content": "INV-2036 · Café menu & signage"
+                },
+                "tz0pe": {
+                  "content": "Due Oct 18"
+                },
+                "8Lp9f": {
+                  "content": "$2,150.00"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "v3pyl",
+      "name": "Alert",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 964,
+      "y": 794,
+      "children": [
+        {
+          "type": "frame",
+          "id": "4FFyz",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "Az46x",
+              "name": "Board title",
+              "content": "Alert",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "9FGnJ",
+              "name": "Board note",
+              "content": "A gentle nudge that needs attention, with a way to act on it.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "H0dRx",
+          "name": "Alert",
+          "reusable": true,
+          "width": 640,
+          "gap": "$s-4",
+          "padding": [
+            "$s-4",
+            "$s-4",
+            "$s-4",
+            20
+          ],
+          "cornerRadius": "$r-lg",
+          "fill": "$orange-soft",
+          "stroke": "$orange",
+          "strokeWidth": 1,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ozPoG",
+              "name": "Icon chip",
+              "width": 36,
+              "height": 36,
+              "cornerRadius": "$r-full",
+              "fill": "$orange",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "OrZY4",
+                  "width": 18,
+                  "height": 18,
+                  "library": "lucide",
+                  "name": "Icon",
+                  "icon": "bell-ring",
+                  "fill": "$on-accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zdl0W",
+              "name": "Text",
+              "layout": "vertical",
+              "gap": 2,
+              "width": "fill_container",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P99Qu",
+                  "name": "Title",
+                  "content": "3 invoices are more than 14 days overdue",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fontWeight": "700",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "text",
+                  "id": "rCSAb",
+                  "name": "Message",
+                  "content": "$9,870 is waiting on Northbound Coffee, Pine & Pixel and Lumen Labs.",
+                  "fontFamily": "$font-body",
+                  "fontSize": "$fs-sm",
+                  "fill": "$ink-muted",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "rWlDH",
+              "ref": "uEA6q",
+              "name": "Action",
+              "descendants": {
+                "e5spI": {
+                  "icon": "send"
+                },
+                "Dej4O": {
+                  "content": "Send reminders"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "jku9W",
+      "name": "Dialog",
+      "layout": "vertical",
+      "fill": "$bg",
+      "padding": "$s-6",
+      "gap": "$s-5",
+      "cornerRadius": "$r-xl",
+      "stroke": "$border",
+      "strokeWidth": 1,
+      "placeholder": false,
+      "x": 1708,
+      "y": 794,
+      "children": [
+        {
+          "type": "frame",
+          "id": "UQlUa",
+          "name": "Board header",
+          "layout": "vertical",
+          "gap": "$s-1",
+          "children": [
+            {
+              "type": "text",
+              "id": "41W7f",
+              "name": "Board title",
+              "content": "Dialog",
+              "fontFamily": "$font-display",
+              "fontSize": "$fs-lg",
+              "fontWeight": "600",
+              "fill": "$ink"
+            },
+            {
+              "type": "text",
+              "id": "fnulf",
+              "name": "Board note",
+              "content": "Focused task on a raised surface; one primary action.",
+              "fontFamily": "$font-body",
+              "fontSize": "$fs-sm",
+              "fill": "$ink-muted"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yv2Lq",
+          "name": "Dialog",
+          "reusable": true,
+          "layout": "vertical",
+          "width": 460,
+          "gap": 20,
+          "padding": "$s-5",
+          "cornerRadius": "$r-xl",
+          "fill": "$surface",
+          "stroke": "$border",
+          "strokeWidth": 1,
+          "effect": [
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "offset": {
+                "x": 0,
+                "y": 24
+              },
+              "blur": 48,
+              "color": "$shadow-strong"
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "offset": {
+                "x": 0,
+                "y": 2
+              },
+              "blur": 6,
+              "color": "$shadow"
+            }
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "5DJ2b",
+              "name": "Header",
+              "width": "fill_container",
+              "gap": "$s-3",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "sp67t",
+                  "name": "Titles",
+                  "layout": "vertical",
+                  "gap": "$s-1",
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ufxv8",
+                      "name": "Title",
+                      "content": "Send a payment reminder",
+                      "fontFamily": "$font-display",
+                      "fontSize": "$fs-lg",
+                      "fontWeight": "600",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WVHap",
+                      "name": "Message",
+                      "content": "Northbound Coffee · INV-2036 · $2,150.00, 16 days overdue",
+                      "fontFamily": "$font-body",
+                      "fontSize": "$fs-sm",
+                      "fill": "$ink-muted",
+                      "width": "fill_container",
+                      "textGrowth": "fixed-width"
+                    }
+                  ]
+                },
+                {
+                  "type": "ref",
+                  "id": "69UPW",
+                  "ref": "VgPzy",
+                  "name": "Close",
+                  "width": 36,
+                  "height": 36,
+                  "descendants": {
+                    "5XFig": {
+                      "icon": "x",
+                      "width": 18,
+                      "height": 18
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "r9gyA",
+              "ref": "fh2K4",
+              "name": "Recipient",
+              "width": "fill_container",
+              "descendants": {
+                "dZ0kG": {
+                  "content": "Send to"
+                },
+                "ZZRNG": {
+                  "icon": "mail"
+                },
+                "kKT7D": {
+                  "content": "accounts@northbound.coffee",
+                  "fill": "$ink"
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "njki8",
+              "ref": "C6sfV",
+              "name": "Attach PDF"
+            },
+            {
+              "type": "frame",
+              "id": "B7pCj",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": "$s-3",
+              "justifyContent": "end",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "rJ0Zv",
+                  "ref": "uEA6q",
+                  "name": "Cancel",
+                  "descendants": {
+                    "e5spI": {
+                      "enabled": false
+                    },
+                    "Dej4O": {
+                      "content": "Cancel"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "tGPoK",
+                  "ref": "ZvoDv",
+                  "name": "Confirm",
+                  "descendants": {
+                    "hcYyd": {
+                      "icon": "send"
+                    },
+                    "e3NqC": {
+                      "content": "Send reminder"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ZSPvH",
+      "name": "Overview",
+      "x": 2392,
+      "y": 0,
+      "width": 1440,
+      "height": 900,
+      "layout": "horizontal",
+      "fill": "$bg",
+      "clip": true,
+      "placeholder": false,
+      "children": [
+        {
+          "type": "frame",
+          "id": "shked",
+          "name": "Sidebar",
+          "layout": "vertical",
+          "width": 256,
+          "height": "fill_container",
+          "padding": [
+            24,
+            16
+          ],
+          "gap": "$s-1",
+          "fill": "$surface",
+          "stroke": "$border",
+          "strokeWidth": {
+            "top": 0,
+            "right": 1,
+            "bottom": 0,
+            "left": 0
+          },
+          "children": [
+            {
+              "type": "ref",
+              "id": "sVlUc",
+              "ref": "XLfW3",
+              "name": "Brand",
+              "width": "fill_container",
+              "descendants": {
+                "vxT4h": {
+                  "icon": "citrus",
+                  "fill": "$lime-ink",
+                  "width": 24,
+                  "height": 24
+                },
+                "JO9yo": {
+                  "content": "Grove",
+                  "fontFamily": "$font-display",
+                  "fontSize": "$fs-lg",
+                  "fontWeight": "700",
+                  "fill": "$ink"
+                },
+                "YXGQf": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "HFOr5",
+              "name": "Nav",
+              "layout": "vertical",
+              "width": "fill_container",
+              "gap": "$s-1",
+              "padding": [
+                "$s-5",
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "HR2GR",
+                  "ref": "XLfW3",
+                  "name": "Nav — Overview",
+                  "width": "fill_container",
+                  "fill": "$lime-soft",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "layout-dashboard",
+                      "fill": "$lime-ink"
+                    },
+                    "JO9yo": {
+                      "content": "Overview",
+                      "fill": "$ink",
+                      "fontWeight": "600"
+                    },
+                    "YXGQf": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "od3US",
+                  "ref": "XLfW3",
+                  "name": "Nav — Invoices",
+                  "width": "fill_container",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "file-text"
+                    },
+                    "JO9yo": {
+                      "content": "Invoices"
+                    },
+                    "ZWVCE": {
+                      "content": "12"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "0nTYQ",
+                  "ref": "XLfW3",
+                  "name": "Nav — Clients",
+                  "width": "fill_container",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "users"
+                    },
+                    "JO9yo": {
+                      "content": "Clients"
+                    },
+                    "ZWVCE": {
+                      "content": "48"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "tGq7b",
+                  "ref": "XLfW3",
+                  "name": "Nav — Payments",
+                  "width": "fill_container",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "credit-card"
+                    },
+                    "JO9yo": {
+                      "content": "Payments"
+                    },
+                    "YXGQf": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "50S2a",
+                  "ref": "XLfW3",
+                  "name": "Nav — Expenses",
+                  "width": "fill_container",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "receipt"
+                    },
+                    "JO9yo": {
+                      "content": "Expenses"
+                    },
+                    "ZWVCE": {
+                      "content": "3"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "lIx6a",
+                  "ref": "XLfW3",
+                  "name": "Nav — Reports",
+                  "width": "fill_container",
+                  "descendants": {
+                    "vxT4h": {
+                      "icon": "chart-column"
+                    },
+                    "JO9yo": {
+                      "content": "Reports"
+                    },
+                    "YXGQf": {
+                      "enabled": false
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rxVz9",
+              "name": "Spacer",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "ref",
+              "id": "Bj0qu",
+              "ref": "XLfW3",
+              "name": "Nav — Settings",
+              "width": "fill_container",
+              "descendants": {
+                "vxT4h": {
+                  "icon": "settings"
+                },
+                "JO9yo": {
+                  "content": "Settings"
+                },
+                "YXGQf": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "2JAIF",
+              "ref": "XLfW3",
+              "name": "Nav — Help & support",
+              "width": "fill_container",
+              "descendants": {
+                "vxT4h": {
+                  "icon": "life-buoy"
+                },
+                "JO9yo": {
+                  "content": "Help & support"
+                },
+                "YXGQf": {
+                  "enabled": false
+                }
+              }
+            },
+            {
+              "type": "ref",
+              "id": "9KumK",
+              "ref": "XLfW3",
+              "name": "Nav — Ada Okafor",
+              "width": "fill_container",
+              "descendants": {
+                "vxT4h": {
+                  "icon": "circle-user-round"
+                },
+                "JO9yo": {
+                  "content": "Ada Okafor"
+                },
+                "YXGQf": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "y0AQo",
+          "name": "Main",
+          "layout": "vertical",
+          "width": "fill_container",
+          "height": "fill_container",
+          "padding": "$s-6",
+          "gap": "$s-5",
+          "children": [
+            {
+              "type": "frame",
+              "id": "WTeFp",
+              "name": "Toolbar",
+              "width": "fill_container",
+              "gap": "$s-3",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "6nkKM",
+                  "ref": "i7z2a",
+                  "name": "Period tabs"
+                },
+                {
+                  "type": "frame",
+                  "id": "Hs7l3",
+                  "name": "Spacer",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "ref",
+                  "id": "sVqTN",
+                  "ref": "fh2K4",
+                  "name": "Search",
+                  "width": 260,
+                  "descendants": {
+                    "dZ0kG": {
+                      "enabled": false
+                    },
+                    "kKT7D": {
+                      "content": "Search invoices…"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "DvGBm",
+                  "ref": "Tpl5D",
+                  "name": "Client filter",
+                  "width": 170,
+                  "descendants": {
+                    "Z8SPC": {
+                      "enabled": false
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "O4ecP",
+                  "ref": "VgPzy",
+                  "name": "Notifications"
+                },
+                {
+                  "type": "ref",
+                  "id": "he7hr",
+                  "ref": "ZvoDv",
+                  "name": "New invoice"
+                }
+              ]
+            },
+            {
+              "type": "ref",
+              "id": "BI4jI",
+              "ref": "H0dRx",
+              "name": "Overdue alert",
+              "width": "fill_container",
+              "descendants": {
+                "rCSAb": {
+                  "content": "$9,870 is waiting on Northbound Coffee, Pine & Pixel and Odd Fellows Bakery."
+                }
+              }
+            },
+            {
+              "type": "frame",
+              "id": "whm8N",
+              "name": "Stats",
+              "width": "fill_container",
+              "gap": 20,
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "cMABV",
+                  "ref": "uaYbD",
+                  "name": "Stat — Outstanding",
+                  "width": "fill_container",
+                  "descendants": {
+                    "ML2fD": {
+                      "content": "Outstanding"
+                    },
+                    "Aigx3": {
+                      "icon": "wallet"
+                    },
+                    "8OpHb": {
+                      "content": "$48,320"
+                    },
+                    "rGoIQ": {
+                      "icon": "trending-up"
+                    },
+                    "KfXho": {
+                      "content": "+8.2% vs October"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "yWpeW",
+                  "ref": "uaYbD",
+                  "name": "Stat — Paid in November",
+                  "width": "fill_container",
+                  "descendants": {
+                    "ML2fD": {
+                      "content": "Paid in November"
+                    },
+                    "Aigx3": {
+                      "icon": "circle-check"
+                    },
+                    "8OpHb": {
+                      "content": "$126,940"
+                    },
+                    "rGoIQ": {
+                      "icon": "trending-up"
+                    },
+                    "KfXho": {
+                      "content": "+14.1% vs October"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "eA86E",
+                  "ref": "uaYbD",
+                  "name": "Stat — Overdue",
+                  "width": "fill_container",
+                  "descendants": {
+                    "ML2fD": {
+                      "content": "Overdue"
+                    },
+                    "Aigx3": {
+                      "icon": "clock-alert",
+                      "fill": "$orange-ink"
+                    },
+                    "8OpHb": {
+                      "content": "$9,870"
+                    },
+                    "rGoIQ": {
+                      "icon": "triangle-alert",
+                      "fill": "$orange-ink"
+                    },
+                    "KfXho": {
+                      "content": "3 invoices past 14 days",
+                      "fill": "$orange-ink"
+                    },
+                    "EPPar": {
+                      "fill": "$orange-soft"
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "cUwYa",
+                  "ref": "uaYbD",
+                  "name": "Stat — Avg. days to pay",
+                  "width": "fill_container",
+                  "descendants": {
+                    "ML2fD": {
+                      "content": "Avg. days to pay"
+                    },
+                    "Aigx3": {
+                      "icon": "timer"
+                    },
+                    "8OpHb": {
+                      "content": "18 days"
+                    },
+                    "rGoIQ": {
+                      "icon": "trending-down"
+                    },
+                    "KfXho": {
+                      "content": "4 days faster than Q3"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "igT0M",
+              "name": "Bottom",
+              "width": "fill_container",
+              "height": "fill_container",
+              "gap": 20,
+              "children": [
+                {
+                  "type": "ref",
+                  "id": "KIGr5",
+                  "ref": "f8Clp",
+                  "name": "Recent invoices",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "descendants": {
+                    "blZb6": {
+                      "content": "Recent invoices"
+                    },
+                    "qAFuC": {
+                      "content": "5 of 12 open this month"
+                    },
+                    "GimP9": {
+                      "enabled": false
+                    },
+                    "w52iH": {
+                      "gap": 0,
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "Hcn6G",
+                          "ref": "qhpL5",
+                          "name": "Row — Marigold Studio",
+                          "width": "fill_container",
+                          "fill": "$surface",
+                          "strokeWidth": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 1,
+                            "left": 0
+                          },
+                          "descendants": {
+                            "T17D6": {
+                              "fill": "$orange-soft"
+                            },
+                            "T17D6/7lXcM": {
+                              "content": "MS",
+                              "fill": "$orange-ink"
+                            },
+                            "N7Pih": {
+                              "content": "Marigold Studio"
+                            },
+                            "Yp84K": {
+                              "content": "INV-2048 · Brand refresh, phase 2"
+                            },
+                            "tz0pe": {
+                              "content": "Due Nov 28"
+                            },
+                            "Qbvi5": {
+                              "fill": "$orange-soft"
+                            },
+                            "Qbvi5/HKFdM": {
+                              "fill": "$orange-ink"
+                            },
+                            "Qbvi5/2x4Fe": {
+                              "content": "Due soon",
+                              "fill": "$orange-ink"
+                            },
+                            "8Lp9f": {
+                              "content": "$6,400.00"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "CXzO4",
+                          "ref": "qhpL5",
+                          "name": "Row — Lumen Labs",
+                          "width": "fill_container",
+                          "fill": "$surface",
+                          "strokeWidth": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 1,
+                            "left": 0
+                          },
+                          "descendants": {
+                            "T17D6": {
+                              "fill": "$lime-soft"
+                            },
+                            "T17D6/7lXcM": {
+                              "content": "LL",
+                              "fill": "$lime-ink"
+                            },
+                            "N7Pih": {
+                              "content": "Lumen Labs"
+                            },
+                            "Yp84K": {
+                              "content": "INV-2047 · Product site, October retainer"
+                            },
+                            "tz0pe": {
+                              "content": "Paid Nov 2"
+                            },
+                            "Qbvi5": {
+                              "fill": "$lime-soft"
+                            },
+                            "Qbvi5/HKFdM": {
+                              "fill": "$lime-ink"
+                            },
+                            "Qbvi5/2x4Fe": {
+                              "content": "Paid",
+                              "fill": "$lime-ink"
+                            },
+                            "8Lp9f": {
+                              "content": "$4,850.00"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "gNEwh",
+                          "ref": "qhpL5",
+                          "name": "Row — Northbound Coffee",
+                          "width": "fill_container",
+                          "fill": "$surface",
+                          "strokeWidth": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 1,
+                            "left": 0
+                          },
+                          "descendants": {
+                            "T17D6": {
+                              "fill": "$lime-soft"
+                            },
+                            "T17D6/7lXcM": {
+                              "content": "NB",
+                              "fill": "$lime-ink"
+                            },
+                            "N7Pih": {
+                              "content": "Northbound Coffee"
+                            },
+                            "Yp84K": {
+                              "content": "INV-2036 · Café menu & signage"
+                            },
+                            "tz0pe": {
+                              "content": "Due Oct 18"
+                            },
+                            "Qbvi5": {
+                              "fill": "$danger-soft"
+                            },
+                            "Qbvi5/HKFdM": {
+                              "fill": "$danger-ink"
+                            },
+                            "Qbvi5/2x4Fe": {
+                              "content": "Overdue",
+                              "fill": "$danger-ink"
+                            },
+                            "8Lp9f": {
+                              "content": "$2,150.00"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "N5jav",
+                          "ref": "qhpL5",
+                          "name": "Row — Pine & Pixel",
+                          "width": "fill_container",
+                          "fill": "$surface",
+                          "strokeWidth": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 1,
+                            "left": 0
+                          },
+                          "descendants": {
+                            "T17D6": {
+                              "fill": "$surface-sunk"
+                            },
+                            "T17D6/7lXcM": {
+                              "content": "PP",
+                              "fill": "$ink-muted"
+                            },
+                            "N7Pih": {
+                              "content": "Pine & Pixel"
+                            },
+                            "Yp84K": {
+                              "content": "INV-2033 · App onboarding illustrations"
+                            },
+                            "tz0pe": {
+                              "content": "Due Oct 15"
+                            },
+                            "Qbvi5": {
+                              "fill": "$danger-soft"
+                            },
+                            "Qbvi5/HKFdM": {
+                              "fill": "$danger-ink"
+                            },
+                            "Qbvi5/2x4Fe": {
+                              "content": "Overdue",
+                              "fill": "$danger-ink"
+                            },
+                            "8Lp9f": {
+                              "content": "$3,920.00"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "yQCyM",
+                          "ref": "qhpL5",
+                          "name": "Row — Harbor Health",
+                          "width": "fill_container",
+                          "fill": "$surface",
+                          "strokeWidth": {
+                            "top": 0,
+                            "right": 0,
+                            "bottom": 0,
+                            "left": 0
+                          },
+                          "descendants": {
+                            "T17D6": {
+                              "fill": "$orange-soft"
+                            },
+                            "T17D6/7lXcM": {
+                              "content": "HH",
+                              "fill": "$orange-ink"
+                            },
+                            "N7Pih": {
+                              "content": "Harbor Health"
+                            },
+                            "Yp84K": {
+                              "content": "INV-2049 · Patient portal UX audit"
+                            },
+                            "tz0pe": {
+                              "content": "Not sent"
+                            },
+                            "Qbvi5": {
+                              "fill": "$surface-sunk"
+                            },
+                            "Qbvi5/HKFdM": {
+                              "fill": "$ink-muted"
+                            },
+                            "Qbvi5/2x4Fe": {
+                              "content": "Draft",
+                              "fill": "$ink-muted"
+                            },
+                            "8Lp9f": {
+                              "content": "$7,200.00"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "ref",
+                  "id": "dXFKl",
+                  "ref": "f8Clp",
+                  "name": "Automations",
+                  "width": 360,
+                  "height": "fill_container",
+                  "descendants": {
+                    "blZb6": {
+                      "content": "Automations"
+                    },
+                    "qAFuC": {
+                      "content": "Grove chases payments for you"
+                    },
+                    "vmIdN/TTxcg": {
+                      "content": "Edit"
+                    },
+                    "GimP9": {
+                      "enabled": false
+                    },
+                    "w52iH": {
+                      "gap": "$s-4",
+                      "children": [
+                        {
+                          "type": "ref",
+                          "id": "MkNHe",
+                          "ref": "0JWC9",
+                          "name": "Switch — Remind 3 days before due",
+                          "descendants": {
+                            "MqGLn": {
+                              "content": "Remind 3 days before due"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "2DCdh",
+                          "ref": "0JWC9",
+                          "name": "Switch — Remind every 7 days when late",
+                          "descendants": {
+                            "MqGLn": {
+                              "content": "Remind every 7 days when late"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "3Ost5",
+                          "ref": "0JWC9",
+                          "name": "Switch — Thank clients when they pay",
+                          "descendants": {
+                            "MqGLn": {
+                              "content": "Thank clients when they pay"
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "g84tD",
+                          "ref": "0JWC9",
+                          "name": "Switch — Weekly cash-flow digest",
+                          "descendants": {
+                            "MqGLn": {
+                              "content": "Weekly cash-flow digest"
+                            },
+                            "wHFG3": {
+                              "fill": "$border"
+                            },
+                            "DRFer": {
+                              "x": 3
+                            }
+                          }
+                        },
+                        {
+                          "type": "ref",
+                          "id": "z8XLQ",
+                          "ref": "C6sfV",
+                          "name": "Attach PDF"
+                        },
+                        {
+                          "type": "ref",
+                          "id": "4AEkI",
+                          "ref": "C6sfV",
+                          "name": "CC owner",
+                          "descendants": {
+                            "JQTbQ": {
+                              "fill": "$surface",
+                              "stroke": "$border"
+                            },
+                            "jNIuO": {
+                              "enabled": false
+                            },
+                            "EUk8U": {
+                              "content": "CC the account owner"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "bg": {
+      "type": "color",
+      "value": "#FBF8F2"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "surface-sunk": {
+      "type": "color",
+      "value": "#F3EEE4"
+    },
+    "border": {
+      "type": "color",
+      "value": "#E8E0D2"
+    },
+    "ink": {
+      "type": "color",
+      "value": "#26231D"
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": "#615A4E"
+    },
+    "ink-faint": {
+      "type": "color",
+      "value": "#766E62"
+    },
+    "lime": {
+      "type": "color",
+      "value": "#B5E032"
+    },
+    "lime-soft": {
+      "type": "color",
+      "value": "#EEF8CC"
+    },
+    "lime-ink": {
+      "type": "color",
+      "value": "#4A6600"
+    },
+    "orange": {
+      "type": "color",
+      "value": "#FF8A2B"
+    },
+    "orange-soft": {
+      "type": "color",
+      "value": "#FFEBD9"
+    },
+    "orange-ink": {
+      "type": "color",
+      "value": "#A84A00"
+    },
+    "danger-soft": {
+      "type": "color",
+      "value": "#FDE6E4"
+    },
+    "danger-ink": {
+      "type": "color",
+      "value": "#B42318"
+    },
+    "on-accent": {
+      "type": "color",
+      "value": "#26231D"
+    },
+    "shadow": {
+      "type": "color",
+      "value": "#5A3C1414"
+    },
+    "shadow-strong": {
+      "type": "color",
+      "value": "#5A3C1426"
+    },
+    "font-display": {
+      "type": "string",
+      "value": "Outfit"
+    },
+    "font-body": {
+      "type": "string",
+      "value": "Figtree"
+    },
+    "fs-xs": {
+      "type": "number",
+      "value": 12
+    },
+    "fs-sm": {
+      "type": "number",
+      "value": 14
+    },
+    "fs-md": {
+      "type": "number",
+      "value": 16
+    },
+    "fs-lg": {
+      "type": "number",
+      "value": 20
+    },
+    "fs-xl": {
+      "type": "number",
+      "value": 28
+    },
+    "fs-2xl": {
+      "type": "number",
+      "value": 40
+    },
+    "r-sm": {
+      "type": "number",
+      "value": 8
+    },
+    "r-md": {
+      "type": "number",
+      "value": 14
+    },
+    "r-lg": {
+      "type": "number",
+      "value": 20
+    },
+    "r-xl": {
+      "type": "number",
+      "value": 28
+    },
+    "r-full": {
+      "type": "number",
+      "value": 999
+    },
+    "s-1": {
+      "type": "number",
+      "value": 4
+    },
+    "s-2": {
+      "type": "number",
+      "value": 8
+    },
+    "s-3": {
+      "type": "number",
+      "value": 12
+    },
+    "s-4": {
+      "type": "number",
+      "value": 16
+    },
+    "s-5": {
+      "type": "number",
+      "value": 24
+    },
+    "s-6": {
+      "type": "number",
+      "value": 32
+    },
+    "s-7": {
+      "type": "number",
+      "value": 48
+    }
+  }
+}

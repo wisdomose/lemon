@@ -1,18 +1,166 @@
 // What a window can ask of the host. In the desktop app the preload script provides it over IPC; in a
 // plain browser (development and headless checks) a stand-in reads a saved document and fonts over HTTP
 // and has no agent.
-import type { AgentEvent, AgentStats } from "../agent/agent.js";
+import type { AgentStats, Variants } from "../agent/agent.js";
+import type { Attachment } from "../agent/attachments.js";
+import type { TaggedEvent } from "../agent/team.js";
+import type { Team, CodexModel } from "../agent/models.js";
+import type { ProviderStatus } from "../agent/codex.js";
+import type { ProviderDraft, ProviderRecord } from "../agent/providers.js";
+import { BUILT_IN_PROVIDERS, builtInProvider } from "../agent/providers.js";
 import type { FontFace } from "../text/fonts.js";
+import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
+import type { FileCard } from "../main/files.js";
+import type { WorkspaceFile } from "../main/workspace.js";
+import type { Skill } from "../main/skills.js";
+import type { Tabs } from "../main/shell.js";
+import type { PageFrame, PageInput, SidebarAction, SidebarState } from "../main/browser-pages.js";
+import type { Importable, PageShot } from "../agent/browser-tool.js";
+import type { ScriptOutput } from "../main/scripts.js";
+import type { AppCommand, MenuState, WindowCommand } from "../main/menu.js";
+import { EMPTY_SERVERS, type McpPage, type ServerStatus } from "../mcp/settings.js";
+import { PRODUCT } from "../product.js";
 
 export interface Bridge {
   docState(): Promise<Uint8Array>;
   onDocUpdate(fn: (update: Uint8Array) => void): void;
+  /** Sends a change made in this window to the host's document. */
+  pushDocUpdate(update: Uint8Array): void;
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
-  runAgent(prompt: string): Promise<AgentStats>;
+  /** One agent, or a team of them when `team.count` > 1. */
+  /** `variants`: "Let it cook" (more variations after the first design). */
+  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]): Promise<AgentStats[]>;
   stopAgent(): Promise<void>;
-  onAgentEvent(fn: (e: AgentEvent) => void): void;
+  onAgentEvent(fn: (e: TaggedEvent) => void): void;
   canRunAgent: boolean;
+  /** Whether Claude Code is signed in on this computer, and as whom. */
+  claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;
+  /** Whether the local Codex login can run agents; credentials stay with Codex. */
+  codexStatus(): Promise<ProviderStatus>;
+  /** Signs in to Codex in the browser; the account once done (or why not). */
+  codexSignIn(): Promise<ProviderStatus>;
+  /** Picker-visible Codex models and their supported reasoning efforts. */
+  /** The models Codex offers (a recent answer is reused unless `fresh`). */
+  codexModels(fresh?: boolean): Promise<CodexModel[]>;
+  /** The AI providers: the built-ins with a key saved, then this person's own. */
+  listProviders(): Promise<ProviderRecord[]>;
+  /** Adds a custom provider, or updates one (`key` sets or clears it; left out keeps it). */
+  saveProvider(draft: ProviderDraft): Promise<ProviderRecord>;
+  removeProvider(id: string): Promise<void>;
+  /** Saves (or, empty, clears) a provider's key; `listProviders` then shows its masked preview. */
+  setProviderKey(id: string, key: string): Promise<void>;
+  clearProviderKey(id: string): Promise<void>;
+  /** Opens a built-in provider's keys page in the person's browser. */
+  openProviderKeysPage(id: string): Promise<void>;
+  /** The file this window shows: its name and whether it is saved. */
+  fileInfo(): Promise<FileInfo>;
+  onFileInfo(fn: (info: FileInfo) => void): void;
+  /** "Add from workspace": the attachable files in the open document's folder, and reading chosen ones. */
+  workspaceFiles(withOpen?: boolean): Promise<WorkspaceFile[]>;
+  readWorkspaceFiles(paths: string[], byPath?: boolean): Promise<Attachment[]>;
+  /** The prompt's "/" skills; adding asks for a folder, removing asks first. Each answers the new list. */
+  skills(): Promise<Skill[]>;
+  addSkill(): Promise<Skill[]>;
+  removeSkill(path: string, name: string): Promise<Skill[]>;
+  /** Skills' SKILL.md files, as the agent gets them. */
+  readSkills(paths: string[]): Promise<Attachment[]>;
+  /** Opens a copy of one of Lemon's design systems as a new draft; false if it couldn't. */
+  openDesignSystem(id: string): Promise<boolean>;
+  /** Puts one of Lemon's scripts beside this file (scripts/<id>.js): the uri for its node, or why not. */
+  placeScript(id: string): Promise<{ uri: string } | { error: string }>;
+  /** A shader file named by a fill or effect (relative to this file): its text, or null. */
+  shaderSource(url: string): Promise<string | null>;
+  /** Puts one of Lemon's shaders beside this file (shaders/<id>.glsl): the url for fills and effects, or why not. */
+  placeShader(id: string): Promise<{ url: string } | { error: string }>;
+  /** Menu bar commands for this window. */
+  onMenuCommand(fn: (command: WindowCommand) => void): void;
+  /** A prompt this new window was opened with (from the Dashboard), once. */
+  startPrompt(): Promise<StartPrompt | undefined>;
+  /** Something to tell the person as the window opens (what an import brought over), once. */
+  notice(): Promise<Notice | undefined>;
+  showDashboard(): Promise<void>;
+  /** The live pages of this file's browser nodes. */
+  browser: {
+    onFrame(fn: (id: string, frame: PageFrame) => void): void;
+    onCursor(fn: (id: string, cursor: string) => void): void;
+    onClosed(fn: (id: string) => void): void;
+    /** Pointer, wheel and keys for a page in use. */
+    input(id: string, ev: PageInput): void;
+    command(id: string, what: "reload" | "back" | "forward"): Promise<void>;
+    /** Every page sends its whole picture again. */
+    repaint(): void;
+    /** The integrated browser (the sidebar): what it shows, whenever that changes. */
+    onSidebar(fn: (state: SidebarState) => void): void;
+    /** Acts on the sidebar; "state" answers with what it shows now. */
+    sidebar(action: SidebarAction, arg?: unknown): Promise<SidebarState | undefined>;
+    /** A picture of the sidebar's page: all of it, what shows, or the picked element. */
+    capture(mode: "full" | "visible" | "pick"): Promise<PageShot | undefined>;
+    /** The sidebar's page (or its picked element) as .pen layers, for Import. */
+    importable(mode: "full" | "pick"): Promise<Importable | undefined>;
+  };
+  /** This file's script nodes: what each shows, and choosing or finding its file. */
+  scripts: {
+    onOutput(fn: (id: string, out: ScriptOutput | null) => void): void;
+    /** Asks for a .js file; its path as a script node stores it. */
+    choose(): Promise<string | undefined>;
+    reveal(uri: string): Promise<void>;
+  };
+  /** The name comments are signed with (the computer's user name). */
+  who(): Promise<string>;
+  /** Reads this file's comments again. */
+  reloadComments(): Promise<void>;
+  /** A file command, as the menu runs it (the command palette). */
+  appCommand(command: AppCommand): Promise<void>;
+  /** Tells the menu bar what to show checked (the chat text size). */
+  menuState(state: MenuState): void;
+  /** The canvas's selection, for outside agents asking what the person has selected (MCP get_app_state). */
+  selection(ids: string[]): void;
+  /** Saves an exported picture where the person chooses; whether it was saved. */
+  saveExport(bytes: Uint8Array, name: string, ext: string): Promise<boolean>;
+  /** Settings → MCP: servers for the app's agents, and outside agents allowed to design here. */
+  mcp: {
+    page(): Promise<McpPage | undefined>;
+    /** Saves the servers' text; why not, when it isn't valid. */
+    setServers(text: string): Promise<McpPage | string>;
+    setClient(id: string, on: boolean): Promise<McpPage>;
+    /** Puts the connector's config for any other MCP client on the clipboard. */
+    copyConfig(): Promise<void>;
+    /** Each added server's sign-in, by name. */
+    signInStatus(): Promise<Record<string, ServerStatus>>;
+    /** Opens the server's sign-in in the browser; answers once it's done (or failed). */
+    signIn(name: string): Promise<Record<string, ServerStatus>>;
+    signOut(name: string): Promise<Record<string, ServerStatus>>;
+  };
+  /** The window's tabs (Home and the open files), for the tab strip in the top bar. */
+  tabs: {
+    get(): Promise<Tabs>;
+    onChange(fn: (tabs: Tabs) => void): void;
+    /** Shows a file tab, or Home. */
+    show(id: number | "home"): Promise<void>;
+    close(id: number): Promise<void>;
+    /** A new file in a new tab. */
+    newFile(): Promise<void>;
+  };
+  /** The Dashboard's lists and actions. */
+  dashboard: {
+    files(): Promise<DashboardFiles>;
+    onFiles(fn: (files: DashboardFiles) => void): void;
+    open(path: string): Promise<void>;
+    /** A new file, with the agent starting on `start` if given. */
+    newFile(start?: StartPrompt): Promise<void>;
+    openDialog(): Promise<void>;
+    reveal(path: string): Promise<void>;
+    forget(path: string): Promise<void>;
+    /** Renames a file on disk; why it couldn't, if it couldn't. */
+    rename(path: string, name: string): Promise<string | null>;
+    deleteDraft(path: string): Promise<void>;
+  };
+}
+
+export interface DashboardFiles {
+  recents: FileCard[];
+  drafts: FileCard[];
 }
 
 declare global {
@@ -31,6 +179,7 @@ export function browserBridge(): Bridge {
       return new Uint8Array(await res.arrayBuffer());
     },
     onDocUpdate() {},
+    pushDocUpdate() {},
     async fontCatalogue() {
       return (await fetch("/fonts/catalogue.json")).json();
     },
@@ -46,5 +195,166 @@ export function browserBridge(): Bridge {
     async stopAgent() {},
     onAgentEvent() {},
     canRunAgent: false,
+    async claudeStatus() {
+      return { loggedIn: false };
+    },
+    async codexStatus() {
+      return { loggedIn: false };
+    },
+    async codexSignIn() {
+      return { loggedIn: false, error: "Open the desktop app to sign in." };
+    },
+    async codexModels() {
+      // Like document and Dashboard fixtures, a public catalog can drive browser-only UI checks.
+      const url = new URLSearchParams(location.search).get("models");
+      if (!url) throw new Error("Open the desktop app to discover Codex models.");
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Model catalog: HTTP ${response.status}`);
+      return response.json();
+    },
+    // `?providers=<url of a JSON file>` gives the pages a list; keys are only kept by the desktop app.
+    async listProviders() {
+      const url = new URLSearchParams(location.search).get("providers");
+      return url ? (await fetch(url)).json() : BUILT_IN_PROVIDERS;
+    },
+    saveProvider: () => Promise.reject(new Error("Open the desktop app to add providers.")),
+    removeProvider: () => Promise.reject(new Error("Open the desktop app to remove providers.")),
+    setProviderKey: () => Promise.reject(new Error("Open the desktop app to save keys.")),
+    clearProviderKey: () => Promise.reject(new Error("Open the desktop app to clear keys.")),
+    async openProviderKeysPage(id) {
+      const url = builtInProvider(id)?.getStarted.url;
+      if (url) window.open(url, "_blank", "noopener");
+    },
+    async fileInfo() {
+      return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };
+    },
+    onFileInfo() {},
+    async workspaceFiles() {
+      return [];
+    },
+    async readWorkspaceFiles() {
+      return [];
+    },
+    async skills() {
+      return [];
+    },
+    async addSkill() {
+      return [];
+    },
+    async removeSkill() {
+      return [];
+    },
+    async readSkills() {
+      return [];
+    },
+    async openDesignSystem() {
+      return false;
+    },
+    async placeScript() {
+      return { error: "Scripts need the desktop app." };
+    },
+    async placeShader() {
+      return { error: "Shaders need the desktop app." };
+    },
+    async shaderSource(url) {
+      // Beside the document the page was opened with (?doc=…), as in the app.
+      const base = docUrl ? new URL(docUrl, location.href) : new URL(location.href);
+      const res = await fetch(new URL(url, base)).catch(() => null);
+      return res?.ok ? res.text() : null;
+    },
+    onMenuCommand() {},
+    async startPrompt() {
+      return undefined;
+    },
+    async notice() {
+      return undefined;
+    },
+    async showDashboard() {},
+    browser: {
+      onFrame() {},
+      onCursor() {},
+      onClosed() {},
+      input() {},
+      async command() {},
+      repaint() {},
+      onSidebar() {},
+      async sidebar() {
+        return undefined;
+      },
+      async capture() {
+        return undefined;
+      },
+      async importable() {
+        return undefined;
+      },
+    },
+    menuState() {},
+    selection() {},
+    mcp: {
+      // As a new install has it, so the page can be checked here.
+      async page() {
+        return { servers: EMPTY_SERVERS, clients: {}, problems: {} };
+      },
+      async setServers() {
+        return "Open the desktop app to change MCP settings.";
+      },
+      setClient() {
+        return Promise.reject(new Error("Open the desktop app to change MCP settings."));
+      },
+      async copyConfig() {},
+      async signInStatus() {
+        return {};
+      },
+      async signIn() {
+        return {};
+      },
+      async signOut() {
+        return {};
+      },
+    },
+    async who() {
+      return "You";
+    },
+    async reloadComments() {},
+    async appCommand() {},
+    async saveExport() {
+      return false;
+    },
+    scripts: {
+      onOutput() {},
+      async choose() {
+        return undefined;
+      },
+      async reveal() {},
+    },
+    tabs: {
+      async get() {
+        return { tabs: [], active: "home" };
+      },
+      onChange() {},
+      async show() {},
+      async close() {},
+      async newFile() {},
+    },
+    // `?files=<url of a JSON file>` gives the Dashboard its lists.
+    dashboard: {
+      async files() {
+        const url = new URLSearchParams(location.search).get("files");
+        return url ? (await fetch(url)).json() : { recents: [], drafts: [] };
+      },
+      onFiles() {},
+      async open() {},
+      async newFile() {},
+      async openDialog() {},
+      async reveal() {},
+      async forget() {},
+      async rename() {
+        return null;
+      },
+      async deleteDraft() {},
+    },
   };
 }
+
+/** This window's host: the desktop app, or the browser stand-in. */
+export const bridge: Bridge = window.lemon ?? browserBridge();
