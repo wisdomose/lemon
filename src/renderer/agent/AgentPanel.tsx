@@ -235,12 +235,15 @@ function Item({ item }: { item: ChatItem }) {
       return <div className="chat-md text-[13px] leading-5 text-foreground" dangerouslySetInnerHTML={{ __html: markdown(item.text) }} />;
     case "designed":
       return <div className="text-[13px] text-muted-foreground">Designed for {formatDuration(item.seconds)}</div>;
+    case "stopped":
+      // Pen's words and look: small, dim, slanted, in the middle.
+      return <div className="text-center text-[11px] text-muted-foreground/70 italic">Agent stopped by user.</div>;
     case "error":
       return <div className="text-[13px] text-destructive">{item.text}</div>;
   }
 }
 
-const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code } as const;
+const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code, file: FileText } as const;
 
 /** A chip in a sent message, as it looked in the prompt (PromptEditor's ChipView). */
 function SentChip({ part }: { part: Exclude<PromptPart, string> }) {

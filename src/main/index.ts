@@ -213,8 +213,9 @@ async function main() {
     return editor ? Y.encodeStateAsUpdate(editor.doc) : new Uint8Array();
   });
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
-  ipcMain.handle("workspace:list", (e) => listWorkspace(workspaceFolder(editorOf(e)?.path ?? null), editorOf(e)?.path));
-  ipcMain.handle("workspace:read", (e, paths: string[]) => readWorkspace(workspaceFolder(editorOf(e)?.path ?? null), paths));
+  // The "@" list offers the open file too (as Pen's does); "Add from workspace" doesn't.
+  ipcMain.handle("workspace:list", (e, withOpen?: boolean) => listWorkspace(workspaceFolder(editorOf(e)?.path ?? null), withOpen ? null : editorOf(e)?.path));
+  ipcMain.handle("workspace:read", (e, paths: string[], byPath?: boolean) => readWorkspace(workspaceFolder(editorOf(e)?.path ?? null), paths, !!byPath));
   // "Choose a style" → Design Systems: a copy opens as a new draft.
   ipcMain.handle("gallery:open-design-system", async (_e, id: string) => {
     const path = copyDesignSystem(id);

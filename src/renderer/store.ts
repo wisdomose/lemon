@@ -42,6 +42,8 @@ export type ChatItem = (
     }
   | { kind: "text"; text: string; streamId?: string }
   | { kind: "designed"; seconds: number }
+  /** The person stopped the run. */
+  | { kind: "stopped" }
   | { kind: "error"; text: string }
 ) & { agent?: number };
 

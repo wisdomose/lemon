@@ -61,8 +61,18 @@ function finished(seconds: number) {
   seconds = Math.max(0, seconds - iteratedSeconds);
   iteratedSeconds = 0;
   store.set((s) => ({ agentStatus: null, chat: s.chat.filter((c) => !(c.kind === "step" && c.state === "running")) }));
-  push({ kind: "designed", seconds });
+  // A run the person stopped says so, as in Pen, instead of how long it took.
+  push(stopping ? { kind: "stopped" } : { kind: "designed", seconds });
+  stopping = false;
   schedule();
+}
+
+/** The person pressed Stop: the run's end says so, and the stop's own error isn't shown. */
+let stopping = false;
+export function stopAgent(): void {
+  if (!store.get().agentStatus && !store.get().chat.some((c) => c.kind === "step" && c.state === "running")) return;
+  stopping = true;
+  void bridge.stopAgent();
 }
 
 export function handleAgentEvent(e: TaggedEvent): void {
@@ -167,7 +177,7 @@ export function handleAgentEvent(e: TaggedEvent): void {
       }
       break;
     case "error":
-      push({ kind: "error", text: e.message, ...tag });
+      if (!stopping) push({ kind: "error", text: e.message, ...tag });
       break;
   }
 }

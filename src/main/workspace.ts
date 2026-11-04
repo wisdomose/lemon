@@ -49,8 +49,11 @@ export function listWorkspace(folder: string | null, document?: string | null): 
   return found;
 }
 
-/** The chosen files, read for the agent; ones outside the workspace or no longer there are left out. */
-export function readWorkspace(folder: string | null, paths: string[]): Attachment[] {
+/**
+ * The chosen files, read for the agent; ones outside the workspace or no longer there are left out.
+ * Each is named by its file name, or by its path in the workspace with `byPath` (an "@" mention).
+ */
+export function readWorkspace(folder: string | null, paths: string[], byPath = false): Attachment[] {
   if (!folder) return [];
   const listed = new Set(listWorkspace(folder).map((f) => f.path));
   return paths.flatMap((path) => {
@@ -58,7 +61,7 @@ export function readWorkspace(folder: string | null, paths: string[]): Attachmen
     if (!type) return [];
     try {
       const bytes = readFileSync(join(folder, ...path.split("/")));
-      const name = path.split("/").pop()!;
+      const name = byPath ? path : path.split("/").pop()!;
       return [{ name, ...type, data: type.kind === "text" ? bytes.toString("utf8") : bytes.toString("base64") }];
     } catch {
       return [];

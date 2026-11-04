@@ -8,10 +8,10 @@ import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import type { Node as PMNode } from "prosemirror-model";
-import { Box, Circle, Code, createElement, Frame, Globe, Image, Layers, Palette, Square, Type, type IconNode } from "lucide";
+import { Box, Circle, Code, createElement, FileText, Frame, Globe, Image, Layers, Palette, Square, Type, type IconNode } from "lucide";
 import { followSelection, promptSchema, promptText, type ChipRef } from "./prompt-doc.js";
 
-const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code };
+const ICONS: Record<string, IconNode> = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: Image, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code, file: FileText };
 
 /** A skill's chip is filled purple, a style's is narrower (Pen, 3 Nov 2026); the others are outlined. */
 export const CHIP_LOOK: Record<string, string> = {
@@ -57,6 +57,9 @@ export interface PromptEditorHandle {
   /** The prompt's contents. */
   read(): ReturnType<typeof promptText>;
   clear(): void;
+  /** The prompt as it stands (to bring back later), and bringing one back. */
+  save(): unknown;
+  load(saved: unknown): void;
   focus(): void;
   /** Types `text` at the caret (at the end if the prompt isn't being typed in) and focuses the prompt. */
   type(text: string): void;
@@ -64,23 +67,24 @@ export interface PromptEditorHandle {
   insertChip(chip: ChipRef, range?: { from: number; to: number }): void;
 }
 
-/** A "/word" just before the caret: the list of skills is open for it. */
+/** A "/word" (skills) or "@word" (files) just before the caret: its list is open for it. */
 export interface Slash {
-  /** What's typed after the "/". */
+  char: "/" | "@";
+  /** What's typed after the "/" or "@". */
   query: string;
   from: number;
   to: number;
 }
 
-/** The "/word" ending at the caret, if any: "/" at the start or after a space, then no spaces. */
+/** The "/word" or "@word" ending at the caret, if any: at the start or after a space, then no spaces. */
 export function slashAt(state: EditorState): Slash | null {
   const { selection } = state;
   if (!selection.empty) return null;
   const $at = selection.$from;
   // Chips read as one character that can't be part of the word; a line break as a space.
   const before = $at.parent.textBetween(0, $at.parentOffset, undefined, (leaf) => (leaf.type.name === "hard_break" ? "\n" : "￼"));
-  const m = /(?:^|\s)\/([^\s/￼]*)$/.exec(before);
-  return m ? { query: m[1]!, from: $at.pos - m[1]!.length - 1, to: $at.pos } : null;
+  const m = /(?:^|\s)([/@])([^\s/@￼]*)$/.exec(before);
+  return m ? { char: m[1] as Slash["char"], query: m[2]!, from: $at.pos - m[2]!.length - 1, to: $at.pos } : null;
 }
 
 export const PromptEditor = forwardRef<
@@ -96,9 +100,11 @@ export const PromptEditor = forwardRef<
     onSlash?: (slash: Slash | null) => void;
     /** A key pressed while the list of skills is open: true if the list used it. */
     onListKey?: (key: string) => boolean;
+    /** ↑ (-1) or ↓ (1) with no list open: true if it brought back another prompt (Pen's recall). */
+    onRecall?: (step: -1 | 1) => boolean;
     large?: boolean;
   }
->(function PromptEditor({ selection, placeholder, onSubmit, onChange, onFiles, onSlash, onListKey, large }, ref) {
+>(function PromptEditor({ selection, placeholder, onSubmit, onChange, onFiles, onSlash, onListKey, onRecall, large }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // Latest callbacks, read from inside ProseMirror's handlers.
@@ -111,6 +117,8 @@ export const PromptEditor = forwardRef<
   change.current = onChange;
   files.current = onFiles;
   slash.current = onSlash;
+  const recall = useRef(onRecall);
+  recall.current = onRecall;
   listKey.current = onListKey;
   /** The "/word" last reported, so only changes are. */
   const lastSlash = useRef("");
@@ -134,6 +142,8 @@ export const PromptEditor = forwardRef<
               dispatch?.(state.tr.replaceSelectionWith(promptSchema.nodes.hard_break!.create()).scrollIntoView());
               return true;
             },
+            ArrowUp: () => !!recall.current?.(-1),
+            ArrowDown: () => !!recall.current?.(1),
             "Mod-z": undo,
             "Mod-Shift-z": redo,
             "Mod-y": redo,
@@ -166,7 +176,7 @@ export const PromptEditor = forwardRef<
         v.updateState(v.state.apply(tr));
         if (tr.docChanged) change.current(!promptText(v.state.doc).isEmpty);
         const s = v.hasFocus() || tr.docChanged ? slashAt(v.state) : null;
-        const key = s ? `${s.from}:${s.query}` : "";
+        const key = s ? `${s.char}${s.from}:${s.query}` : "";
         if (key !== lastSlash.current) {
           lastSlash.current = key;
           slash.current?.(s);
@@ -194,6 +204,14 @@ export const PromptEditor = forwardRef<
       v.dispatch(v.state.tr.delete(1, v.state.doc.content.size - 1));
     },
     focus: () => view.current?.focus(),
+    save: () => view.current!.state.doc.toJSON(),
+    load(saved) {
+      const v = view.current!;
+      const doc = promptSchema.nodeFromJSON(saved);
+      const tr = v.state.tr.replaceWith(0, v.state.doc.content.size, doc.content);
+      tr.setSelection(TextSelection.atEnd(tr.doc));
+      v.dispatch(tr.scrollIntoView());
+    },
     type(text) {
       const v = view.current!;
       const tr = v.hasFocus() ? v.state.tr : v.state.tr.setSelection(TextSelection.atEnd(v.state.doc));

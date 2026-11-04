@@ -57,8 +57,8 @@ export interface Bridge {
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
   /** "Add from workspace": the attachable files in the open document's folder, and reading chosen ones. */
-  workspaceFiles(): Promise<WorkspaceFile[]>;
-  readWorkspaceFiles(paths: string[]): Promise<Attachment[]>;
+  workspaceFiles(withOpen?: boolean): Promise<WorkspaceFile[]>;
+  readWorkspaceFiles(paths: string[], byPath?: boolean): Promise<Attachment[]>;
   /** The prompt's "/" skills; adding asks for a folder, removing asks first. Each answers the new list. */
   skills(): Promise<Skill[]>;
   addSkill(): Promise<Skill[]>;

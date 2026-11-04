@@ -36,7 +36,7 @@ export const promptSchema = new Schema({
 export interface ChipRef {
   id: string;
   name: string;
-  kind: LemonNodeType | "nodes" | "skill" | "style";
+  kind: LemonNodeType | "nodes" | "skill" | "style" | "file";
   /** For a chip standing for several selected nodes ("3 nodes"): each of them. */
   members?: { id: string; kind: LemonNodeType; name: string }[] | null;
   /** What the agent reads in the chip's place (a skill or style chip); a canvas reference otherwise. */

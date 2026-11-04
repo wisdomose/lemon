@@ -40,6 +40,12 @@ describe("workspace", () => {
     ]);
   });
 
+  it("names files by their path for an @ mention, and lists the open document for it", () => {
+    const dir = folder();
+    expect(readWorkspace(dir, ["z-assets/hero.jpg"], true)[0]!.name).toBe("z-assets/hero.jpg");
+    expect(listWorkspace(dir).map((f) => f.path)).toContain("design.pen");
+  });
+
   it("has no folder for a document never saved", () => {
     expect(workspaceFolder(null)).toBeNull();
     expect(listWorkspace(null)).toEqual([]);
