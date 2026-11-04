@@ -12,7 +12,7 @@ import type { Engine } from "../engine.js";
 import type { Sandbox, Globals } from "../sandbox/sandbox.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { nodesOf, toTree } from "../doc/store.js";
-import { execute } from "../agent/execute.js";
+import { inProcess, type ScriptRuns } from "../agent/runs.js";
 import { FailedScripts } from "../agent/patches.js";
 import { notRun, summarise } from "../agent/agent.js";
 import { runBrowser, browserSchema } from "../agent/browser-tool.js";
@@ -25,6 +25,8 @@ import type { Editor } from "./editor.js";
 export interface McpHost {
   engine: Engine;
   sandbox: Sandbox;
+  /** Where scripts run (a utility process in the app; in this process when not given). */
+  runs?: ScriptRuns;
   /** The file tab shown, if any. */
   shown(): Editor | undefined;
   /** Every open file tab. */
@@ -182,7 +184,7 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
       } catch (e) {
         problem = (e as Error).message;
       }
-      const r = problem ? notRun(problem, s.globals) : await execute(editor.doc, host.engine, host.sandbox, script, origin, s.personEdits.peek(), s.globals);
+      const r = problem ? notRun(problem, s.globals) : await (host.runs ?? inProcess(host.engine, host.sandbox)).execute(editor.doc, script, origin, s.personEdits.peek(), s.globals);
       let failedId: string | undefined;
       if (r.ok) {
         s.globals = r.globals;

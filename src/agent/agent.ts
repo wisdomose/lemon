@@ -10,7 +10,8 @@ import { z } from "zod";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
-import { execute, LiveRun, type ExecuteResult, type Focus } from "./execute.js";
+import type { ExecuteResult, Focus } from "./execute.js";
+import { inProcess, type LiveScript, type ScriptRuns } from "./runs.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { INSTRUCTIONS } from "./instructions.js";
 import { pickStartingPoints, type Direction } from "./directions.js";
@@ -97,6 +98,8 @@ export interface AgentOptions {
   doc: Y.Doc;
   engine: Engine;
   sandbox: Sandbox;
+  /** Where its scripts run (in this process unless given; the app runs them in a utility process). */
+  runs?: ScriptRuns;
   prompt: string;
   model?: string;
   /** Codex effort identifiers come from model/list rather than a fixed enum. */
@@ -240,6 +243,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const steps: StepRecord[] = [];
   // People's edits during this run: a step doesn't overwrite what the agent couldn't have seen.
   const personEdits = new PersonEdits(o.doc);
+  const runs = o.runs ?? inProcess(o.engine, o.sandbox);
   const directions = o.directions === null ? [] : (o.directions ?? pickStartingPoints(o.recentDirections));
   emit({ type: "started", directions: directions.map((d) => d.id), name: o.name ?? "agent", model, prompt: o.prompt });
   // "Thought for Ns": time from the last thing the agent did to its next action.
@@ -263,7 +267,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
   const origins = new Map<number, AgentChange>();
   const originOf = (index: number) => origins.get(index) ?? origins.set(index, new AgentChange(o.name ?? "agent", index)).get(index)!;
   /** Steps whose statements are landing while the model writes them, until their call arrives. */
-  const live = new Map<number, LiveRun>();
+  const live = new Map<number, LiveScript>();
   const onStream = (ev: SDKPartialAssistantMessage["event"]) => {
     if (ev.type === "message_start") blocksInMessage = 0;
     else if (ev.type === "content_block_start") {
@@ -294,9 +298,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       let run = live.get(writing.index);
       if (!run && writing.index === steps.length + 1) {
         const index = writing.index;
-        run = new LiveRun(o.doc, o.engine, o.sandbox, originOf(index), personEdits.peek(), globals, (focus) =>
-          emit({ type: "step-progress", index, focus }),
-        );
+        run = runs.live(o.doc, originOf(index), personEdits.peek(), globals, (focus) => emit({ type: "step-progress", index, focus }));
         live.set(index, run);
       }
       run?.feed(script);
@@ -341,7 +343,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentStats> {
       else if (run && !editId && run.writes(script)) r = await run.finish(script);
       else {
         await run?.cancel();
-        r = await execute(o.doc, o.engine, o.sandbox, script, originOf(index), personEdits.peek(), globals);
+        r = await runs.execute(o.doc, script, originOf(index), personEdits.peek(), globals);
       }
       let failedId: string | undefined;
       if (r.ok) {

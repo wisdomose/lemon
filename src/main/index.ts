@@ -21,6 +21,7 @@ import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-p
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
 import { startMcpServer } from "./mcp.js";
+import { WorkerScripts } from "./script-runs.js";
 import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
 import { McpAuth } from "./mcp-auth.js";
 import { clearProviderKey, listProviders, removeProvider, saveProvider, setProviderKey } from "./provider-store.js";
@@ -204,6 +205,9 @@ async function main() {
   const fonts = await GoogleFonts.open(join(app.getPath("userData"), "fonts"));
   const [engine, sandbox] = await Promise.all([createEngine(fonts), Sandbox.create()]);
   log("engine and sandbox ready");
+  // Agents' scripts run in a utility process of their own, so the main process keeps answering.
+  const scripts = new WorkerScripts(join(import.meta.dirname, "script-worker.js"), join(app.getPath("userData"), "fonts"), log);
+  app.on("will-quit", () => scripts.dispose());
 
   // Messages come from a window; each goes to that window's editor.
   const editorOf = (e: IpcMainEvent | IpcMainInvokeEvent) => editors.get(e.sender.id);
@@ -418,6 +422,7 @@ async function main() {
   shared = {
     engine,
     sandbox,
+    runs: scripts,
     pageUrl: (page) => (devUrl ? `${devUrl.replace(/\/$/, "")}/${page}.html` : `${UI_SCHEME}://ui/${page}.html`),
     preload: join(import.meta.dirname, "..", "preload", "index.cjs"),
     log,
@@ -457,6 +462,7 @@ async function main() {
   const stopMcp = startMcpServer({
     engine,
     sandbox,
+    runs: scripts,
     shown: focused,
     editors: () => [...editors.values()],
     open: (path) => openEditor(path),

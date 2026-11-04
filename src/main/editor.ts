@@ -12,6 +12,7 @@ import { PersonChange, REPAIR, agentClientId, repairTree, touchesTree } from "..
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
+import type { ScriptRuns } from "../agent/runs.js";
 import { AGENTS, type Team } from "../agent/models.js";
 import { runAgent, type AgentStats, type Variants } from "../agent/agent.js";
 import type { Attachment } from "../agent/attachments.js";
@@ -75,6 +76,8 @@ export interface FileInfo {
 export interface Shared {
   engine: Engine;
   sandbox: Sandbox;
+  /** Where agents' scripts run (a utility process); `forget` lets go of a closed document's copy. */
+  runs?: ScriptRuns & { forget?(doc: Y.Doc): void };
   /** The address of one of the window's pages ("index" is the editor, "dashboard" the Dashboard). */
   pageUrl: (page: "index" | "dashboard") => string;
   preload: string;
@@ -202,6 +205,7 @@ export class Editor implements FileTab {
     this.pages.dispose();
     this.scripts.dispose();
     this.comments.dispose();
+    this.shared.runs?.forget?.(this.doc);
     this.flush();
     if (this.thumbTimer) void this.redrawThumb();
     this.shared.changed();
@@ -376,7 +380,7 @@ export class Editor implements FileTab {
       }
     };
     const provider = model?.startsWith("prov:") ? resolveProviderModel(model) : undefined;
-    const base = { doc: this.doc, engine, sandbox, prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(provider ? { provider } : {}), signal: running.signal };
+    const base = { doc: this.doc, engine, sandbox, ...(this.shared.runs ? { runs: this.shared.runs } : {}), prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(provider ? { provider } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
     if (this.running === running) this.running = undefined;
