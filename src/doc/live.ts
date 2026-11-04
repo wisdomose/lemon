@@ -158,6 +158,23 @@ export function repairTree(doc: Y.Doc): boolean {
   return changed;
 }
 
+/**
+ * Whether a transaction may have left the tree broken, so repairTree is worth its walk: it deleted
+ * nodes, moved one (changed its parent), or added one under a parent that isn't there.
+ */
+export function touchesTree(doc: Y.Doc, tr: Y.Transaction): boolean {
+  const nodes = nodesOf(doc);
+  for (const key of tr.changed.get(nodes as unknown as Y.AbstractType<Y.YEvent<any>>) ?? []) {
+    if (key === null) continue;
+    const rec = nodes.get(key);
+    if (!rec) return true;
+    const parent = rec.get("parent");
+    if (typeof parent === "string" && parent !== ROOT_ID && !nodes.has(parent)) return true;
+  }
+  for (const [type, keys] of tr.changed) if (type.parent === nodes && keys.has("parent")) return true;
+  return false;
+}
+
 /** The selection after a change: kept if the node still exists, cleared if someone deleted it. */
 export function reconcileSelection(doc: Y.Doc, id: string | null): string | null {
   return id && id !== ROOT_ID && exists(doc, id) ? id : null;

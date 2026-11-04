@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SHADERS, shaderEntry, shaderExample, type LibraryShader, type ShaderLook } from "../../agent/shader-library.js";
 import { ShaderRunner } from "../canvas/shader-gl.js";
-import { sdf } from "../canvas/shaders.js";
+import { sdf } from "../../render/sdf.js";
 import { pageInView } from "../canvas/canvas.js";
 import { bridge } from "../bridge.js";
 import { doc, edit } from "../scene.js";

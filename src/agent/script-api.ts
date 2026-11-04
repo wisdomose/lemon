@@ -11,7 +11,8 @@ import { nodeAsPen } from "../doc/file.js";
 import type { Touched } from "../doc/live.js";
 import { resolveOr, withTheme } from "../doc/values.js";
 import { check, type Issue } from "../layout/check.js";
-import { layout, type Box, type Boxes } from "../layout/layout.js";
+import { layout, type Box, type Boxes, type LayoutReuse } from "../layout/layout.js";
+import { IncrementalTree, changedRecords } from "../doc/incremental.js";
 import { GAP_BETWEEN_FRAMES } from "../layout/space.js";
 import { findNode } from "../render/screenshot.js";
 import { hasIcon } from "../render/icons.js";
@@ -112,6 +113,25 @@ const MAX_LOG = 4000;
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** One script's view of the document, while its statements land on it. */
+/**
+ * Each document's tree and layout, kept between statements and scripts and rebuilt only where a
+ * transaction changed them (doc/incremental.ts): a statement no longer lays out the whole page again.
+ */
+const measurers = new WeakMap<Y.Doc, { tree: IncrementalTree; reuse: LayoutReuse }>();
+function measurerOf(doc: Y.Doc): { tree: IncrementalTree; reuse: LayoutReuse } {
+  let m = measurers.get(doc);
+  if (!m) {
+    const made = { tree: new IncrementalTree(doc), reuse: new WeakMap() as LayoutReuse };
+    doc.on("afterTransaction", (tr: Y.Transaction) => {
+      const changed = changedRecords(doc, tr);
+      if (changed === "all") made.reuse = new WeakMap();
+      made.tree.mark(changed);
+    });
+    measurers.set(doc, (m = made));
+  }
+  return m;
+}
+
 export class ScriptSession {
   /** Nodes this run made, with their names, for the agent's result (Pen returns names → ids). */
   readonly created: { id: string; name?: string; type: string }[] = [];
@@ -163,14 +183,22 @@ export class ScriptSession {
     this.working = { id, created };
   }
 
-  /** The page tree and its layout, recomputed after any change. */
+  /** The page tree and its layout, recomputed after any change (only where it changed). */
   measured(): { tree: TreeNode; boxes: Boxes; vars: Vars } {
     if (this.cache) return this.cache;
     const t0 = performance.now();
-    const tree = store.toTree(this.doc);
+    const m = measurerOf(this.doc);
+    // Inside a statement's transaction: what it changed so far.
+    const open = (this.doc as unknown as { _transaction: Y.Transaction | null })._transaction;
+    if (open) {
+      const changed = changedRecords(this.doc, open);
+      if (changed === "all") m.reuse = new WeakMap();
+      m.tree.mark(changed);
+    }
+    const tree = m.tree.build();
     const vars = store.getVars(this.doc);
     try {
-      const boxes = layout(tree, vars, this.engine.text);
+      const boxes = layout(tree, vars, this.engine.text, m.reuse);
       this.cache = { tree, boxes, vars };
     } catch (e) {
       if (e instanceof FontsNeeded) throw new Abort(e);

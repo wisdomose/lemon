@@ -6,10 +6,10 @@
 // when `clip` is set), then its strokes. `opacity`, `rotation` (counter-clockwise around the top-left
 // corner), `flipX`/`flipY` and a layer blur apply to all of it.
 //
-// Shader fills and effects are drawn where a ShaderHost runs them (the editor, which has WebGL);
+// Shader fills and effects are drawn where a ShaderHost runs them (the editor: CanvasKit RuntimeEffects);
 // elsewhere (the agent's screenshots) they aren't. Not drawn yet: mesh gradients. Underline,
 // strikethrough and a shadow's spread aren't drawn, as in Pen.
-import type { Canvas, CanvasKit, Image, Paint as CKPaint, Path, Shader } from "canvaskit-wasm";
+import type { Canvas, CanvasKit, Image, Paint as CKPaint, Path, Shader, Surface } from "canvaskit-wasm";
 import type { BlendMode, Effect, Fill, Fills, ImageFill, NodeProps, ShaderFill, TreeNode, Vars } from "../doc/schema.js";
 import { isLocalUrl, type Assets } from "../doc/assets.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "./icons.js";
@@ -35,22 +35,35 @@ export interface DrawContext {
   scripts?: (id: string) => ScriptOutput | undefined;
   /** Runs shader fills and effects (in the editor). */
   shaders?: ShaderHost;
-  /** What is drawn behind `node` within `box`, without it (for a shader's "pencil:background"). */
+  /** What is drawn behind `node` within `box`, without it (for a shader's "pencil:background"); kept by its maker. */
   backdrop?: (node: TreeNode, box: Box) => Image | null;
   /** Drawing stops at this node, which isn't drawn (see `backdrop`). */
   stop?: { id: string; hit: boolean };
   /** Nodes drawn without their shader effects (an effect's own input). */
   plain?: Set<string>;
+  /** Makes offscreen surfaces (the editor's are on its GPU); CanvasKit's CPU surfaces otherwise. */
+  surface?: (width: number, height: number) => Surface | null;
+  /**
+   * Only what reaches this rect (page coordinates) is drawn: a node is skipped, with its children, when
+   * `reach` (what it and its children paint, see render/damage.ts) is outside it.
+   */
+  cull?: { rect: Box; reach: (id: string) => Box | undefined };
 }
 
 /**
- * Runs a shader for a node: its picture over `box` (node units), or null while it can't be drawn (its
- * file not read yet, or it doesn't compile). The host keeps the pictures it gives.
+ * A shader's output over a node's box: a Shader placed at the box (drawn per pixel, a RuntimeEffect),
+ * or a picture of the box (from the WebGL fallback).
+ */
+export type ShaderResult = { shader: Shader } | { image: Image };
+
+/**
+ * Runs a shader for a node: what it draws over `box` (node units), or null while it can't be drawn (its
+ * file not read yet, or it doesn't compile). The host keeps what it gives (until its frame is over).
  */
 export interface ShaderHost {
-  /** Device pixels per node unit to draw shaders at. */
+  /** Device pixels per node unit for the pictures a shader samples. */
   scale: number;
-  draw(node: TreeNode, url: string, uniforms: ShaderFill["uniforms"], box: Box, inputs: ShaderInputs): Image | null;
+  draw(node: TreeNode, url: string, uniforms: ShaderFill["uniforms"], box: Box, inputs: ShaderInputs): ShaderResult | null;
 }
 
 /** The pictures a shader may sample, over the node's box, made only if it asks for them. */
@@ -61,13 +74,15 @@ export interface ShaderInputs {
   background(): Image | null;
   /** The node's shape, white inside (for its @sdf). */
   shape(): Image | null;
+  /** Changes when the shape does: the host keeps the node's @sdf until then. */
+  shapeKey: string;
 }
 
 /** Draws into a picture of `box` at `scale` pixels per unit (page coordinates in, as on the canvas). */
-export function offscreen(ck: CanvasKit, box: Box, scale: number, draw: (canvas: Canvas) => void): Image | null {
+export function offscreen(ck: CanvasKit, box: Box, scale: number, draw: (canvas: Canvas) => void, make?: DrawContext["surface"]): Image | null {
   const w = Math.max(1, Math.round(box.w * scale));
   const h = Math.max(1, Math.round(box.h * scale));
-  const surface = ck.MakeSurface(w, h);
+  const surface = make?.(w, h) ?? ck.MakeSurface(w, h);
   if (!surface) return null;
   const canvas = surface.getCanvas();
   canvas.clear(ck.TRANSPARENT);
@@ -226,7 +241,7 @@ const isOpenPath = (node: TreeNode) =>
 
 /** Decoded pictures by url (a url's bytes never change in a document, so each is decoded once). Null: not a picture. */
 const pictures = new WeakMap<CanvasKit, Map<string, Image | null>>();
-function picture(ck: CanvasKit, assets: Assets, url: string): Image | null {
+export function picture(ck: CanvasKit, assets: Assets, url: string): Image | null {
   let byUrl = pictures.get(ck);
   if (!byUrl) pictures.set(ck, (byUrl = new Map()));
   if (byUrl.has(url)) return byUrl.get(url)!;
@@ -410,19 +425,44 @@ function drawFills(c: DrawContext, canvas: Canvas, shape: Path, box: Box, below:
 }
 
 /** What a shader sees, made when it asks; `done` deletes what was made. */
-function shaderInputs(c: DrawContext, node: TreeNode, box: Box, object: () => Image | null, shape: () => Image | null): ShaderInputs & { done(): void } {
+function shaderInputs(c: DrawContext, node: TreeNode, box: Box, object: () => Image | null, shape: () => Image | null, shapeKey: string): ShaderInputs & { done(): void } {
   const made: Image[] = [];
   const keep = (i: Image | null) => (i && made.push(i), i);
   let o: Image | null | undefined, b: Image | null | undefined, s: Image | null | undefined;
   return {
     object: () => (o === undefined ? (o = keep(object())) : o),
-    background: () => (b === undefined ? (b = keep(c.backdrop?.(node, box) ?? null)) : b),
+    // What's behind belongs to whoever made it (the editor keeps it while nothing behind changes).
+    background: () => (b === undefined ? (b = c.backdrop?.(node, box) ?? null) : b),
     shape: () => (s === undefined ? (s = keep(shape())) : s),
+    shapeKey,
     done: () => made.forEach((i) => i.delete()),
   };
 }
 
-/** A shader fill: the shader's picture in the node's shape, with the fill's opacity and blend mode. */
+/** Properties that don't change a node's outline (its @sdf is kept while only these change). */
+const NOT_SHAPE = new Set(["fill", "stroke", "strokeWidth", "strokeAlignment", "strokeLinecap", "strokeLinejoin", "effect", "opacity", "name", "x", "y", "rotation", "flipX", "flipY", "enabled", "blendMode", "theme", "context", "layoutPosition"]);
+const shapeKeys = new WeakMap<TreeNode, string>();
+/** A key for a node's outline (`whole`: for its whole drawing, children included). */
+function shapeKeyOf(node: TreeNode, whole: boolean): string {
+  if (whole) {
+    let k = shapeKeys.get(node);
+    if (k === undefined) shapeKeys.set(node, (k = JSON.stringify(node)));
+    return k;
+  }
+  return JSON.stringify([node.type, Object.entries(node.props).filter(([key]) => !NOT_SHAPE.has(key))]);
+}
+
+/** Draws what a shader gave over `box`: its shader per pixel, or its picture stretched over the box. */
+function drawResult(c: DrawContext, canvas: Canvas, r: ShaderResult, box: Box, paint: CKPaint): void {
+  const { ck } = c;
+  if ("shader" in r) {
+    paint.setShader(r.shader);
+    canvas.drawRect(ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+    paint.setShader(null);
+  } else canvas.drawImageRect(r.image, ck.XYWHRect(0, 0, r.image.width(), r.image.height()), ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+}
+
+/** A shader fill: the shader drawn in the node's shape, with the fill's opacity and blend mode. */
 function drawShaderFill(c: DrawContext, canvas: Canvas, node: TreeNode, shape: Path, box: Box, f: ShaderFill, below: Fill[]): void {
   const { ck, vars } = c;
   if (!c.shaders || !isEnabled(f, vars) || !f.url) return;
@@ -437,16 +477,19 @@ function drawShaderFill(c: DrawContext, canvas: Canvas, node: TreeNode, shape: P
     c,
     node,
     box,
-    () => offscreen(ck, box, scale, (o) => drawFills(c, o, shape, box, below)),
-    () => offscreen(ck, box, scale, (o) => {
-      const p = white();
-      o.drawPath(shape, p);
-      p.delete();
-    }),
+    () => offscreen(ck, box, scale, (o) => drawFills(c, o, shape, box, below), c.surface),
+    // The shape is only read for its distance field: in memory, so reading it back is quick.
+    () =>
+      offscreen(ck, box, scale, (o) => {
+        const p = white();
+        o.drawPath(shape, p);
+        p.delete();
+      }),
+    shapeKeyOf(node, false),
   );
   try {
-    const image = c.shaders.draw(node, f.url, f.uniforms, box, inputs);
-    if (!image) return;
+    const result = c.shaders.draw(node, f.url, f.uniforms, box, inputs);
+    if (!result) return;
     const paint = new ck.Paint();
     paint.setAntiAlias(true);
     paint.setAlphaf(Math.max(0, Math.min(1, num(f.opacity, vars, 1))));
@@ -454,7 +497,7 @@ function drawShaderFill(c: DrawContext, canvas: Canvas, node: TreeNode, shape: P
     if (blend) paint.setBlendMode(ck.BlendMode[blend] as typeof ck.BlendMode.SrcOver);
     canvas.save();
     canvas.clipPath(shape, ck.ClipOp.Intersect, true);
-    canvas.drawImageRect(image, ck.XYWHRect(0, 0, image.width(), image.height()), ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+    drawResult(c, canvas, result, box, paint);
     canvas.restore();
     paint.delete();
   } finally {
@@ -465,8 +508,8 @@ function drawShaderFill(c: DrawContext, canvas: Canvas, node: TreeNode, shape: P
 /**
  * A node with shader effects: drawn as usual but plain (no turn, flips, opacity or shader effects) into a
  * picture of its box, which each effect in turn draws over ("pencil:object" is the one before); the
- * last picture is drawn in the node's place, turned, flipped and faded as the node is. False if the
- * node has no shader effects (it is drawn as usual).
+ * last one is drawn in the node's place, turned, flipped and faded as the node is. False if the node
+ * has no shader effects (it is drawn as usual).
  */
 function drawWithShaderEffects(c: DrawContext, canvas: Canvas, node: TreeNode, box: Box): boolean {
   const { ck, vars } = c;
@@ -475,16 +518,36 @@ function drawWithShaderEffects(c: DrawContext, canvas: Canvas, node: TreeNode, b
   if (!effects.length || !c.shaders) return false;
   const scale = c.shaders.scale;
   const plain: TreeNode = { ...node, props: { ...p, rotation: 0, flipX: false, flipY: false, opacity: 1 } };
-  const plainContext = { ...c, plain: new Set([...(c.plain ?? []), node.id]) };
-  let content = offscreen(ck, box, scale, (o) => drawNode(plainContext, o, plain));
-  const first = content;
+  const plainContext: DrawContext = { ...c, plain: new Set([...(c.plain ?? []), node.id]) };
+  delete plainContext.cull;
+  const made: Image[] = [];
+  const content = offscreen(ck, box, scale, (o) => drawNode(plainContext, o, plain), c.surface);
+  if (content) made.push(content);
+  let result: ShaderResult | null = content ? { image: content } : null;
+  const key = shapeKeyOf(node, true);
   for (const e of effects) {
-    const input = content;
-    const inputs = shaderInputs(c, node, box, () => null, () => null);
-    // The effect's object and its @sdf both come from what's drawn so far (not made, so not deleted).
+    // The effect's object and its @sdf both come from what's drawn so far.
+    let input: Image | null = null;
+    if (result && "image" in result) input = result.image;
+    else if (result) {
+      const r = result;
+      input = offscreen(
+        ck,
+        box,
+        scale,
+        (o) => {
+          const paint = new ck.Paint();
+          drawResult(c, o, r, box, paint);
+          paint.delete();
+        },
+        c.surface,
+      );
+      if (input) made.push(input);
+    }
+    const inputs = shaderInputs(c, node, box, () => input, () => input, key);
     const next = c.shaders.draw(node, e.url, e.uniforms, box, { ...inputs, object: () => input, shape: () => input });
     inputs.done();
-    if (next) content = next;
+    if (next) result = next;
   }
   const saved = canvas.getSaveCount();
   canvas.save();
@@ -498,14 +561,14 @@ function drawWithShaderEffects(c: DrawContext, canvas: Canvas, node: TreeNode, b
     canvas.scale(flipX ? -1 : 1, flipY ? -1 : 1);
     canvas.translate(-box.x, -box.y);
   }
-  if (content) {
+  if (result) {
     const paint = new ck.Paint();
     paint.setAlphaf(opacity);
-    canvas.drawImageRect(content, ck.XYWHRect(0, 0, content.width(), content.height()), ck.XYWHRect(box.x, box.y, box.w, box.h), paint);
+    drawResult(c, canvas, result, box, paint);
     paint.delete();
   }
   canvas.restoreToCount(saved);
-  first?.delete();
+  made.forEach((i) => i.delete());
   return true;
 }
 
@@ -522,6 +585,11 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
   const p = node.props;
   const box = boxes.get(node.id);
   if (isOff(p, vars)) return;
+  if (c.cull) {
+    const reach = c.cull.reach(node.id);
+    const r = c.cull.rect;
+    if (reach && (reach.x >= r.x + r.w || reach.x + reach.w <= r.x || reach.y >= r.y + r.h || reach.y + reach.h <= r.y)) return;
+  }
   if (box && c.shaders && !c.plain?.has(node.id) && drawWithShaderEffects(here, canvas, node, box)) return;
   if (!box) {
     for (const child of node.children) drawNode(here, canvas, child);

@@ -44,10 +44,17 @@ function devFonts(): Plugin {
 
 export default defineConfig({
   main: {
-    // The MCP connector outside agents start (src/mcp/connector.ts) is built beside the main process.
+    // The MCP connector outside agents start (src/mcp/connector.ts) and the utility process agents'
+    // scripts run in (src/main/script-worker.ts) are built beside the main process.
     build: {
       sourcemap: true,
-      rollupOptions: { input: { index: join(import.meta.dirname, "src/main/index.ts"), connector: join(import.meta.dirname, "src/mcp/connector.ts") } },
+      rollupOptions: {
+        input: {
+          index: join(import.meta.dirname, "src/main/index.ts"),
+          connector: join(import.meta.dirname, "src/mcp/connector.ts"),
+          "script-worker": join(import.meta.dirname, "src/main/script-worker.ts"),
+        },
+      },
     },
   },
   preload: {

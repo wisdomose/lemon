@@ -1,0 +1,30 @@
+name: Test
+
+# Typecheck and tests, on pull requests into dev only. No app is built or packaged here (see build.yml).
+on:
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      # pnpm's version comes from package.json ("packageManager").
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test

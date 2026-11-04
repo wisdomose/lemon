@@ -1,7 +1,9 @@
 // The design canvas: draws the document with CanvasKit, plus the editor's overlays (frame names,
 // hover and selection outlines, size pill, agent cursor), and handles panning, zooming and selecting.
-import type { Canvas, SkPicture, Surface } from "canvaskit-wasm";
+import type { Canvas, Image, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode, offscreen, type DrawContext } from "../../render/draw.js";
+import { damage, overlaps, sceneBounds, withBehind, type Bounds, type BoundsCache } from "../../render/damage.js";
+import { TILE, Tiles, tileRect } from "./tiles.js";
 import { EditorShaders } from "./shaders.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
@@ -142,6 +144,14 @@ function makeSurface() {
   el.width = Math.round(el.clientWidth * dpr);
   el.height = Math.round(el.clientHeight * dpr);
   surface?.delete();
+  // Tiles live on the old surface's GPU context.
+  tiles.clear();
+  tileSurface?.delete();
+  tileSurface = null;
+  pictures = new WeakMap();
+  for (const b of behind.values()) b.image?.delete();
+  behind.clear();
+  shown = undefined;
   // WebGL when the machine has a GPU; CanvasKit's software surface otherwise.
   try {
     surface = engine.ck.MakeWebGLCanvasSurface(el);
@@ -323,29 +333,35 @@ function fitLabel(text: string, color: string, max: number) {
   return p;
 }
 
+/** How long a frame spends painting tiles before it shows what it has and asks for another. */
+const BUDGET_MS = 8;
+
 function draw() {
   queued = false;
   if (!surface) return;
+  const t0 = performance.now();
   const { ck } = engine;
   const canvas = surface.getCanvas();
   const dpr = devicePixelRatio || 1;
-  canvas.clear(ck.parseColorString(getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim() || "#18181b"));
+  const bg = getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim() || "#18181b";
+  canvas.clear(ck.parseColorString(bg));
   const s = currentScene(schedule);
   if (s && !fitted && s.tree.children.length) {
     fitted = true;
     zoomToFit(false);
     return draw();
   }
-  followers.forEach((place) => place());
+  let more = false;
   if (s) {
+    const scale = view.zoom * dpr;
+    // The view moves in whole device pixels, so tiles are drawn as painted, never resampled.
+    view.x = Math.round(view.x * scale) / scale;
+    view.y = Math.round(view.y * scale) / scale;
+    followers.forEach((place) => place());
+    more = paintTiles(s, scale, bg, t0);
     const st = store.get();
     canvas.save();
     canvas.scale(dpr, dpr);
-    canvas.save();
-    canvas.scale(view.zoom, view.zoom);
-    canvas.translate(-view.x, -view.y);
-    canvas.drawPicture(documentPicture(s));
-    canvas.restore();
     for (const frame of s.tree.children) {
       if (frame.props.placeholder) drawGenerating(canvas, s.boxes.get(frame.id));
     }
@@ -357,52 +373,240 @@ function draw() {
     drawOverlay(canvas, s);
     for (const c of cursors.values()) drawCursor(canvas, c);
     canvas.restore();
-  }
+  } else followers.forEach((place) => place());
   surface.flush();
-  // The cursor wobbles while shown and the "Generating" sheen moves: keep drawing (the document
-  // itself is a recorded picture, so a frame costs little).
-  if (cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) || shaders?.animating) schedule();
+  shaders?.flush();
+  // The cursor wobbles while shown and the "Generating" sheen moves; tiles may be left to paint, and a
+  // selected shader moves.
+  if (more || cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) || moving.ids.length) schedule();
 }
 
+// ---- The document, in tiles (tiles.ts) ------------------------------------------------------------
 /** Shader fills and effects; bumped when one has more to show (its file read, a picture decoded). */
 let shaders: EditorShaders | undefined;
 let shadersVersion = 0;
-/** Shaders draw at the zoom rounded to a power of two (re-drawn when that changes), times the screen's density. */
+/** Shaders sample pictures at the zoom rounded to a power of two (re-drawn when that changes), times the screen's density. */
 const shaderScale = () => (devicePixelRatio || 1) * 2 ** Math.max(-2, Math.min(2, Math.round(Math.log2(view.zoom))));
 
-/** The document drawn once per change and replayed for every frame of animation. */
-let recorded: { scene: Scene; pages: number; shaders: number; scale: number; picture: SkPicture; at: number } | undefined;
-function documentPicture(s: Scene): SkPicture {
-  shaders ??= new EditorShaders(engine.ck, (url) => bridge.shaderSource(url), assets, () => (shadersVersion++, schedule()));
-  // Drawn again when the document, a live page or a shader changes (an animated one, every frame).
-  const scale = shaderScale();
-  const same = recorded?.scene === s && recorded.pages === pagesVersion && recorded.shaders === shadersVersion && (recorded.scale === scale || !hasShaders(s.tree));
-  // An animated shader draws the page again, at most 30 times a second (the rest of the page is kept).
-  if (same && (!shaders.animating || performance.now() - recorded!.at < 1000 / 30)) return recorded!.picture;
+const tiles = new Tiles<Image>((i) => i.delete());
+/** The surface tiles are painted on (on the canvas's GPU), and the scene the tiles show. */
+let tileSurface: Surface | null = null;
+let shown: { scene: Scene; bounds: Bounds; pages: number; shaders: number; bg: string; dpr: number } | undefined;
+const boundsCache: BoundsCache = new WeakMap();
+/** Each top-level frame recorded once, replayed into every tile it reaches. */
+let pictures = new WeakMap<TreeNode, { key: string; picture: SkPicture }>();
+/** What is behind each node with a "pencil:background" shader, kept while nothing behind it changes. */
+const behind = new Map<string, { key: string; image: Image | null }>();
+let sceneCount = 0;
+
+/**
+ * Shaders that move (Pen's way): only those of the selection and what is inside it, each on its own
+ * clock; the rest are drawn still, at their clock's time. A clock moves on only once the last step is
+ * on screen (its tiles painted); until then the time owed adds up and is given at once.
+ */
+const moving = { ids: [] as string[], tops: new Set<string>(), last: 0, owed: 0, clocks: new Map<string, number>() };
+
+function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
   const { ck } = engine;
-  shaders.begin(!same);
-  shaders.scale = scale;
-  const context: DrawContext = { ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput, shaders };
-  // What's behind a node: the page drawn into a picture of its box, up to the node.
-  context.backdrop = (node, box) =>
-    offscreen(ck, box, shaders!.scale, (o) => {
-      const stop = { id: node.id, hit: false };
-      for (const frame of s.tree.children) drawNode({ ...context, stop }, o, frame);
-    });
+  shaders ??= new EditorShaders(ck, (url) => bridge.shaderSource(url), assets, () => (shadersVersion++, schedule()));
+  shaders.scale = shaderScale();
+  shaders.pixel = 1 / scale;
+  shaders.time = (node) => moving.clocks.get(node.id) ?? 0;
+  const dpr = devicePixelRatio || 1;
+  // What changed since the tiles were painted.
+  if (!shown || shown.scene !== s || shown.pages !== pagesVersion || shown.shaders !== shadersVersion || shown.bg !== bg || shown.dpr !== dpr) {
+    const bounds = sceneBounds(s, boundsCache, engine.text);
+    if (!shown || shown.bg !== bg || shown.dpr !== dpr || shown.shaders !== shadersVersion) {
+      tiles.invalidate("all", t0);
+      if (shown && shown.shaders !== shadersVersion) pictures = new WeakMap();
+    } else {
+      const rects = shown.scene === s ? [] : damage(shown.scene, shown.bounds, s, bounds);
+      // A live page changed: its browser nodes.
+      if (shown.pages !== pagesVersion) for (const id of browserNodes(s.tree)) rects.push(bounds.reach.get(id)!);
+      tiles.invalidate(withBehind(rects.filter(Boolean), bounds), t0);
+    }
+    if (shown?.scene !== s) {
+      sceneCount++;
+      shaders.keepFields((id) => bounds.own.has(id));
+    }
+    shown = { scene: s, bounds, pages: pagesVersion, shaders: shadersVersion, bg, dpr };
+  }
+  const bounds = shown.bounds;
+  animate(s, bounds, t0);
+  const surfaceNow = surface!;
+  tileSurface ??= surfaceNow.makeSurface({ width: TILE, height: TILE, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Premul, colorSpace: ck.ColorSpace.SRGB });
+  if (!tileSurface) return false;
+  tiles.begin();
+  const page = { x: view.x, y: view.y, w: el.width / scale, h: el.height / scale };
+  const inView = tiles.inView(page, scale);
+  const context = drawContext(s, bounds);
+  const background = ck.parseColorString(bg);
+  let painted = 0;
+  for (const t of tiles.toPaint(inView)) {
+    if (painted && performance.now() - t0 > BUDGET_MS) break;
+    tiles.painted(t, paintTile(s, bounds, context, t.i, t.j, scale, background));
+    painted++;
+  }
+  const holding = tiles.commit(inView, performance.now());
+  // What the tiles show: another zoom's tiles, scaled, where this zoom's aren't painted yet.
+  const canvas = surfaceNow.getCanvas();
+  const ox = Math.round(view.x * scale);
+  const oy = Math.round(view.y * scale);
+  const paint = new ck.Paint();
+  for (const t of inView) {
+    if (t.image) continue;
+    const r = tileRect(t.i, t.j, scale);
+    const dst = ck.XYWHRect(t.i * TILE - ox, t.j * TILE - oy, TILE, TILE);
+    canvas.save();
+    canvas.clipRect(dst, ck.ClipOp.Intersect, false);
+    for (const { level, tile } of tiles.standIns(r, scale)) {
+      const k = scale / level.scale;
+      canvas.drawImageRectOptions(tile.image!, ck.XYWHRect(0, 0, TILE, TILE), ck.XYWHRect(tile.i * TILE * k - ox, tile.j * TILE * k - oy, TILE * k, TILE * k), ck.FilterMode.Linear, ck.MipmapMode.None, paint);
+    }
+    canvas.restore();
+  }
+  for (const t of inView) if (t.image) canvas.drawImage(t.image, t.i * TILE - ox, t.j * TILE - oy, paint);
+  paint.delete();
+  tiles.evict();
+  return holding || inView.some((t) => t.dirty);
+}
+
+/** One tile: the canvas colour, then every top-level frame reaching it. */
+function paintTile(s: Scene, bounds: Bounds, context: DrawContext, i: number, j: number, scale: number, background: Float32Array): Image {
+  const r = tileRect(i, j, scale);
+  const c = tileSurface!.getCanvas();
+  c.save();
+  c.clear(background);
+  c.scale(scale, scale);
+  c.translate(-r.x, -r.y);
+  for (const top of s.tree.children) {
+    const reach = bounds.reach.get(top.id);
+    if (!reach || !overlaps(reach, r)) continue;
+    // A frame with a moving shader is drawn afresh (only what reaches the tile); the rest replayed.
+    if (moving.tops.has(top.id)) drawNode({ ...context, cull: { rect: r, reach: (id) => bounds.reach.get(id) } }, c, top);
+    else c.drawPicture(pictureOf(top, context, bounds));
+  }
+  c.restore();
+  return tileSurface!.makeImageSnapshot();
+}
+
+function pictureOf(top: TreeNode, context: DrawContext, bounds: Bounds): SkPicture {
+  const { ck } = engine;
+  const key = `${hasShaders(top) ? shaders!.scale : 0}|${hasBrowser(top) ? pagesVersion : 0}`;
+  const known = pictures.get(top);
+  if (known?.key === key) return known.picture;
+  known?.picture.delete();
   const recorder = new ck.PictureRecorder();
-  const c = recorder.beginRecording(ck.LTRBRect(-1e7, -1e7, 1e7, 1e7));
-  for (const frame of s.tree.children) drawNode(context, c, frame);
+  const reach = bounds.reach.get(top.id) ?? { x: -1e7, y: -1e7, w: 2e7, h: 2e7 };
+  const c = recorder.beginRecording(ck.XYWHRect(reach.x - 1, reach.y - 1, reach.w + 2, reach.h + 2));
+  drawNode(context, c, top);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
-  recorded?.picture.delete();
-  recorded = { scene: s, pages: pagesVersion, shaders: shadersVersion, scale, picture, at: performance.now() };
+  pictures.set(top, { key, picture });
   return picture;
 }
 
-/** Whether anything on the page has a shader fill or effect. */
+function drawContext(s: Scene, bounds: Bounds): DrawContext {
+  const { ck } = engine;
+  const context: DrawContext = {
+    ck,
+    text: engine.text,
+    vars: s.vars,
+    boxes: s.boxes,
+    assets,
+    pages: pageImage,
+    scripts: scriptOutput,
+    shaders: shaders!,
+    surface: (w, h) => surface?.makeSurface({ width: w, height: h, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Premul, colorSpace: ck.ColorSpace.SRGB }) ?? null,
+  };
+  // What's behind a node: the page drawn into a picture of its box, up to the node. Kept until the
+  // scene changes (or, under a moving shader, its clock does).
+  context.backdrop = (node, box) => {
+    const under = moving.ids.filter((id) => id !== node.id && overlapsOwn(bounds, id, box)).map((id) => moving.clocks.get(id) ?? 0);
+    const key = `${sceneCount}|${box.x},${box.y},${box.w},${box.h}|${shaders!.scale}|${under.join(",")}`;
+    const known = behind.get(node.id);
+    if (known?.key === key) return known.image;
+    known?.image?.delete();
+    const image = offscreen(
+      ck,
+      box,
+      shaders!.scale,
+      (o) => {
+        const stop = { id: node.id, hit: false };
+        for (const frame of s.tree.children) drawNode({ ...context, stop, cull: { rect: box, reach: (id) => bounds.reach.get(id) } }, o, frame);
+      },
+      context.surface,
+    );
+    behind.set(node.id, { key, image });
+    return image;
+  };
+  return context;
+}
+
+const overlapsOwn = (b: Bounds, id: string, box: Box) => {
+  const own = b.own.get(id);
+  return !!own && overlaps(own, box);
+};
+
+/** The selection's moving shaders: which they are, their clocks, and the tiles they damage. */
+function animate(s: Scene, bounds: Bounds, now: number): void {
+  const ids: string[] = [];
+  const tops = new Set<string>();
+  const sel = new Set(store.get().selection);
+  const walk = (n: TreeNode, top: string, inside: boolean) => {
+    const here = inside || sel.has(n.id);
+    if (here && readsTime(n)) (ids.push(n.id), tops.add(top));
+    n.children.forEach((c) => walk(c, top, here));
+  };
+  for (const top of s.tree.children) walk(top, top.id, false);
+  // A frame whose shaders stopped moving is recorded again, still, at their clocks' time.
+  for (const id of moving.tops) if (!tops.has(id)) pictures.delete(s.tree.children.find((t) => t.id === id)!);
+  const started = !moving.ids.length && ids.length;
+  moving.ids = ids;
+  moving.tops = tops;
+  if (!ids.length) return;
+  if (started) moving.last = now;
+  moving.owed += now - moving.last;
+  moving.last = now;
+  const reach = ids.map((id) => bounds.reach.get(id)).filter((b): b is Box => !!b);
+  // Back-pressure: time moves on only once the last step is painted everywhere it shows.
+  const page = { x: view.x, y: view.y, w: el.width / (view.zoom * (devicePixelRatio || 1)), h: el.height / (view.zoom * (devicePixelRatio || 1)) };
+  if (!reach.some((r) => overlaps(r, page))) return;
+  if (tiles.pendingUnder(reach, view.zoom * (devicePixelRatio || 1))) return;
+  for (const id of ids) moving.clocks.set(id, (moving.clocks.get(id) ?? 0) + moving.owed / 1000);
+  moving.owed = 0;
+  tiles.invalidate(withBehind(reach, bounds), now);
+}
+
+/** Whether a node has a shader that reads the time. */
+function readsTime(n: TreeNode): boolean {
+  if (!shaders) return false;
+  const urls = [...list(n.props.fill), ...list(n.props.effect)].filter((f): f is { type: "shader"; url: string } => !!f && typeof f === "object" && (f as { type?: string }).type === "shader" && !!(f as { url?: string }).url);
+  return urls.some((f) => shaders!.readsTime(f.url));
+}
+const list = (v: unknown): unknown[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
+
+const shaderTops = new WeakMap<TreeNode, boolean>();
+/** Whether anything in the frame has a shader fill or effect. */
 function hasShaders(n: TreeNode): boolean {
-  const has = (v: unknown) => (Array.isArray(v) ? v : [v]).some((f) => !!f && typeof f === "object" && (f as { type?: string }).type === "shader");
-  return has(n.props.fill) || has(n.props.effect) || n.children.some(hasShaders);
+  let known = shaderTops.get(n);
+  if (known === undefined) {
+    const has = (v: unknown) => list(v).some((f) => !!f && typeof f === "object" && (f as { type?: string }).type === "shader");
+    known = has(n.props.fill) || has(n.props.effect) || n.children.some(hasShaders);
+    shaderTops.set(n, known);
+  }
+  return known;
+}
+const browserTops = new WeakMap<TreeNode, boolean>();
+function hasBrowser(n: TreeNode): boolean {
+  let known = browserTops.get(n);
+  if (known === undefined) browserTops.set(n, (known = n.type === "browser" || n.children.some(hasBrowser)));
+  return known;
+}
+function browserNodes(n: TreeNode, out: string[] = []): string[] {
+  if (n.type === "browser") out.push(n.id);
+  if (hasBrowser(n)) n.children.forEach((c) => browserNodes(c, out));
+  return out;
 }
 
 /** A frame an agent is building: a blue-violet tint growing towards the bottom, a slow sheen, a blue outline. */

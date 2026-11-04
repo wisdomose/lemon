@@ -162,11 +162,29 @@ const initial: EditorState = {
 let state = initial;
 const listeners = new Set<() => void>();
 
+// Listeners hear of changes once a frame: an agent's burst of changes (and the chat events with them)
+// re-renders the panels once, not once per change. A change made while handling the person's own input
+// (a click, a key) is told at once, so what they type and click answers in the same frame.
+let notifyQueued = false;
+function notify(): void {
+  notifyQueued = false;
+  listeners.forEach((l) => l());
+}
+function notifySoon(): void {
+  if (typeof window !== "undefined" && window.event) return notify();
+  if (notifyQueued) return;
+  notifyQueued = true;
+  if (typeof requestAnimationFrame === "undefined") return void queueMicrotask(() => notifyQueued && notify());
+  requestAnimationFrame(() => notifyQueued && notify());
+  // A hidden window gets no frames: hear of it anyway.
+  setTimeout(() => notifyQueued && notify(), 100);
+}
+
 export const store = {
   get: () => state,
   set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) {
     state = { ...state, ...(typeof patch === "function" ? patch(state) : patch) };
-    listeners.forEach((l) => l());
+    notifySoon();
   },
   subscribe(l: () => void) {
     listeners.add(l);
