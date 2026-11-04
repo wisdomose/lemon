@@ -5,17 +5,17 @@ import type { ScriptOutput } from "../main/scripts.js";
 import { bridge } from "./bridge.js";
 
 const outputs = new Map<string, ScriptOutput>();
-const listeners = new Set<() => void>();
+const listeners = new Set<(id: string) => void>();
 
 // Listening from the start: the host sends the outputs as soon as the page has loaded.
 bridge.scripts.onOutput((id, out) => {
   if (out) outputs.set(id, out);
   else outputs.delete(id);
-  listeners.forEach((fn) => fn());
+  listeners.forEach((fn) => fn(id));
 });
 
-/** Calls `fn` whenever a script's output changes. */
-export function onScriptOutput(fn: () => void): void {
+/** Calls `fn` with the script node's id whenever a script's output changes. */
+export function onScriptOutput(fn: (id: string) => void): void {
   listeners.add(fn);
 }
 
@@ -31,6 +31,12 @@ function made(spec: Record<string, unknown>, script: string, path: string): Tree
     children: Array.isArray(children) ? (children as Record<string, unknown>[]).map((c, i) => made(c, script, `${path}.${i}`)) : [],
     script,
   };
+}
+
+/** Puts a script node's output under it as its children (a node just built for this tree). */
+export function graftScript(c: TreeNode): void {
+  const out = outputs.get(c.id);
+  c.children = out?.ok ? out.nodes.map((spec, i) => made(spec, c.id, String(i))) : [];
 }
 
 /** Puts each script node's output in the tree as its children (the tree is a fresh copy each time). */

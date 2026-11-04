@@ -8,7 +8,7 @@ import { app, dialog, type BaseWindow, type WebContentsView } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import * as Y from "yjs";
-import { PersonChange, REPAIR, agentClientId, repairTree } from "../doc/live.js";
+import { PersonChange, REPAIR, agentClientId, repairTree, touchesTree } from "../doc/live.js";
 import { PRODUCT } from "../product.js";
 import type { Engine } from "../engine.js";
 import type { Sandbox } from "../sandbox/sandbox.js";
@@ -24,11 +24,16 @@ import { page, type FileTab, type TabInfo } from "./shell.js";
 import { BrowserPages } from "./browser-pages.js";
 import { Scripts } from "./scripts.js";
 import { Comments } from "./comments.js";
+import { Debounced, UpdateBatcher } from "./coalesce.js";
 
 /** How long after a change the file is written. */
 const SAVE_AFTER_MS = 1000;
 /** How long after the last save the file's picture is redrawn. */
 const THUMB_AFTER_MS = 3000;
+/** Changes go to the window at most once a frame, merged. */
+const SEND_EVERY_MS = 16;
+/** Live pages, scripts and the saved state follow the document once its changes pause this long. */
+const SETTLE_MS = 50;
 
 /** A prompt to start the agent with once the window is ready (sent from the Dashboard). */
 export interface StartPrompt {
@@ -97,6 +102,10 @@ export class Editor implements FileTab {
   readonly comments: Comments;
   /** The origin of the window's changes in this document. */
   readonly fromWindow: PersonChange;
+  /** Changes on their way to the window. */
+  private readonly toWindow: UpdateBatcher;
+  /** Following the document once its changes pause: live pages, scripts, saving. */
+  private readonly settled: Debounced;
   path: string | null;
   private state: SaveState = "saved";
   private error: string | undefined;
@@ -147,15 +156,20 @@ export class Editor implements FileTab {
     }
 
     // The window's changes carry its own origin, so they are not echoed back and agents can tell
-    // them apart (see doc/live.ts).
+    // them apart (see doc/live.ts). Others go to it at most once a frame, merged into one update.
     const fromWindow = new PersonChange(this.view.webContents.id);
-    this.doc.on("update", (update: Uint8Array, origin: unknown) => {
-      if (origin !== fromWindow && !this.page.isDestroyed()) this.page.send("doc:update", update);
-      // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other.
-      if (origin !== REPAIR) repairTree(this.doc);
+    this.toWindow = new UpdateBatcher((u) => !this.page.isDestroyed() && this.page.send("doc:update", u), SEND_EVERY_MS);
+    this.settled = new Debounced(() => {
       this.pages.sync();
       this.scripts.sync();
       this.changed();
+    }, SETTLE_MS);
+    this.doc.on("update", (update: Uint8Array, origin: unknown, _doc: Y.Doc, tr: Y.Transaction) => {
+      if (origin !== fromWindow) this.toWindow.push(update);
+      // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other: only
+      // a change that deleted, moved or added a node can.
+      if (origin !== REPAIR && touchesTree(this.doc, tr)) repairTree(this.doc);
+      this.settled.call();
     });
     this.fromWindow = fromWindow;
     this.pages = new BrowserPages(this.doc, () => (this.page.isDestroyed() ? undefined : this.page));
@@ -183,6 +197,8 @@ export class Editor implements FileTab {
   /** The tab is closing (or the window): stop the agent, write the file and its picture. */
   closing(): void {
     this.running?.abort();
+    this.settled.now();
+    this.toWindow.dispose();
     this.pages.dispose();
     this.scripts.dispose();
     this.comments.dispose();

@@ -270,14 +270,29 @@ export function facesUsed(root: TreeNode, vars: Vars): FontFace[] {
 }
 
 /**
- * Lays out every top-level node of `root` (the document) and returns page-coordinate boxes for all
- * nodes. Throws FontsNeeded (before doing any work) if some text's font isn't loaded yet.
+ * Each top-level node's boxes, by the node object: a top-level node stands on its own, so while its
+ * object is the same (doc/incremental.ts keeps unchanged subtrees) and the variables are, its boxes are.
+ * Make a new one when the variables change.
  */
-export function layout(root: TreeNode, vars: Vars, text: TextEngine): Boxes {
-  const missing = text.fonts.missing(facesUsed(root, vars));
+export type LayoutReuse = WeakMap<TreeNode, Boxes>;
+
+/**
+ * Lays out every top-level node of `root` (the document) and returns page-coordinate boxes for all
+ * nodes. Throws FontsNeeded (before doing any work) if some text's font isn't loaded yet. With `reuse`,
+ * top-level nodes laid out before are not laid out again.
+ */
+export function layout(root: TreeNode, vars: Vars, text: TextEngine, reuse?: LayoutReuse): Boxes {
+  const fresh = reuse ? root.children.filter((top) => !reuse.has(top)) : root.children;
+  const missing = text.fonts.missing(fresh.flatMap((top) => facesUsed({ ...root, children: [top] }, vars)));
   if (missing.length) throw new FontsNeeded(missing);
   const boxes: Boxes = new Map();
   for (const top of root.children) {
+    const known = reuse?.get(top);
+    if (known) {
+      for (const [id, b] of known) boxes.set(id, b);
+      continue;
+    }
+    const own: Boxes | undefined = reuse ? new Map() : undefined;
     const nodes = new Map<string, YogaNode>();
     const freeFits: FreeFit[] = [];
     // A top-level node stands on its own: it is laid out as the only child of a free page.
@@ -293,10 +308,13 @@ export function layout(root: TreeNode, vars: Vars, text: TextEngine): Boxes {
         const y = oy + n.getComputedTop();
         // A group's box starts where its children do, which may be left of or above its own x/y.
         const from = reach.get(node.id) ?? { x: 0, y: 0 };
-        boxes.set(node.id, { x: x + from.x, y: y + from.y, w: n.getComputedWidth(), h: n.getComputedHeight() });
+        const box = { x: x + from.x, y: y + from.y, w: n.getComputedWidth(), h: n.getComputedHeight() };
+        boxes.set(node.id, box);
+        own?.set(node.id, box);
         for (const c of node.children) walk(c, x, y);
       };
       walk(top, 0, 0);
+      if (own) reuse!.set(top, own);
     } finally {
       page.freeRecursive();
     }

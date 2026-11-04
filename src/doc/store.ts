@@ -591,7 +591,19 @@ function detachInstancesOf(doc: Y.Doc, mains: string[], except?: string): void {
 }
 
 /** The whole document (or one subtree) as a tree, with every instance read through its component. */
-export function toTree(doc: Y.Doc, rootId: string = ROOT_ID): TreeNode {
+/**
+ * Earlier nodes to reuse (see doc/incremental.ts): a record's node from the last tree is given back
+ * as it was, children and all, unless it is in `rebuild`; every record node built is put in `made`.
+ * `graft` gives a script node its children.
+ */
+export interface TreeReuse {
+  prev: Map<string, TreeNode>;
+  rebuild: Set<string>;
+  made: Map<string, TreeNode>;
+  graft?: (node: TreeNode) => void;
+}
+
+export function toTree(doc: Y.Doc, rootId: string = ROOT_ID, reuse?: TreeReuse): TreeNode {
   if (isPart(rootId)) {
     const part = partOf(doc, rootId);
     if (!part) throw new DocError(`No node with id "${rootId}".`);
@@ -636,11 +648,22 @@ export function toTree(doc: Y.Doc, rootId: string = ROOT_ID): TreeNode {
     return t;
   };
   const build = (id: string): TreeNode => {
+    if (!reuse) return buildNew(id);
+    const kept = reuse.rebuild.has(id) ? undefined : reuse.prev.get(id);
+    const node = kept ?? buildNew(id);
+    reuse.made.set(id, node);
+    return node;
+  };
+  const buildNew = (id: string): TreeNode => {
     if (id === ROOT_ID) return { id, type: "frame", props: { layout: "none" }, children: (byParent.get(id) ?? []).map((c) => build(c.id)) };
     const rec = nodes.get(id)!;
     const type = rec.get("type") as NodeType;
     const props = recordProps(rec);
-    if (type !== "ref") return { id, type, props, children: (byParent.get(id) ?? []).map((c) => build(c.id)) };
+    if (type !== "ref") {
+      const node: TreeNode = { id, type, props, children: (byParent.get(id) ?? []).map((c) => build(c.id)) };
+      if (type === "script") reuse?.graft?.(node);
+      return node;
+    }
     const of = rec.get("ref") as string;
     const main = mainTree(of);
     // An instance whose component is gone (or would contain itself) shows as an empty frame of its own properties.
