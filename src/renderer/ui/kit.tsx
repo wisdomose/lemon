@@ -24,21 +24,27 @@ export function Tip({
   label,
   keys,
   side = "bottom",
+  hoverOnly,
   children,
 }: {
   label: string;
   keys?: string;
   side?: "top" | "bottom" | "left" | "right";
+  /** Shown on hover but not when the button gets keyboard focus (the chat box's footer, as in Pen). */
+  hoverOnly?: boolean;
   children: ReactNode;
 }) {
   return (
-    <T.Root delayDuration={400}>
-      <T.Trigger asChild>{children}</T.Trigger>
+    // Not hoverable (as Pen's): it goes as soon as the pointer leaves its button.
+    <T.Root delayDuration={400} disableHoverableContent>
+      <T.Trigger asChild onFocus={hoverOnly ? (e) => e.preventDefault() : undefined}>
+        {children}
+      </T.Trigger>
       <T.Portal>
         <T.Content
           side={side}
           sideOffset={0}
-          className="z-50 flex min-h-[27px] items-center gap-[11px] rounded-[10px] bg-white px-3 py-[5px] text-[12px] leading-4 whitespace-pre-line text-zinc-900 shadow-md"
+          className="z-50 flex min-h-[27px] items-center gap-[11px] rounded-[10px] bg-white px-3 py-[5px] text-[12px] leading-4 whitespace-pre-line text-zinc-900 shadow-md data-[state=closed]:animate-[tip-out_100ms_ease-in_forwards] data-[state=delayed-open]:animate-[tip-in_150ms_ease-out] data-[state=instant-open]:animate-[tip-in_150ms_ease-out]"
         >
           {label}
           {keys && <span className="text-zinc-400">{keys}</span>}
@@ -50,6 +56,13 @@ export function Tip({
 }
 
 export const TipProvider = T.Provider;
+
+/**
+ * The chat box's footer buttons, as Pen's (4 Nov 2026): hover colours ease in over ~150ms, and keyboard
+ * focus shows a light grey 2px ring on the button's edge.
+ */
+export const FOOTER_BUTTON =
+  "outline-none transition-[background-color,color,opacity] duration-150 ease-[var(--ease-ui)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a1a1aa]";
 
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   icon: LucideIcon;

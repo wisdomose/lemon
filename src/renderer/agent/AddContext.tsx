@@ -7,6 +7,7 @@ import { Box, FileText, Globe, HardDrive, Palette, Paperclip, Plus, X } from "lu
 import { MenuContent, MenuItem, MenuLabel } from "../ui/menu.js";
 import { toggleSidebar } from "../chrome/BrowserSidebar.js";
 import { useEditor } from "../store.js";
+import { FOOTER_BUTTON, Tip, cx } from "../ui/kit.js";
 import { dataUrl, detach, pickFiles } from "./attach.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 import { StyleGallery } from "./StyleGallery.js";
@@ -24,15 +25,19 @@ export function AddContext({ focusPrompt, pickSkill, pickStyle }: { focusPrompt:
   return (
     <>
       <M.Root>
-        <M.Trigger asChild>
-          <button
-            type="button"
-            aria-label="Add to context"
-            className="-ml-1 flex h-6 w-6 items-center justify-center rounded-md hover:bg-foreground/5 data-[state=open]:bg-foreground/5"
-          >
-            <Plus size={14} strokeWidth={1.5} />
-          </button>
-        </M.Trigger>
+        {/* Pen's "+": round, lit while hovered or open, named by a tooltip, and left out of the Tab order. */}
+        <Tip label="Add to context" side="top" hoverOnly>
+          <M.Trigger asChild>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Add to context"
+              className={cx(FOOTER_BUTTON, "-ml-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-white/10 data-[state=open]:bg-white/10")}
+            >
+              <Plus size={14} strokeWidth={1.5} />
+            </button>
+          </M.Trigger>
+        </Tip>
         <MenuContent
           side="top"
           align="start"

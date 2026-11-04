@@ -10,7 +10,7 @@ import editorialWeb from "./styles/editorial-magazine-web.webp";
 import brutalWeb from "./styles/neo-brutalism-web.webp";
 import calmWeb from "./styles/scandi-calm-web.webp";
 import { LayoutGrid, Zap } from "lucide-react";
-import { Tip, cx } from "../ui/kit.js";
+import { FOOTER_BUTTON, Tip, cx } from "../ui/kit.js";
 import { MAX_AGENTS } from "../../agent/models.js";
 import { store, useEditor } from "../store.js";
 
@@ -61,7 +61,10 @@ function OptionPopover({
   className = "w-[300px] px-2 pt-[11px] pb-3",
   sideOffset = 1,
   fromTrigger,
+  tip,
 }: {
+  /** Its button's tooltip (Pen's words). */
+  tip: string;
   anchor: RefObject<HTMLDivElement | null>;
   /** Lined up with its button's left edge rather than the footer's (Pen's ⚡). */
   fromTrigger?: boolean;
@@ -76,7 +79,9 @@ function OptionPopover({
   return (
     <P.Root open={open} onOpenChange={setOpen}>
       {!fromTrigger && <P.Anchor virtualRef={anchor as RefObject<HTMLDivElement>} />}
-      <P.Trigger asChild>{trigger(open)}</P.Trigger>
+      <Tip label={tip} side="top" hoverOnly>
+        <P.Trigger asChild>{trigger(open)}</P.Trigger>
+      </Tip>
       <P.Portal>
         <P.Content
           side="top"
@@ -100,9 +105,14 @@ export function ParallelAgents({ anchor }: { anchor: RefObject<HTMLDivElement | 
     <OptionPopover
       anchor={anchor}
       fromTrigger
+      tip="Set parallel agents"
       // Pen's button looks the same while its popover is open.
       trigger={() => (
-        <button type="button" aria-label="Parallel agents" className="ml-auto flex h-6 items-center gap-[3px] rounded-[6px] px-1 font-semibold text-amber-500">
+        <button
+          type="button"
+          aria-label="Parallel agents"
+          className={cx(FOOTER_BUTTON, "ml-auto flex h-6 items-center gap-[3px] rounded-[6px] px-1 font-semibold text-amber-500 hover:bg-amber-500/15")}
+        >
           <Zap size={12} strokeWidth={1.75} /> {team.count}x
         </button>
       )}
@@ -214,12 +224,13 @@ export function Variants({ anchor }: { anchor: RefObject<HTMLDivElement | null> 
       anchor={anchor}
       className="w-[260px] px-[13px] pt-[9px] pb-[10px]"
       sideOffset={4}
+      tip="Let it cook"
       // Pen's button looks the same while its popover is open.
       trigger={() => (
         <button
           type="button"
           aria-label="Let it cook"
-          className={cx("ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1", on && "text-[#8485f2]")}
+          className={cx(FOOTER_BUTTON, "ml-[6px] flex h-6 items-center gap-[3px] rounded-[6px] px-1 hover:bg-white/10", on && "text-[#8485f2]")}
         >
           <LayoutGrid size={12} strokeWidth={1.5} /> {cook.count}x
         </button>

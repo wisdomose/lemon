@@ -163,7 +163,8 @@ export function ChatInput() {
           aria-label={status ? "Stop" : "Send"}
           onClick={() => (status ? stopAgent() : void send())}
           disabled={!status && !canSend}
-          className="ml-[10px] flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background disabled:bg-send-off disabled:text-send-off-icon data-[running=true]:bg-send-off data-[running=true]:text-foreground"
+          // Pen's: half faded while hovered; its focus ring sits just outside the circle.
+          className="ml-[6px] flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background outline-none transition-opacity duration-150 ease-[var(--ease-ui)] enabled:hover:opacity-50 focus-visible:ring-2 focus-visible:ring-[#a1a1aa] focus-visible:ring-offset-1 focus-visible:ring-offset-island disabled:bg-send-off disabled:text-send-off-icon data-[running=true]:bg-send-off data-[running=true]:text-foreground"
           data-running={!!status}
         >
           {status ? <Square size={9} strokeWidth={2} /> : <ArrowUp size={12} strokeWidth={2.25} />}

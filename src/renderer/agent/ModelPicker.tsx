@@ -11,7 +11,7 @@ import { MODELS, modelLabel } from "../../agent/models.js";
 import { providerModelId } from "../../agent/providers.js";
 import { store, useEditor } from "../store.js";
 import { MENU_PANEL as PANEL, MENU_ROW as ROW, MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
-import { cx } from "../ui/kit.js";
+import { FOOTER_BUTTON, cx } from "../ui/kit.js";
 import { effortChoices, refreshCodexModels, refreshProviders } from "./model-catalog.js";
 
 export function ModelPicker() {
@@ -22,7 +22,12 @@ export function ModelPicker() {
   return (
     <M.Root onOpenChange={(open) => { if (open) { void refreshCodexModels(); void refreshProviders(); } }}>
       <M.Trigger asChild>
-        <button type="button" aria-label={`Model: ${label}`} className="ml-[7px] flex min-w-0 items-center gap-1 rounded-md hover:text-foreground">
+        {/* Pen's: no tooltip; its name brightens a little while hovered. */}
+        <button
+          type="button"
+          aria-label={`Model: ${label}`}
+          className={cx(FOOTER_BUTTON, "ml-[3px] flex h-6 min-w-0 items-center gap-1 rounded-[7px] px-1 hover:text-[#9b9ca0]")}
+        >
           <span className="max-w-[180px] truncate">{label}</span> <ChevronDown size={12} strokeWidth={1.5} />
         </button>
       </M.Trigger>

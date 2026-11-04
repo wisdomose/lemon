@@ -371,15 +371,16 @@ let shadersVersion = 0;
 const shaderScale = () => (devicePixelRatio || 1) * 2 ** Math.max(-2, Math.min(2, Math.round(Math.log2(view.zoom))));
 
 /** The document drawn once per change and replayed for every frame of animation. */
-let recorded: { scene: Scene; pages: number; shaders: number; scale: number; picture: SkPicture } | undefined;
+let recorded: { scene: Scene; pages: number; shaders: number; scale: number; picture: SkPicture; at: number } | undefined;
 function documentPicture(s: Scene): SkPicture {
   shaders ??= new EditorShaders(engine.ck, (url) => bridge.shaderSource(url), assets, () => (shadersVersion++, schedule()));
   // Drawn again when the document, a live page or a shader changes (an animated one, every frame).
   const scale = shaderScale();
-  if (recorded?.scene === s && recorded.pages === pagesVersion && recorded.shaders === shadersVersion && !shaders.animating && (recorded.scale === scale || !hasShaders(s.tree)))
-    return recorded.picture;
+  const same = recorded?.scene === s && recorded.pages === pagesVersion && recorded.shaders === shadersVersion && (recorded.scale === scale || !hasShaders(s.tree));
+  // An animated shader draws the page again, at most 30 times a second (the rest of the page is kept).
+  if (same && (!shaders.animating || performance.now() - recorded!.at < 1000 / 30)) return recorded!.picture;
   const { ck } = engine;
-  shaders.begin();
+  shaders.begin(!same);
   shaders.scale = scale;
   const context: DrawContext = { ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets, pages: pageImage, scripts: scriptOutput, shaders };
   // What's behind a node: the page drawn into a picture of its box, up to the node.
@@ -394,7 +395,7 @@ function documentPicture(s: Scene): SkPicture {
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
   recorded?.picture.delete();
-  recorded = { scene: s, pages: pagesVersion, shaders: shadersVersion, scale, picture };
+  recorded = { scene: s, pages: pagesVersion, shaders: shadersVersion, scale, picture, at: performance.now() };
   return picture;
 }
 

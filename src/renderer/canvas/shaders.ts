@@ -19,6 +19,15 @@ export class EditorShaders implements ShaderHost {
   private sources = new Map<string, string | null | { error: string }>();
   private pictures = new Map<string, ImageBitmap | null>();
   private made: Image[] = [];
+  /**
+   * Pictures of shaders that don't change between frames, kept while the page stays the same, so an
+   * animated shader elsewhere doesn't make them run again: no @time, and nothing of the page sampled
+   * where an animated shader is.
+   */
+  private kept = new Map<string, Image>();
+  /** Where animated shaders were drawn in the last drawing of the page, and in this one so far. */
+  private moving: Box[] = [];
+  private movingNow: Box[] = [];
   private start = performance.now();
   /** A shader drawn since the last `begin` reads the time: draw again next frame. */
   animating = false;
@@ -33,10 +42,19 @@ export class EditorShaders implements ShaderHost {
     private changed: () => void,
   ) {}
 
-  /** A new drawing of the page begins: the last one's pictures are let go (a recorded page keeps its own). */
-  begin(): void {
+  /**
+   * A new drawing of the page begins: the last one's pictures are let go (a recorded page keeps its own).
+   * `changed`: the page itself changed, so kept pictures go too.
+   */
+  begin(changed: boolean): void {
     for (const i of this.made) i.delete();
     this.made = [];
+    this.moving = this.movingNow;
+    this.movingNow = [];
+    if (changed) {
+      for (const i of this.kept.values()) i.delete();
+      this.kept.clear();
+    }
     this.animating = false;
   }
 
@@ -80,6 +98,16 @@ export class EditorShaders implements ShaderHost {
       console.warn(`Shader ${url} on ${node.id}:`, prepared.error);
       return null;
     }
+    const samples = (u: (typeof prepared.uniforms)[number]) => {
+      const given = uniforms?.[u.name] ?? u.default;
+      return u.type === "sampler2D" && typeof given === "string" && given.startsWith("pencil:");
+    };
+    const overlaps = (b: Box) => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h;
+    const moves = animated(prepared.uniforms);
+    if (moves) this.movingNow.push(box);
+    const still = !moves && (!prepared.uniforms.some(samples) || !this.moving.some(overlaps));
+    const key = `${node.id}|${url}|${JSON.stringify(uniforms ?? {})}|${box.x},${box.y},${box.w},${box.h}|${scale}`;
+    if (still && this.kept.has(key)) return this.kept.get(key)!;
     const textures = new Map<string, Pixels | ImageBitmap | null>();
     for (const u of prepared.uniforms) {
       if (u.type !== "sampler2D") continue;
@@ -111,7 +139,7 @@ export class EditorShaders implements ShaderHost {
     }
     if (animated(result.uniforms)) this.animating = true;
     const image = this.readBack();
-    if (image) this.made.push(image);
+    if (image) (still ? this.kept.set(key, image) : this.made.push(image));
     return image;
   }
 

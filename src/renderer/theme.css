@@ -207,6 +207,9 @@
    colour fades when the kind changes. */
 @property --glow { syntax: "<color>"; inherits: true; initial-value: #f59e0b; }
 @keyframes glow-flow { to { offset-distance: 100%; } }
+/* Tooltips fade in and out, as Pen's do (measured 4 Nov 2026: about 150ms in, 100ms out). */
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tip-out { from { opacity: 1; } to { opacity: 0; } }
 @layer components {
   .glow-ring { transition: --glow 0.7s var(--ease-ui); }
   .glow-spot {

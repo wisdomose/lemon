@@ -1,5 +1,6 @@
 // The list of skills a "/" in the prompt opens ("+" → Pick a skill types the "/"). As in Pen (3 Nov
-// 2026): it sits in the bottom of the panel above the chat box, on the panel's own background; rows
+// 2026, measured again 4 Nov): it sits in the bottom of the panel above the chat box, on the panel's
+// own background, reaching down over the gap to the chat box, its rows inset 15px; rows
 // show the skill's name and description; typing after the "/" keeps the skills whose names hold it;
 // skills the person added show a bin while hovered; "Add SKILL.md file..." adds one from a folder.
 import { useEffect, useState } from "react";
@@ -37,7 +38,7 @@ export function SkillList({
     <div
       // Clicks in the list mustn't take the caret out of the prompt.
       onMouseDown={(e) => e.preventDefault()}
-      className="absolute right-px bottom-[calc(100%+9px)] left-px rounded-b-[19px] bg-island px-2 pt-2 pb-1.5 text-[12px]"
+      className="absolute right-px bottom-[calc(100%+1px)] left-px rounded-b-[16px] bg-island px-[15px] pt-2 pb-0 text-[12px]"
     >
       <div ref={setRows} role="listbox" aria-label="Skills" className="scroll-quiet max-h-[300px] overflow-y-auto">
         {skills.map((s, i) => (
@@ -49,7 +50,7 @@ export function SkillList({
             onClick={() => onPick(s)}
             className={cx("group flex h-[30px] cursor-default items-center gap-2 rounded-[6px] px-2.5", i === active && "bg-input")}
           >
-            <Box size={14} strokeWidth={1.5} className="shrink-0 text-[#a78bfa]" />
+            <Box size={14} strokeWidth={1.5} className="shrink-0 text-[#c084fc]" />
             <span className="shrink-0 font-semibold text-foreground">{s.name}</span>
             <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">{s.description}</span>
             {s.added && (
@@ -68,7 +69,7 @@ export function SkillList({
           </div>
         ))}
       </div>
-      <button type="button" onClick={() => void bridge.addSkill().then(onSkills)} className="mt-1 h-[22px] px-1.5 text-[11px] text-muted-foreground hover:text-foreground">
+      <button type="button" onClick={() => void bridge.addSkill().then(onSkills)} className="mt-[9px] h-[22px] px-1.5 text-[11px] text-muted-foreground hover:text-foreground">
         Add SKILL.md file...
       </button>
     </div>
@@ -86,7 +87,7 @@ export function FileList({ files, active, onActive, onPick }: { files: Workspace
   }, [rows, active]);
   if (!files.length) return null;
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="absolute right-px bottom-[calc(100%+9px)] left-px rounded-b-[19px] bg-island px-2 pt-2 pb-2 text-[12px]">
+    <div onMouseDown={(e) => e.preventDefault()} className="absolute right-px bottom-[calc(100%+1px)] left-px rounded-b-[16px] bg-island px-[15px] pt-2 pb-[9px] text-[12px]">
       <div ref={setRows} role="listbox" aria-label="Files" className="scroll-quiet max-h-[300px] overflow-y-auto">
         {files.map((f, i) => {
           const at = f.path.lastIndexOf("/");
