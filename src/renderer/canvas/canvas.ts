@@ -3,7 +3,7 @@
 import type { Canvas, Image, SkPicture, Surface } from "canvaskit-wasm";
 import { drawNode, offscreen, type DrawContext } from "../../render/draw.js";
 import { damage, overlaps, sceneBounds, withBehind, type Bounds, type BoundsCache } from "../../render/damage.js";
-import { TILE, Tiles, tileRect } from "./tiles.js";
+import { TILE, Tiles, ViewComposite, tileRect, type Tile } from "./tiles.js";
 import { EditorShaders } from "./shaders.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
@@ -25,7 +25,7 @@ const SELECT = "#3d99ff";
 /** A selected script's outline and size pill (measured from Pen). */
 const SCRIPT_GREEN = "#00C787";
 /** Frame names use the theme's muted text colour. */
-const label = () => getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa";
+const label = () => theme().label;
 const LABEL_SIZE = 12;
 /** A frame label's top above the frame (measured from Pen at its corner). */
 const LABEL_LIFT = LABEL_SIZE + 10;
@@ -148,6 +148,7 @@ function makeSurface() {
   tiles.clear();
   tileSurface?.delete();
   tileSurface = null;
+  dropComposite();
   pictures = new WeakMap();
   for (const b of behind.values()) b.image?.delete();
   behind.clear();
@@ -316,9 +317,17 @@ function labelWidth(f: TreeNode, b: Box) {
 
 /** `text` cut with "…" to fit `max` pixels (paragraphs are cached by the text engine; never deleted here). */
 function fitLabel(text: string, color: string, max: number) {
+  // Where a label is cut is kept, so a frame drawn again lays out one paragraph, not a binary search's worth.
+  const key = `${color}|${Math.round(max)}|${text}`;
+  const known = cuts.get(key);
+  if (known !== undefined) {
+    const p = uiText(known, LABEL_SIZE, color);
+    p.layout(10000);
+    return p;
+  }
   let p = uiText(text, LABEL_SIZE, color);
   p.layout(10000);
-  if (p.getMaxIntrinsicWidth() <= max) return p;
+  if (p.getMaxIntrinsicWidth() <= max) return remember(key, text, p);
   let lo = 0;
   let hi = text.length;
   while (lo < hi) {
@@ -328,9 +337,40 @@ function fitLabel(text: string, color: string, max: number) {
     if (p.getMaxIntrinsicWidth() <= max) lo = mid;
     else hi = mid - 1;
   }
-  p = uiText(text.slice(0, lo).trimEnd() + "…", LABEL_SIZE, color);
+  const cut = text.slice(0, lo).trimEnd() + "…";
+  p = uiText(cut, LABEL_SIZE, color);
   p.layout(10000);
+  return remember(key, cut, p);
+}
+
+/** Labels' cut text, by colour, room and full text (the oldest let go past a few hundred). */
+const cuts = new Map<string, string>();
+function remember<P>(key: string, cut: string, p: P): P {
+  cuts.set(key, cut);
+  if (cuts.size > 500) cuts.delete(cuts.keys().next().value!);
   return p;
+}
+
+/**
+ * The canvas colour and the frame labels' colour, from the theme: read once, and again only when the
+ * theme may have changed (the page's classes or styles, or the system's light or dark).
+ */
+let themeColours: { bg: string; label: string } | undefined;
+function theme(): { bg: string; label: string } {
+  themeColours ??= {
+    bg: getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim() || "#18181b",
+    label: getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#a1a1aa",
+  };
+  return themeColours;
+}
+function watchTheme(): () => void {
+  const forget = () => ((themeColours = undefined), schedule());
+  const observer = new MutationObserver(forget);
+  observer.observe(document.documentElement, { attributes: true });
+  observer.observe(document.body, { attributes: true });
+  const dark = matchMedia("(prefers-color-scheme: dark)");
+  dark.addEventListener("change", forget);
+  return () => (observer.disconnect(), dark.removeEventListener("change", forget));
 }
 
 /** How long a frame spends painting tiles before it shows what it has and asks for another. */
@@ -343,7 +383,7 @@ function draw() {
   const { ck } = engine;
   const canvas = surface.getCanvas();
   const dpr = devicePixelRatio || 1;
-  const bg = getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim() || "#18181b";
+  const bg = theme().bg;
   canvas.clear(ck.parseColorString(bg));
   const s = currentScene(schedule);
   if (s && !fitted && s.tree.children.length) {
@@ -377,9 +417,22 @@ function draw() {
   surface.flush();
   shaders?.flush();
   // The cursor wobbles while shown and the "Generating" sheen moves; tiles may be left to paint, and a
-  // selected shader moves.
-  if (more || cursors.size || overlay.editing || s?.tree.children.some((f) => f.props.placeholder) || moving.ids.length) schedule();
+  // selected shader moves. The sheen is slow (a sweep every 2.4 s): when only it moves, 30 frames a
+  // second show it as well as 60, at half the work.
+  if (more || cursors.size || overlay.editing || moving.ids.length) schedule();
+  else if (s?.tree.children.some((f) => f.props.placeholder)) scheduleSlow();
 }
+
+/** The next frame in about 33 ms rather than at the next screen refresh (a frame asked for meanwhile still comes at once). */
+let slow: ReturnType<typeof setTimeout> | undefined;
+function scheduleSlow(): void {
+  if (slow !== undefined || queued) return;
+  slow = setTimeout(() => {
+    slow = undefined;
+    schedule();
+  }, SLOW_FRAME_MS);
+}
+const SLOW_FRAME_MS = 33;
 
 // ---- The document, in tiles (tiles.ts) ------------------------------------------------------------
 /** Shader fills and effects; bumped when one has more to show (its file read, a picture decoded). */
@@ -434,6 +487,16 @@ function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
   const bounds = shown.bounds;
   animate(s, bounds, t0);
   const surfaceNow = surface!;
+  const ox = Math.round(view.x * scale);
+  const oy = Math.round(view.y * scale);
+  const viewKey = `${ox},${oy},${scale},${el.width}x${el.height},${bg}`;
+  // Nothing changed since the last frame that had every tile in view painted and shown: show that
+  // frame's picture of the view again, without going through the tiles (only something on top moves).
+  if (settled && settled.key === viewKey && settled.version === tiles.version && composite?.image) {
+    surfaceNow.getCanvas().drawImage(composite.image, 0, 0, null);
+    return false;
+  }
+  settled = undefined;
   tileSurface ??= surfaceNow.makeSurface({ width: TILE, height: TILE, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Premul, colorSpace: ck.ColorSpace.SRGB });
   if (!tileSurface) return false;
   tiles.begin();
@@ -448,10 +511,45 @@ function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
     painted++;
   }
   const holding = tiles.commit(inView, performance.now());
-  // What the tiles show: another zoom's tiles, scaled, where this zoom's aren't painted yet.
-  const canvas = surfaceNow.getCanvas();
-  const ox = Math.round(view.x * scale);
-  const oy = Math.round(view.y * scale);
+  // The view put together from its tiles once (another zoom's tiles, scaled, where this zoom's aren't
+  // painted yet), and drawn as one picture in every frame until a tile in it or the view itself changes.
+  const view$ = viewPicture(surfaceNow, viewKey, inView, scale, ox, oy, background);
+  if (view$) surfaceNow.getCanvas().drawImage(view$, 0, 0, null);
+  tiles.evict();
+  const more = holding || inView.some((t) => t.dirty);
+  if (!more && view$ && inView.every((t) => t.image !== undefined)) settled = { key: viewKey, version: tiles.version };
+  return more;
+}
+
+/** The last frame whose view was whole (every tile in it painted and shown): its view and tiles' version. */
+let settled: { key: string; version: number } | undefined;
+
+/** The whole view as one picture (on the canvas's GPU), and what it was made from. */
+let composite: { surface: Surface; w: number; h: number; image: Image | null } | undefined;
+const composed = new ViewComposite<Image>();
+
+function dropComposite(): void {
+  composite?.image?.delete();
+  composite?.surface.delete();
+  composite = undefined;
+  composed.reset();
+}
+
+function viewPicture(on: Surface, key: string, inView: Tile<Image>[], scale: number, ox: number, oy: number, background: Float32Array): Image | null {
+  const { ck } = engine;
+  if (!composite || composite.w !== el.width || composite.h !== el.height) {
+    dropComposite();
+    const made = on.makeSurface({ width: el.width, height: el.height, colorType: ck.ColorType.RGBA_8888, alphaType: ck.AlphaType.Premul, colorSpace: ck.ColorSpace.SRGB });
+    if (!made) return null;
+    composite = { surface: made, w: el.width, h: el.height, image: null };
+  }
+  if (composite.image && !composed.changed(key, inView)) return composite.image;
+  if (!composite.image) composed.changed(key, inView);
+  // Let go of the last picture first: drawing on a surface while a picture of it lives copies the surface.
+  composite.image?.delete();
+  composite.image = null;
+  const canvas = composite.surface.getCanvas();
+  canvas.clear(background);
   const paint = new ck.Paint();
   for (const t of inView) {
     if (t.image) continue;
@@ -467,8 +565,8 @@ function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
   }
   for (const t of inView) if (t.image) canvas.drawImage(t.image, t.i * TILE - ox, t.j * TILE - oy, paint);
   paint.delete();
-  tiles.evict();
-  return holding || inView.some((t) => t.dirty);
+  composite.image = composite.surface.makeImageSnapshot();
+  return composite.image;
 }
 
 /** One tile: the canvas colour, then every top-level frame reaching it. */
@@ -553,6 +651,8 @@ function animate(s: Scene, bounds: Bounds, now: number): void {
   const ids: string[] = [];
   const tops = new Set<string>();
   const sel = new Set(store.get().selection);
+  // Nothing selected and nothing moving: no shader moves, and the tree needn't be walked.
+  if (!sel.size && !moving.ids.length && !moving.tops.size) return;
   const walk = (n: TreeNode, top: string, inside: boolean) => {
     const here = inside || sel.has(n.id);
     if (here && readsTime(n)) (ids.push(n.id), tops.add(top));
@@ -982,9 +1082,11 @@ export function attach(canvasEl: HTMLCanvasElement): () => void {
   addEventListener("resize", onResize);
   el.addEventListener("wheel", onWheel, { passive: false });
   const unsub = store.subscribe(schedule);
+  const unwatchTheme = watchTheme();
   schedule();
   return () => {
     unsub();
+    unwatchTheme();
     removeEventListener("resize", onResize);
     el.removeEventListener("wheel", onWheel);
   };
