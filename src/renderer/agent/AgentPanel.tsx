@@ -1,11 +1,11 @@
 // The Agent tab: session row, then the empty state or the conversation with step cards.
 import { useEffect, useRef, useState } from "react";
-import { Box, ChevronDown, Code, ChevronsUpDown, Circle, CircleCheck, CircleX, FileText, Frame, Globe, Image as ImageIcon, Layers, Palette, Paperclip, Plus, Square, Type } from "lucide-react";
+import { Box, Check, ChevronDown, Code, ChevronsUpDown, Circle, CircleCheck, Copy, CircleX, FileText, Frame, Globe, Image as ImageIcon, Layers, Palette, Paperclip, Plus, Square, Type } from "lucide-react";
 import { AGENTS } from "../../agent/models.js";
 import { useEditor, type ChatItem, type SentAttachment } from "../store.js";
 import { CHAT_ZOOM, useSettings } from "../settings.js";
 import { markdown } from "../markdown.js";
-import { cx } from "../ui/kit.js";
+import { cx, Tip } from "../ui/kit.js";
 import { clearHistory, formatDuration, newSession, openSession, sendPrompt } from "./chat.js";
 import { DropdownMenu as M } from "radix-ui";
 import { MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
@@ -105,7 +105,7 @@ function Thread({ chat, status }: { chat: ChatItem[]; status: "planning" | "thin
           const el = e.currentTarget;
           setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
         }}
-        className="h-full overflow-y-auto pt-3 pr-[17px] pb-6 pl-[13px]"
+        className="chat-select h-full overflow-y-auto pt-3 pr-[17px] pb-6 pl-[13px]"
       >
         <div className="flex flex-col gap-3">
           {arrange(chat).map((unit, i) =>
@@ -179,8 +179,12 @@ function Item({ item }: { item: ChatItem }) {
       return (
         <>
           {item.attachments && <Attachments files={item.attachments} />}
-          <div className="ml-[52px] rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">
-            {item.parts ? item.parts.map((p, i) => (typeof p === "string" ? <MessageText key={i} text={p} /> : <SentChip key={i} part={p} />)) : <MessageText text={item.text} />}
+          {/* Pen: hovering the message shows a copy button under its bottom-right corner. */}
+          <div className="group/msg -mb-1 ml-[52px] flex flex-col items-end">
+            <div className="w-full rounded-2xl bg-bubble px-4 py-3 text-[13px] leading-5 whitespace-pre-wrap text-foreground">
+              {item.parts ? item.parts.map((p, i) => (typeof p === "string" ? <MessageText key={i} text={p} /> : <SentChip key={i} part={p} />)) : <MessageText text={item.text} />}
+            </div>
+            <CopyButton text={item.parts ? item.parts.map((p) => (typeof p === "string" ? p : p.chip)).join("") : item.text} />
           </div>
         </>
       );
@@ -241,6 +245,34 @@ function Item({ item }: { item: ChatItem }) {
     case "error":
       return <div className="text-[13px] text-destructive">{item.text}</div>;
   }
+}
+
+/** The copy button under a sent message: shows while the message is hovered, ticks once copied. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const Icon = copied ? Check : Copy;
+  return (
+    <Tip label={copied ? "Copied" : "Copy"} side="top">
+      <button
+        type="button"
+        aria-label="Copy"
+        onClick={() => {
+          void navigator.clipboard.writeText(text).then(() => setCopied(true));
+        }}
+        className={cx(
+          "relative -mt-2.5 mr-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-bubble text-muted-foreground opacity-0 transition-opacity group-hover/msg:opacity-100 hover:bg-input hover:text-foreground focus-visible:opacity-100",
+          copied && "opacity-100",
+        )}
+      >
+        <Icon size={11} strokeWidth={1.75} />
+      </button>
+    </Tip>
+  );
 }
 
 const CHIP_ICONS = { frame: Frame, text: Type, rect: Square, ellipse: Circle, image: ImageIcon, nodes: Layers, browser: Globe, skill: Box, style: Palette, script: Code, file: FileText } as const;
