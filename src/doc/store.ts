@@ -141,6 +141,62 @@ export function allChildIds(doc: Y.Doc, parentId: string): string[] {
   return out;
 }
 
+/** childIds, allChildIds and placedIn for every parent, read in one pass over the document. */
+export interface ChildIndex {
+  children(parentId: string): string[];
+  all(parentId: string): string[];
+  placed(refId: string): { fills: Map<string, string[]>; replacements: Map<string, string> };
+}
+
+/**
+ * The document's children by parent, for walks over a subtree: each of childIds, allChildIds and
+ * placedIn reads every record, so calling them once per node is quadratic (minutes on a board of
+ * 25k nodes). Valid until the tree changes.
+ */
+export function childIndex(doc: Y.Doc): ChildIndex {
+  const ordinary = new Map<string, { id: string; order: string }[]>();
+  const all = new Map<string, string[]>();
+  const fills = new Map<string, Map<string, { id: string; order: string }[]>>();
+  const replacements = new Map<string, Map<string, string>>();
+  const push = <K, V>(m: Map<K, V[]>, k: K, v: V) => {
+    const list = m.get(k);
+    if (list) list.push(v);
+    else m.set(k, [v]);
+  };
+  for (const [id, rec] of nodesOf(doc)) {
+    const parent = rec.get("parent");
+    if (typeof parent !== "string") continue;
+    const order = rec.get("order") as string;
+    push(all, parent, id);
+    if (!isPlaced(rec)) push(ordinary, parent, { id, order });
+    const within = rec.get("within");
+    if (typeof within === "string") {
+      let m = fills.get(parent);
+      if (!m) fills.set(parent, (m = new Map()));
+      push(m, within, { id, order });
+    }
+    const replaces = rec.get("replaces");
+    if (typeof replaces === "string") {
+      let m = replacements.get(parent);
+      if (!m) replacements.set(parent, (m = new Map()));
+      m.set(replaces, id);
+    }
+  }
+  const sorted = new Map<string, string[]>();
+  return {
+    children(parentId) {
+      let out = sorted.get(parentId);
+      if (!out) sorted.set(parentId, (out = (ordinary.get(parentId) ?? []).sort(byOrder).map((o) => o.id)));
+      return out;
+    },
+    all: (parentId) => all.get(parentId) ?? [],
+    placed: (refId) => ({
+      fills: new Map([...(fills.get(refId) ?? [])].map(([k, v]) => [k, [...v].sort(byOrder).map((o) => o.id)])),
+      replacements: new Map(replacements.get(refId) ?? []),
+    }),
+  };
+}
+
 function orderKeyAmong(doc: Y.Doc, siblings: string[], index: number | undefined): string {
   const at = index === undefined || index > siblings.length ? siblings.length : Math.max(0, index);
   const nodes = nodesOf(doc);
@@ -267,10 +323,11 @@ function mainsReached(doc: Y.Doc, mains: Iterable<string>): Set<string> {
 /** Ref records in the subtree at `id` (itself included). */
 function instancesWithin(doc: Y.Doc, id: string): string[] {
   const nodes = nodesOf(doc);
+  const index = childIndex(doc);
   const out: string[] = [];
   const walk = (n: string) => {
     if (nodes.get(n)?.get("type") === "ref") out.push(n);
-    for (const c of allChildIds(doc, n)) walk(c);
+    for (const c of index.all(n)) walk(c);
   };
   walk(id);
   return out;
@@ -395,17 +452,18 @@ export function remove(doc: Y.Doc, id: string): void {
   requireNode(doc, id);
   // Instances of components deleted here (outside what is deleted) become ordinary nodes first.
   const mains: string[] = [];
+  const index = childIndex(doc);
   const walk = (n: string) => {
     if (nodesOf(doc).get(n)?.get("reusable")) mains.push(n);
-    allChildIds(doc, n).forEach(walk);
+    index.all(n).forEach(walk);
   };
   walk(id);
   if (mains.length) detachInstancesOf(doc, mains, id);
   removeRecords(doc, id);
 }
 
-function removeRecords(doc: Y.Doc, id: string): void {
-  for (const child of allChildIds(doc, id)) removeRecords(doc, child);
+function removeRecords(doc: Y.Doc, id: string, index: ChildIndex = childIndex(doc)): void {
+  for (const child of index.all(id)) removeRecords(doc, child, index);
   nodesOf(doc).delete(id);
 }
 
@@ -708,12 +766,12 @@ function readInstance(
 }
 
 /** The ref's own record of an instance as Pen writes it: `ref`, properties, `descendants` and `children`. */
-export function refAsPen(doc: Y.Doc, id: string, nodeAsPen: (id: string) => PenNode): PenNode {
+export function refAsPen(doc: Y.Doc, id: string, nodeAsPen: (id: string) => PenNode, index?: ChildIndex): PenNode {
   const rec = requireNode(doc, id);
   const out: PenNode = { type: "ref", id, ref: rec.get("ref") as string, ...recordProps(rec) };
   const descendants: Descendants = {};
   for (const [path, props] of Object.entries(recordOverrides(rec))) descendants[path] = { ...props };
-  const placed = placedIn(doc, id);
+  const placed = index ? index.placed(id) : placedIn(doc, id);
   for (const [path, list] of placed.fills) {
     const kids = list.map(nodeAsPen);
     if (path === "") out.children = kids;
