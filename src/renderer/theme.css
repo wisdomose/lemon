@@ -51,6 +51,8 @@
   --rail-icon: #52525b;
   --rail-active: #f4f4f5;
   --nav-active: #e6e6e7;
+  /* The picked choice in a picker, a step past its hover (not in the light captures). */
+  --menu-selected: #dfdfe1;
   --row-line: #ededef;
   --switch-off: #d5d5d5;
   /* Not in the light captures; chosen to match their system (light blue selection, pale thumbnails). */
@@ -103,6 +105,8 @@
   --rail-icon: #f4f4f5;
   --rail-active: #2e2e32;
   --nav-active: #313134;
+  /* The picked choice in a picker, measured from Pen's effort levels. */
+  --menu-selected: #36363b;
   --row-line: #1d1d1e;
   --switch-off: #38383a;
   --layer-active: #283751;
@@ -147,6 +151,7 @@
   --color-rail-icon: var(--rail-icon);
   --color-rail-active: var(--rail-active);
   --color-nav-active: var(--nav-active);
+  --color-menu-selected: var(--menu-selected);
   --color-row-line: var(--row-line);
   --color-switch-off: var(--switch-off);
   --color-sidebar: var(--sidebar);

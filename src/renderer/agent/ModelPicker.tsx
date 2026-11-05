@@ -10,7 +10,7 @@ import { ChevronDown, ChevronRight, Image as ImageIcon, Plus, Search } from "luc
 import { MODELS, modelLabel } from "../../agent/models.js";
 import { providerModelId } from "../../agent/providers.js";
 import { store, useEditor } from "../store.js";
-import { MENU_PANEL as PANEL, MENU_ROW as ROW, MenuContent, MenuItem, MenuLabel, MenuSeparator } from "../ui/menu.js";
+import { MENU_PANEL as PANEL, MENU_ROW_SUBTLE as ROW, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTone } from "../ui/menu.js";
 import { FOOTER_BUTTON, cx } from "../ui/kit.js";
 import { effortChoices, refreshCodexModels, refreshProviders } from "./model-catalog.js";
 
@@ -62,90 +62,93 @@ function ModelMenu({ model }: { model: string }) {
   const notSetUp = providerGroups.filter((g) => g.locked);
   return (
     <MenuContent side="top" align="end" sideOffset={8} className="flex max-h-[min(587px,var(--radix-dropdown-menu-content-available-height))] w-[237px] max-w-[calc(100vw-24px)] flex-col text-[12px]">
-      <div className="flex h-7 shrink-0 items-center gap-2 px-2 text-muted-foreground">
-        <Search size={13} strokeWidth={1.5} />
-        <input
-          autoFocus
-          aria-label="Search models"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          placeholder="Search models..."
-          className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
-        />
-      </div>
-      <MenuSeparator />
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-        {claude.length > 0 && (
-          <>
-            <MenuLabel>Anthropic</MenuLabel>
-            {claude.map((m) => (
-              <ModelRow key={m.id} id={m.id} label={m.label} model={model} />
-            ))}
-          </>
-        )}
-        {claude.length > 0 && codex.length > 0 && <MenuSeparator />}
-        {codex.length > 0 && <MenuLabel>OpenAI</MenuLabel>}
-        {codex.map((m) => (
-          <ModelRow key={m.id} id={m.id} label={m.label} model={model} />
-        ))}
-        {state === "loading" && !models.length && <div role="status" className="px-2 py-1.5 text-muted-foreground">Loading Codex models…</div>}
-        {state === "error" && (
-          <>
-            <div role="status" className="px-2 py-1.5 whitespace-normal text-muted-foreground">
-              {error}
-            </div>
-            <M.Item
-              className="cursor-default rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-input"
-              onSelect={(e) => {
-                e.preventDefault();
-                void refreshCodexModels(true);
-              }}
-            >
-              Try again
-            </M.Item>
-          </>
-        )}
-        {state === "ready" && model.startsWith("codex:") && !selected && (
-          <div role="status" className="px-2 py-1.5 whitespace-normal text-muted-foreground">The selected model isn't offered any more. Choose another.</div>
-        )}
-        {ready.map((g) => (
-          <Fragment key={g.id}>
-            <MenuSeparator />
-            <MenuLabel>{g.name}</MenuLabel>
-            {g.models.map((m) => {
-              const id = providerModelId(g.id, m.id);
-              return <ModelRow key={id} id={id} label={m.label ?? m.id} model={model} />;
-            })}
-          </Fragment>
-        ))}
-        {/* Providers without their key: their models greyed, together at the end; "Setup" takes you there. */}
-        {notSetUp.length > 0 && <MenuSeparator />}
-        {notSetUp.flatMap((g) =>
-          g.models.map((m) => (
-            <M.Item
-              key={providerModelId(g.id, m.id)}
-              className={cx(ROW, "group data-[highlighted]:!bg-input")}
-              onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents", provider: g.id } })}
-            >
-              <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{m.label ?? m.id}</span>
-              <span className="hidden text-[11px] text-foreground group-data-[highlighted]:inline">Setup</span>
-            </M.Item>
-          )),
-        )}
-        {claude.length === 0 && codex.length === 0 && providerGroups.length === 0 && <MenuLabel>No matching models</MenuLabel>}
-      </div>
-      {/* The footer keeps its height; the list above gives way. */}
-      <div className="shrink-0">
+      {/* Keep subtle highlights through portaled effort menus. */}
+      <MenuTone.Provider value="subtle">
+        <div className="flex h-7 shrink-0 items-center gap-2 px-2 text-muted-foreground">
+          <Search size={13} strokeWidth={1.5} />
+          <input
+            autoFocus
+            aria-label="Search models"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder="Search models..."
+            className="w-full bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </div>
         <MenuSeparator />
-        <MenuItem grey icon={<ImageIcon size={13} strokeWidth={1.5} />} label="Image model" hint={<>Not set <ChevronRight size={12} strokeWidth={1.5} /></>} disabled />
-        <MenuItem
-          grey
-          icon={<Plus size={13} strokeWidth={1.5} />}
-          label="Add more providers"
-          onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents" } })}
-        />
-      </div>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          {claude.length > 0 && (
+            <>
+              <MenuLabel>Anthropic</MenuLabel>
+              {claude.map((m) => (
+                <ModelRow key={m.id} id={m.id} label={m.label} model={model} />
+              ))}
+            </>
+          )}
+          {claude.length > 0 && codex.length > 0 && <MenuSeparator />}
+          {codex.length > 0 && <MenuLabel>OpenAI</MenuLabel>}
+          {codex.map((m) => (
+            <ModelRow key={m.id} id={m.id} label={m.label} model={model} />
+          ))}
+          {state === "loading" && !models.length && <div role="status" className="px-2 py-1.5 text-muted-foreground">Loading Codex models…</div>}
+          {state === "error" && (
+            <>
+              <div role="status" className="px-2 py-1.5 whitespace-normal text-muted-foreground">
+                {error}
+              </div>
+              <M.Item
+                className="cursor-default rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-nav-active"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  void refreshCodexModels(true);
+                }}
+              >
+                Try again
+              </M.Item>
+            </>
+          )}
+          {state === "ready" && model.startsWith("codex:") && !selected && (
+            <div role="status" className="px-2 py-1.5 whitespace-normal text-muted-foreground">The selected model isn't offered any more. Choose another.</div>
+          )}
+          {ready.map((g) => (
+            <Fragment key={g.id}>
+              <MenuSeparator />
+              <MenuLabel>{g.name}</MenuLabel>
+              {g.models.map((m) => {
+                const id = providerModelId(g.id, m.id);
+                return <ModelRow key={id} id={id} label={m.label ?? m.id} model={model} />;
+              })}
+            </Fragment>
+          ))}
+          {/* Providers without their key: their models greyed, together at the end; "Setup" takes you there. */}
+          {notSetUp.length > 0 && <MenuSeparator />}
+          {notSetUp.flatMap((g) =>
+            g.models.map((m) => (
+              <M.Item
+                key={providerModelId(g.id, m.id)}
+                className={cx(ROW, "group data-[highlighted]:!bg-nav-active")}
+                onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents", provider: g.id } })}
+              >
+                <span className="min-w-0 flex-1 truncate text-muted-foreground/60">{m.label ?? m.id}</span>
+                <span className="hidden text-[11px] text-foreground group-data-[highlighted]:inline">Setup</span>
+              </M.Item>
+            )),
+          )}
+          {claude.length === 0 && codex.length === 0 && providerGroups.length === 0 && <MenuLabel>No matching models</MenuLabel>}
+        </div>
+        {/* The footer keeps its height; the list above gives way. */}
+        <div className="shrink-0">
+          <MenuSeparator />
+          <MenuItem grey icon={<ImageIcon size={13} strokeWidth={1.5} />} label="Image model" hint={<>Not set <ChevronRight size={12} strokeWidth={1.5} /></>} disabled />
+          <MenuItem
+            grey
+            icon={<Plus size={13} strokeWidth={1.5} />}
+            label="Add more providers"
+            onSelect={() => store.set({ settingsOpen: true, settingsPage: { page: "agents" } })}
+          />
+        </div>
+      </MenuTone.Provider>
     </MenuContent>
   );
 }
@@ -157,7 +160,7 @@ const effortLabel = (id: string) => (id === "xhigh" ? "Very high" : id === "xlow
  * One model. Picking the row picks the model at its default effort. One that takes a reasoning
  * effort has its own chevron button, shown while the row is hovered or focused (Pen): hovering or
  * clicking it opens the levels, and picking a level picks the model with it. The level the next run
- * uses is ticked on the selected model: the chosen one, else the model's own default.
+ * uses is filled in on the selected model: the chosen one, else the model's own default.
  */
 function ModelRow({ id, label, model }: { id: string; label: string; model: string }) {
   const codexModels = useEditor((s) => s.codexModels);
@@ -178,7 +181,7 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
       className={cx(
         "group/row relative rounded-[6px]",
         current && "bg-input",
-        "has-[[data-highlighted]]:bg-input has-[[data-state=open]]:bg-input",
+        "has-[[data-highlighted]]:bg-nav-active has-[[data-state=open]]:bg-nav-active",
       )}
     >
       <M.Item
@@ -198,7 +201,7 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
           aria-label={`${label} effort`}
           // Shown on the selected model and on a hovered one (Pen).
           className={cx(
-            "absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-muted-foreground outline-none group-hover/row:opacity-100 group-has-[[data-highlighted]]/row:opacity-100 data-[highlighted]:bg-foreground/10 data-[state=open]:opacity-100",
+            "absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-muted-foreground outline-none group-hover/row:opacity-100 group-has-[[data-highlighted]]/row:opacity-100 data-[highlighted]:bg-foreground/10 data-[highlighted]:text-foreground data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground data-[state=open]:opacity-100",
             current ? "opacity-100" : "opacity-0",
           )}
           onClick={() => setOpen(true)}
@@ -208,14 +211,14 @@ function ModelRow({ id, label, model }: { id: string; label: string; model: stri
         <M.Portal>
           <M.SubContent sideOffset={4} className={cx(PANEL, "min-w-[120px]")}>
             <MenuLabel>Effort</MenuLabel>
-            {/* The level the next run uses has the grey row (Pen), not a tick. */}
+            {/* The level the next run uses keeps its selected fill while hovered. */}
             {levels.map((level) => (
               <MenuItem
                 key={level}
                 grey
                 plain
                 label={<span title={descriptions?.find((e) => e.id === level)?.description}>{effortLabel(level)}</span>}
-                current={shown === level}
+                selected={shown === level}
                 onSelect={() => store.set({ model: id, effort: level })}
               />
             ))}
