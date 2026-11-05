@@ -10,10 +10,10 @@ const bridge: Bridge = {
   pushDocUpdate: (update) => ipcRenderer.send("doc:push", update),
   fontCatalogue: () => ipcRenderer.invoke("fonts:catalogue"),
   loadFont: (face) => ipcRenderer.invoke("fonts:load", face),
-  runAgent: (prompt, model, team, effort, variants, attachments) => ipcRenderer.invoke("agent:run", prompt, model, team, effort, variants, attachments),
-  stopAgent: () => ipcRenderer.invoke("agent:stop"),
+  runAgent: (prompt, model, team, effort, variants, attachments, runId) => ipcRenderer.invoke("agent:run", prompt, model, team, effort, variants, attachments, runId),
+  stopAgent: (runId) => ipcRenderer.invoke("agent:stop", runId),
   onAgentEvent: (fn) => {
-    ipcRenderer.on("agent:event", (_e, event) => fn(event));
+    ipcRenderer.on("agent:event", (_e, event, runId) => fn(event, runId));
   },
   canRunAgent: true,
   claudeStatus: () => ipcRenderer.invoke("claude:status"),

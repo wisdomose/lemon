@@ -387,6 +387,7 @@ function StepCard({ step }: { step: Extract<ChatItem, { kind: "step" }> }) {
 /** The session picker: the current conversation's title, opening the history grouped by day. */
 function HistoryMenu({ session, running }: { session: string | null; running: boolean }) {
   const history = useEditor((s) => s.history);
+  const live = useEditor((s) => s.liveSessions);
   const groups = groupByDay(history);
   return (
     <M.Root>
@@ -408,7 +409,13 @@ function HistoryMenu({ session, running }: { session: string | null; running: bo
             {items.map((h) => (
               <MenuItem
                 key={h.id}
-                label={<span className="block max-w-[240px] truncate text-[11px] font-semibold">{h.title}</span>}
+                label={
+                  <span className="flex max-w-[240px] items-center gap-2">
+                    <span className="truncate text-[11px] font-semibold">{h.title}</span>
+                    {/* A conversation whose agent is still working, left running when a new one was started. */}
+                    {live.includes(h.id) && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3b82f6]" />}
+                  </span>
+                }
                 current={h.title === session}
                 plain
                 onSelect={() => openSession(h.id)}
