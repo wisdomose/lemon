@@ -28,6 +28,12 @@ export interface FileTab {
   closing(): void;
 }
 
+/**
+ * Whether a page can be sent to. A page whose renderer crashed or was killed is not destroyed, but its
+ * frame is, and each send to it only prints "Render frame was disposed before WebFrameMain could be accessed".
+ */
+export const reachable = (wc: WebContents): boolean => !wc.isDestroyed() && !!wc.mainFrame && !wc.mainFrame.isDestroyed();
+
 export class Shell {
   readonly win: BaseWindow;
   private readonly home: WebContentsView;
@@ -119,7 +125,7 @@ export class Shell {
   tell(): void {
     const state: Tabs = { tabs: this.files.map((f) => f.tab()), active: this.active ? this.active.tab().id : "home" };
     if (this.active) this.win.setTitle(this.active.tab().name);
-    for (const wc of this.pages()) if (!wc.isDestroyed()) wc.send("tabs:state", state);
+    for (const wc of this.pages()) if (reachable(wc)) wc.send("tabs:state", state);
   }
 
   tabs(): Tabs {
@@ -133,9 +139,22 @@ export class Shell {
   }
 }
 
+const RELOAD_AGAIN_AFTER_MS = 60_000;
+
 /** A tab's page: the app's preload, sandboxed. */
 export function page(preload: string): WebContentsView {
   const view = new WebContentsView({ webPreferences: { preload, contextIsolation: true, sandbox: true, nodeIntegration: false } });
   view.setBackgroundColor("#141414");
+  // A page whose renderer crashed or was killed loads again: an editor asks for its whole document as
+  // it loads (doc:state), so the board comes back as the main process has it. One that dies again
+  // within a minute is left as it is, so a page that always crashes doesn't reload forever.
+  let reloaded = 0;
+  view.webContents.on("render-process-gone", (_e, gone) => {
+    console.error(`A tab's page stopped: ${gone.reason} (exit code ${gone.exitCode}).`);
+    if (gone.reason === "clean-exit" || view.webContents.isDestroyed()) return;
+    if (Date.now() - reloaded < RELOAD_AGAIN_AFTER_MS) return console.error("It stopped again within a minute, so it is not reloaded.");
+    reloaded = Date.now();
+    view.webContents.reload();
+  });
   return view;
 }
