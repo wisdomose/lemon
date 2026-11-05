@@ -14,7 +14,7 @@
 import * as Y from "yjs";
 import { generateKeyBetween } from "fractional-indexing";
 import { ROOT_ID } from "./schema.js";
-import { allChildIds, childIds, exists, nodesOf } from "./store.js";
+import { childIds, childIndex, exists, nodesOf } from "./store.js";
 
 const HALF = 2 ** 31;
 /** A client id for a person's copy of the document (wins ties). */
@@ -129,7 +129,8 @@ export function repairTree(doc: Y.Doc): boolean {
     for (;;) {
       const reachable = new Set<string>([ROOT_ID]);
       const queue = [ROOT_ID];
-      while (queue.length) for (const c of allChildIds(doc, queue.pop()!)) if (!reachable.has(c)) (reachable.add(c), queue.push(c));
+      const index = childIndex(doc);
+      while (queue.length) for (const c of index.all(queue.pop()!)) if (!reachable.has(c)) (reachable.add(c), queue.push(c));
       const stray = [...nodes.keys()].filter((id) => !reachable.has(id));
       if (!stray.length) return;
       changed = true;

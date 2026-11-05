@@ -284,6 +284,7 @@ export class ScriptSession {
       const e = 0.5;
       return b.x < p.x - e || b.y < p.y - e || b.x + b.w > p.x + p.w + e || b.y + b.h > p.y + p.h + e ? "partially clipped" : undefined;
     };
+    let index: store.ChildIndex | undefined;
     /** A node as Pen data: a ref as a ref (unless instances are resolved), with its subtree. */
     const asPen = (n: TreeNode, parent: string | undefined, vs: Vars, depth = 0): Record<string, unknown> => {
       vs = withTheme(vs, n.props.theme);
@@ -291,7 +292,7 @@ export class ScriptSession {
       if (n.instance && !o.resolveInstances) {
         // An instance reads as its ref: its own properties, changes, fills and replacements.
         const isRecord = !store.isPart(n.id) && store.nodesOf(doc).has(n.id);
-        node = isRecord ? { ...store.refAsPen(doc, n.id, (c) => nodeAsPen(doc, c)) } : { type: "ref", id: n.id, ref: n.instance };
+        node = isRecord ? { ...store.refAsPen(doc, n.id, (c) => nodeAsPen(doc, c, (index ??= store.childIndex(doc))), (index ??= store.childIndex(doc))) } : { type: "ref", id: n.id, ref: n.instance };
       } else {
         node = { type: n.type, id: n.id, ...n.props };
         if (n.instance) node.instanceOf = n.instance;
