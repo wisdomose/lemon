@@ -16,7 +16,7 @@ import { Sandbox } from "../sandbox/sandbox.js";
 import type { FontFace } from "../text/fonts.js";
 import { Editor, logTo, type Shared, type StartPrompt } from "./editor.js";
 import { EXT, clearRecents, dashboardFiles, deleteDraft, forgetRecent, renameDesign } from "./files.js";
-import { Shell } from "./shell.js";
+import { reachable, Shell } from "./shell.js";
 import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-pages.js";
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
@@ -168,7 +168,7 @@ function refreshMenu() {
       // The tab shown: editors take every command, Home takes Settings and the theme.
       toWindow: (command) => {
         const page = window?.shown()?.view.webContents ?? window?.pages()[0];
-        page?.send("menu:command", command);
+        if (page && reachable(page)) page.send("menu:command", command);
       },
     },
     menuState,
@@ -477,7 +477,8 @@ async function main() {
 
 function fileListChanged() {
   refreshMenu();
-  window?.pages()[0]?.send("dashboard:files", dashboardFiles());
+  const home = window?.pages()[0];
+  if (home && reachable(home)) home.send("dashboard:files", dashboardFiles());
   window?.tell();
 }
 

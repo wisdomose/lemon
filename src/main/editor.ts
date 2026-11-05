@@ -21,7 +21,7 @@ import type { ServerSignIns } from "../agent/mcp-servers.js";
 import { resolveProviderModel } from "./provider-store.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
-import { page, type FileTab, type TabInfo } from "./shell.js";
+import { page, reachable, type FileTab, type TabInfo } from "./shell.js";
 import { BrowserPages } from "./browser-pages.js";
 import { Scripts } from "./scripts.js";
 import { Comments } from "./comments.js";
@@ -161,7 +161,7 @@ export class Editor implements FileTab {
     // The window's changes carry its own origin, so they are not echoed back and agents can tell
     // them apart (see doc/live.ts). Others go to it at most once a frame, merged into one update.
     const fromWindow = new PersonChange(this.view.webContents.id);
-    this.toWindow = new UpdateBatcher((u) => !this.page.isDestroyed() && this.page.send("doc:update", u), SEND_EVERY_MS);
+    this.toWindow = new UpdateBatcher((u) => reachable(this.page) && this.page.send("doc:update", u), SEND_EVERY_MS);
     this.settled = new Debounced(() => {
       this.pages.sync();
       this.scripts.sync();
@@ -175,8 +175,8 @@ export class Editor implements FileTab {
       this.settled.call();
     });
     this.fromWindow = fromWindow;
-    this.pages = new BrowserPages(this.doc, () => (this.page.isDestroyed() ? undefined : this.page));
-    this.scripts = new Scripts(this.doc, shared.sandbox, () => this.path, () => (this.page.isDestroyed() ? undefined : this.page));
+    this.pages = new BrowserPages(this.doc, () => (reachable(this.page) ? this.page : undefined));
+    this.scripts = new Scripts(this.doc, shared.sandbox, () => this.path, () => (reachable(this.page) ? this.page : undefined));
     this.comments = new Comments(this.doc);
     void this.page.loadURL(shared.pageUrl("index"));
     // The tab draws the pages and the scripts' output once it has loaded.
@@ -234,7 +234,7 @@ export class Editor implements FileTab {
   }
 
   private tell(): void {
-    if (this.page.isDestroyed()) return;
+    if (!reachable(this.page)) return;
     this.page.send("file:info", this.info());
     this.shared.tabsChanged();
   }
@@ -371,7 +371,7 @@ export class Editor implements FileTab {
     const { engine, sandbox, log } = this.shared;
     const film = process.env.LEMON_FILM;
     const onEvent = (e: TaggedEvent) => {
-      if (this.page.isDestroyed()) return;
+      if (!reachable(this.page)) return;
       this.page.send("agent:event", e);
       const who = "agent" in e && e.agent !== undefined ? ` [${AGENTS[e.agent]?.name}]` : "";
       if (e.type !== "step-target" && e.type !== "step-progress") log(`agent${who} ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
