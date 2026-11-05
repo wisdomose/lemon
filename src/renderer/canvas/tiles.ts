@@ -59,6 +59,11 @@ export class Tiles<T> {
   private frame = 0;
   /** When the oldest damage not yet shown came. */
   private heldSince: number | undefined;
+  /**
+   * Goes up whenever a tile is damaged, painted, shown anew or let go, or all are cleared: while it
+   * stays the same (and the view does), the last frame's tiles can be shown again without looking.
+   */
+  version = 0;
 
   constructor(
     /** Lets go of a tile's image. */
@@ -97,7 +102,10 @@ export class Tiles<T> {
           }
       }
     }
-    if (any) this.heldSince ??= now;
+    if (any) {
+      this.heldSince ??= now;
+      this.version++;
+    }
   }
 
   /** A new frame begins (tiles in view are counted as used in it). */
@@ -131,6 +139,7 @@ export class Tiles<T> {
 
   /** A tile was painted: its picture waits to be shown (at once if it showed nothing). */
   painted(t: Tile<T>, image: T): void {
+    this.version++;
     t.dirty = false;
     if (t.next !== undefined) this.release(t.next);
     if (t.image === undefined) t.image = image;
@@ -150,6 +159,7 @@ export class Tiles<T> {
           if (t.image !== undefined) this.release(t.image);
           t.image = t.next;
           t.next = undefined;
+          this.version++;
         }
     this.heldSince = ready ? undefined : now;
     return false;
@@ -210,6 +220,7 @@ export class Tiles<T> {
     for (const l of this.levels.values()) for (const t of l.tiles.values()) this.drop(t);
     this.levels.clear();
     this.heldSince = undefined;
+    this.version++;
   }
 
   /** How many tiles are kept. */
@@ -220,8 +231,37 @@ export class Tiles<T> {
   }
 
   private drop(t: Tile<T>): void {
+    this.version++;
     if (t.image !== undefined) this.release(t.image);
     if (t.next !== undefined) this.release(t.next);
     t.image = t.next = undefined;
+  }
+}
+
+/**
+ * Whether the view needs putting together from its tiles again: it moved, changed size or look (`key`),
+ * or a tile in it shows another picture. Otherwise the last picture of the whole view is drawn as it is,
+ * so a frame that only moves something on top (the "Generating" sheen, a cursor, the text caret) costs
+ * one picture, not one per tile. While a tile has no picture yet (stand-ins from other zooms show), the
+ * view is put together every frame.
+ */
+export class ViewComposite<T> {
+  private key: string | undefined;
+  private images: (T | undefined)[] = [];
+
+  changed(key: string, tiles: readonly Tile<T>[]): boolean {
+    let changed = key !== this.key || tiles.length !== this.images.length;
+    for (let k = 0; !changed && k < tiles.length; k++) changed = tiles[k]!.image === undefined || tiles[k]!.image !== this.images[k];
+    if (changed) {
+      this.key = key;
+      this.images = tiles.map((t) => t.image);
+    }
+    return changed;
+  }
+
+  /** Forgets the last picture (the surface was made again). */
+  reset(): void {
+    this.key = undefined;
+    this.images = [];
   }
 }
