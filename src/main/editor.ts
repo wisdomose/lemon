@@ -114,7 +114,8 @@ export class Editor implements FileTab {
   private error: string | undefined;
   private dirty = false;
   private timer: NodeJS.Timeout | undefined;
-  private running: AbortController | undefined;
+  /** The agent runs going on, by the chat conversation each belongs to (several can run at once). */
+  private running = new Map<string, AbortController>();
   private thumbTimer: NodeJS.Timeout | undefined;
   /** Nothing has been changed since the window opened on a new file. */
   pristine: boolean;
@@ -199,7 +200,7 @@ export class Editor implements FileTab {
 
   /** The tab is closing (or the window): stop the agent, write the file and its picture. */
   closing(): void {
-    this.running?.abort();
+    for (const run of this.running.values()) run.abort();
     this.settled.now();
     this.toWindow.dispose();
     this.pages.dispose();
@@ -364,15 +365,20 @@ export class Editor implements FileTab {
   }
 
   // ---- The agent -----------------------------------------------------------------------------------
-  /** Runs one agent, or a team of them (`team.count` > 1), on this tab's document. */
-  async runAgent(prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]): Promise<AgentStats[]> {
-    this.running?.abort();
-    const running = (this.running = new AbortController());
+  /**
+   * Runs one agent, or a team of them (`team.count` > 1), on this tab's document, for the chat
+   * conversation `runId`: its events go to the window tagged with it, and a run of another
+   * conversation goes on beside it (a new run of the same one replaces it).
+   */
+  async runAgent(prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[], runId = ""): Promise<AgentStats[]> {
+    this.running.get(runId)?.abort();
+    const running = new AbortController();
+    this.running.set(runId, running);
     const { engine, sandbox, log } = this.shared;
     const film = process.env.LEMON_FILM;
     const onEvent = (e: TaggedEvent) => {
       if (this.page.isDestroyed()) return;
-      this.page.send("agent:event", e);
+      this.page.send("agent:event", e, runId);
       const who = "agent" in e && e.agent !== undefined ? ` [${AGENTS[e.agent]?.name}]` : "";
       if (e.type !== "step-target" && e.type !== "step-progress") log(`agent${who} ${e.type}${"step" in e ? ` ${e.step.index} ${e.step.title}` : "title" in e ? ` ${e.index} ${e.title}` : ""}`);
       if (film && e.type === "step-end") {
@@ -384,12 +390,14 @@ export class Editor implements FileTab {
     const base = { doc: this.doc, engine, sandbox, ...(this.shared.runs ? { runs: this.shared.runs } : {}), prompt, ...(attachments?.length ? { attachments } : {}), browser: this.pages, ...(this.shared.signIns ? { signIns: this.shared.signIns } : {}), ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(provider ? { provider } : {}), signal: running.signal };
     const stats =
       team && team.count > 1 ? await runTeam({ ...base, team, onEvent }) : [await runAgent({ ...base, name: AGENTS[0].name, ...(variants ? { variants } : {}), onEvent })];
-    if (this.running === running) this.running = undefined;
+    if (this.running.get(runId) === running) this.running.delete(runId);
     return stats;
   }
 
-  stopAgent(): void {
-    this.running?.abort();
+  /** Stops the run of conversation `runId`, or every run. */
+  stopAgent(runId?: string): void {
+    if (runId === undefined) for (const run of this.running.values()) run.abort();
+    else this.running.get(runId)?.abort();
   }
 }
 
