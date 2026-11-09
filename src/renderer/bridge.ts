@@ -30,9 +30,11 @@ export interface Bridge {
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
   /** `variants`: "Let it cook" (more variations after the first design). */
-  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]): Promise<AgentStats[]>;
-  stopAgent(): Promise<void>;
-  onAgentEvent(fn: (e: TaggedEvent) => void): void;
+  /** `runId`: the chat conversation the run belongs to; its events come back tagged with it. */
+  runAgent(prompt: string, model: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[], runId?: string): Promise<AgentStats[]>;
+  /** Stops the run of conversation `runId` (every run without one). */
+  stopAgent(runId?: string): Promise<void>;
+  onAgentEvent(fn: (e: TaggedEvent, runId?: string) => void): void;
   canRunAgent: boolean;
   /** Whether Claude Code is signed in on this computer, and as whom. */
   claudeStatus(): Promise<{ loggedIn: boolean; email?: string; plan?: string }>;

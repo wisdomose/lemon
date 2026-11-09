@@ -74,6 +74,8 @@ export interface EditorState {
   agentStatus: "planning" | "thinking" | null;
   /** The chat session's title (its first prompt). */
   session: string | null;
+  /** Ids of the conversations whose agent is working, the one shown or others left running. */
+  liveSessions: string[];
   model: string;
   /** Session cache stays visible while the picker refreshes its live Codex catalog. */
   codexModels: CodexModel[];
@@ -135,6 +137,7 @@ const initial: EditorState = {
   chat: [],
   agentStatus: null,
   session: null,
+  liveSessions: [],
   model: DEFAULT_MODEL,
   codexModels: [],
   codexModelsState: "idle",

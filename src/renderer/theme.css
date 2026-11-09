@@ -48,9 +48,13 @@
   --seg-active: #ffffff;
   --select-bg: #fafafa;
   --bubble: #efefef;
+  /* Highlighted text in the chat (Pen, 5 Nov 2026: a muted blue behind the words). */
+  --text-selection: #b4d2fd;
   --rail-icon: #52525b;
   --rail-active: #f4f4f5;
   --nav-active: #e6e6e7;
+  /* The picked choice in a picker, a step past its hover (not in the light captures). */
+  --menu-selected: #dfdfe1;
   --row-line: #ededef;
   --switch-off: #d5d5d5;
   /* Not in the light captures; chosen to match their system (light blue selection, pale thumbnails). */
@@ -100,9 +104,12 @@
   --seg-active: #4e4e51;
   --select-bg: #2b2b2f;
   --bubble: #323238;
+  --text-selection: #2c4a7c;
   --rail-icon: #f4f4f5;
   --rail-active: #2e2e32;
   --nav-active: #313134;
+  /* The picked choice in a picker, measured from Pen's effort levels. */
+  --menu-selected: #36363b;
   --row-line: #1d1d1e;
   --switch-off: #38383a;
   --layer-active: #283751;
@@ -147,6 +154,7 @@
   --color-rail-icon: var(--rail-icon);
   --color-rail-active: var(--rail-active);
   --color-nav-active: var(--nav-active);
+  --color-menu-selected: var(--menu-selected);
   --color-row-line: var(--row-line);
   --color-switch-off: var(--switch-off);
   --color-sidebar: var(--sidebar);
@@ -237,6 +245,10 @@
 
 /* The agent's replies (markdown): measured from the reference's finished report. */
 @layer components {
+  /* The chat's words can be selected and copied; the rest of the app stays unselectable. */
+  .chat-select { user-select: text; cursor: auto; }
+  .chat-select button, .chat-select [role="button"] { user-select: none; }
+  .chat-select ::selection { background: var(--text-selection); }
   .chat-md p { margin: 0 0 8px; }
   .chat-md p:last-child, .chat-md ol:last-child, .chat-md ul:last-child { margin-bottom: 0; }
   .chat-md ol { list-style: decimal; margin: 0 0 8px; padding-left: 16px; }
