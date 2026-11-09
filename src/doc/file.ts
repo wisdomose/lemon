@@ -18,7 +18,7 @@
 import * as Y from "yjs";
 import { generateNKeysBetween } from "fractional-indexing";
 import { NODE_TYPES, PEN_VERSION, ROOT_ID, type PenDocument, type PenNode, type Themes, type Variables } from "./schema.js";
-import { childIds, insertAsIs, metaOf, nodesOf, refAsPen, variablesOf } from "./store.js";
+import { childIndex, insertAsIs, type ChildIndex, metaOf, nodesOf, refAsPen, variablesOf } from "./store.js";
 import { assetsOf, imageUrls } from "./assets.js";
 
 export class FileError extends Error {}
@@ -26,14 +26,14 @@ export class FileError extends Error {}
 const KNOWN_TOP = new Set(["version", "children", "themes", "imports", "variables"]);
 
 /** A node and its subtree as Pen writes it. */
-export function nodeAsPen(doc: Y.Doc, id: string): PenNode {
+export function nodeAsPen(doc: Y.Doc, id: string, index: ChildIndex = childIndex(doc)): PenNode {
   const rec = nodesOf(doc).get(id)!;
   const type = rec.get("type") as PenNode["type"];
-  if (type === "ref") return refAsPen(doc, id, (c) => nodeAsPen(doc, c));
+  if (type === "ref") return refAsPen(doc, id, (c) => nodeAsPen(doc, c, index), index);
   const out: PenNode = { type, id };
   for (const [k, v] of rec) if (k !== "type" && k !== "parent" && k !== "order" && k !== "within" && k !== "replaces" && !k.startsWith("/")) out[k] = v;
-  const kids = childIds(doc, id);
-  if (kids.length) out.children = kids.map((c) => nodeAsPen(doc, c));
+  const kids = index.children(id);
+  if (kids.length) out.children = kids.map((c) => nodeAsPen(doc, c, index));
   return out;
 }
 
@@ -49,7 +49,8 @@ function newer(a: string, b: string): string {
 export function toPen(doc: Y.Doc): PenDocument {
   const meta = metaOf(doc);
   const read = meta.get("version");
-  const out: PenDocument = { version: typeof read === "string" ? newer(read, PEN_VERSION) : PEN_VERSION, children: childIds(doc, ROOT_ID).map((id) => nodeAsPen(doc, id)) };
+  const index = childIndex(doc);
+  const out: PenDocument = { version: typeof read === "string" ? newer(read, PEN_VERSION) : PEN_VERSION, children: index.children(ROOT_ID).map((id) => nodeAsPen(doc, id, index)) };
   const themes = meta.get("themes") as Themes | undefined;
   if (themes && Object.keys(themes).length) out.themes = themes;
   const imports = meta.get("imports") as Record<string, string> | undefined;

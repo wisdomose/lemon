@@ -13,6 +13,7 @@ import type { Sandbox, Globals } from "../sandbox/sandbox.js";
 import { AgentChange, PersonEdits } from "../doc/live.js";
 import { nodesOf, toTree } from "../doc/store.js";
 import { inProcess, type ScriptRuns } from "../agent/runs.js";
+import { AgentPlaceholders, placeholderIds } from "../agent/placeholders.js";
 import { FailedScripts } from "../agent/patches.js";
 import { notRun, summarise } from "../agent/agent.js";
 import { runBrowser, browserSchema } from "../agent/browser-tool.js";
@@ -53,7 +54,15 @@ interface Session {
   globals: Globals;
   steps: number;
   personEdits: PersonEdits;
+  /** The frames it marked as being built ("Generating") and hasn't finished. */
+  placeholders: AgentPlaceholders;
 }
+
+/**
+ * An agent quiet this long is taken to have stopped: frames it left "Generating" are turned off, since
+ * the canvas draws their sheen for as long as they are on. Should it carry on, they just don't shimmer.
+ */
+export const QUIET_MS = 2 * 60_000;
 
 const sameFile = (a: string, b: string) => {
   const [x, y] = [resolve(a), resolve(b)];
@@ -138,8 +147,27 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
   const sessions = new Map<Editor, Session>();
   const sessionOf = (editor: Editor): Session => {
     let s = sessions.get(editor);
-    if (!s) sessions.set(editor, (s = { failed: new FailedScripts(), globals: {}, steps: 0, personEdits: new PersonEdits(editor.doc) }));
+    if (!s) sessions.set(editor, (s = { failed: new FailedScripts(), globals: {}, steps: 0, personEdits: new PersonEdits(editor.doc), placeholders: new AgentPlaceholders() }));
     return s;
+  };
+  /** Turns off the frames this agent left "Generating", in every document it worked in. */
+  const finishPlaceholders = (why: string) => {
+    for (const [editor, s] of sessions) {
+      const ids = s.placeholders.clear(editor.doc, new AgentChange(agent, ++s.steps));
+      if (ids.length) host.log(`mcp: ${agent} ${why}: turned off placeholder on ${ids.join(", ")}`);
+    }
+  };
+  let quiet: ReturnType<typeof setTimeout> | undefined;
+  /** One of the agent's calls: what it does to placeholders is noted, and the quiet clock starts again. */
+  const call = async <T>(editor: Editor, s: Session, run: () => Promise<T>): Promise<T> => {
+    clearTimeout(quiet);
+    const before = placeholderIds(editor.doc);
+    try {
+      return await run();
+    } finally {
+      s.placeholders.track(editor.doc, before);
+      if ([...sessions.values()].some((x) => x.placeholders.size)) quiet = setTimeout(() => finishPlaceholders("went quiet"), QUIET_MS);
+    }
   };
   /** The tab for `filePath`: an open one, else the file opened now; "" is the tab shown. */
   const editorFor = (filePath: string | undefined): Editor => {
@@ -184,7 +212,9 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
       } catch (e) {
         problem = (e as Error).message;
       }
-      const r = problem ? notRun(problem, s.globals) : await (host.runs ?? inProcess(host.engine, host.sandbox)).execute(editor.doc, script, origin, s.personEdits.peek(), s.globals);
+      const r = problem
+        ? notRun(problem, s.globals)
+        : await call(editor, s, () => (host.runs ?? inProcess(host.engine, host.sandbox)).execute(editor.doc, script, origin, s.personEdits.peek(), s.globals));
       let failedId: string | undefined;
       if (r.ok) {
         s.globals = r.globals;
@@ -213,7 +243,7 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
         return failure(e);
       }
       const s = sessionOf(editor);
-      const r = await runBrowser(browserSchema.parse(input), { pages: editor.pages, doc: editor.doc, engine: host.engine, origin: new AgentChange(agent, ++s.steps) });
+      const r = await call(editor, s, () => runBrowser(browserSchema.parse(input), { pages: editor.pages, doc: editor.doc, engine: host.engine, origin: new AgentChange(agent, ++s.steps) }));
       s.personEdits.take();
       return { content: r.content, ...(r.ok ? {} : { isError: true }) };
     },
@@ -222,6 +252,8 @@ async function serve(host: McpHost, socket: Socket, hello: Hello, connections: S
   const transport = new StdioServerTransport(socket, socket);
   const end = () => {
     connections.delete(end);
+    clearTimeout(quiet);
+    finishPlaceholders("disconnected");
     for (const s of sessions.values()) s.personEdits.dispose();
     sessions.clear();
     void mcp.close().catch(() => {});
