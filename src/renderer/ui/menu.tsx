@@ -1,6 +1,6 @@
 // Dropdown and context menus in the reference's style: popover fill, right-aligned muted shortcuts,
 // small-caps section labels, destructive items in red.
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { ContextMenu as C, DropdownMenu as M } from "radix-ui";
 import { Check, ChevronRight } from "lucide-react";
 import { cx } from "./kit.js";
@@ -8,8 +8,13 @@ import { cx } from "./kit.js";
 // Measured from the reference: 28px rows, 12px text, blue highlight inset 4px, 9px between groups.
 // The panel and row styles are shared with menus built from Radix parts directly (the model picker).
 export const MENU_PANEL = "z-50 min-w-[180px] rounded-[8px] bg-popover p-1 text-[12px] whitespace-nowrap text-foreground shadow-island";
-export const MENU_ROW =
-  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 outline-none data-[highlighted]:bg-[#3b82f6] data-[highlighted]:text-white data-[state=open]:bg-[#3b82f6] data-[state=open]:text-white data-[disabled]:opacity-40";
+const ROW_BASE = "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 outline-none data-[disabled]:opacity-40";
+export const MENU_ROW = `${ROW_BASE} data-[highlighted]:bg-[#3b82f6] data-[highlighted]:text-white data-[state=open]:bg-[#3b82f6] data-[state=open]:text-white`;
+/** The model picker's rows (Pen): a soft grey lift on hover instead of the blue highlight. */
+export const MENU_ROW_SUBTLE = `${ROW_BASE} data-[highlighted]:bg-nav-active data-[state=open]:bg-nav-active`;
+
+/** Which highlight the menu items inside take: "subtle" for the model picker, else the blue one. */
+export const MenuTone = createContext<"accent" | "subtle">("accent");
 
 /** A shortcut as the reference shows it: compact, muted, Shift as ⇧ ("Ctrl⇧R", "CtrlAltK"). */
 function Keys({ keys }: { keys: string }) {
@@ -31,6 +36,7 @@ export function MenuItem({
   label,
   keys,
   checked,
+  selected,
   current,
   plain,
   hint,
@@ -43,6 +49,8 @@ export function MenuItem({
   label: ReactNode;
   keys?: string;
   checked?: boolean;
+  /** The picked choice in a picker (Pen's effort levels): a lighter fill than the hover, kept while hovered. */
+  selected?: boolean;
   /** The active choice: a grey row, with a chevron unless `plain` (as in the reference's history list). */
   current?: boolean;
   plain?: boolean;
@@ -55,9 +63,11 @@ export function MenuItem({
   /** Highlighted grey rather than blue (the prompt's "+" menu, as in Pen). */
   grey?: boolean;
 }) {
+  // Preserve picker selection fills alongside grey highlights used by other menus.
+  const subtle = useContext(MenuTone) === "subtle";
   return (
     <M.Item
-      className={cx(MENU_ROW, "group", current && "bg-input", danger && "text-destructive", grey && "data-[highlighted]:!bg-input data-[highlighted]:!text-foreground")}
+      className={cx(selected ? `${ROW_BASE} bg-menu-selected` : subtle ? MENU_ROW_SUBTLE : MENU_ROW, "group", current && "bg-input", danger && "text-destructive", grey && !selected && !subtle && "data-[highlighted]:!bg-input data-[highlighted]:!text-foreground")}
       onSelect={onSelect}
       disabled={disabled}
     >

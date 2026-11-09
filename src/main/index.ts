@@ -266,10 +266,10 @@ async function main() {
   );
   ipcMain.handle("fonts:catalogue", () => fonts.catalogue.families);
   ipcMain.handle("fonts:load", (_e, face: FontFace) => fonts.load(face));
-  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[]) =>
-    editorOf(e)?.runAgent(prompt, model, team, effort, variants, attachments),
+  ipcMain.handle("agent:run", (e, prompt: string, model?: string, team?: Team, effort?: string, variants?: Variants, attachments?: Attachment[], runId?: string) =>
+    editorOf(e)?.runAgent(prompt, model, team, effort, variants, attachments, runId),
   );
-  ipcMain.handle("agent:stop", (e) => editorOf(e)?.stopAgent());
+  ipcMain.handle("agent:stop", (e, runId?: string) => editorOf(e)?.stopAgent(runId));
   ipcMain.handle("mcp:page", () => mcpSettings?.page());
   ipcMain.handle("mcp:set-servers", (_e, text: string) => {
     try {
