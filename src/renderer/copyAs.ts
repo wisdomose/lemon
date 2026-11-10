@@ -2,8 +2,8 @@
 import { toast } from "sonner";
 import { nodeAsPen } from "../doc/file.js";
 import { findNode } from "../render/screenshot.js";
-import { htmlFor } from "./codegen.js";
-import { doc, currentScene } from "./scene.js";
+import { htmlFor, type CodegenOptions } from "./codegen.js";
+import { doc, currentScene, engine } from "./scene.js";
 import { store } from "./store.js";
 import { renderSelection } from "./export.js";
 
@@ -36,10 +36,23 @@ export async function copyAsJson(): Promise<void> {
   await put(JSON.stringify(nodes.length === 1 ? nodes[0] : nodes, null, 2), "JSON");
 }
 
+/** What the generator needs measured: a path's bounds, read by CanvasKit as the app draws it. */
+export function codegenOptions(): CodegenOptions {
+  return {
+    pathBounds(d) {
+      const path = engine.ck.Path.MakeFromSVGString(d);
+      if (!path) return null;
+      const [l, t, r, b] = path.getBounds();
+      path.delete();
+      return [l!, t!, r! - l!, b! - t!];
+    },
+  };
+}
+
 export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
   const s = currentScene();
   const nodes = s ? store.get().selection.map((id) => findNode(s.tree, id)).filter((n): n is NonNullable<typeof n> => !!n) : [];
-  const html = s && htmlFor(nodes, s.vars, s.boxes, style);
+  const html = s && htmlFor(nodes, s.vars, s.boxes, style, codegenOptions());
   if (!html) return void toast("Select something to copy first.");
   await put(html, style === "css" ? "HTML + CSS" : "HTML + Tailwind");
 }

@@ -2,6 +2,14 @@
 import { resolveOr, colorOf, type RGBA } from "../doc/values.js";
 import type { NodeProps, TreeNode, Vars } from "../doc/schema.js";
 import { kindOf, type Box } from "../layout/layout.js";
+import { iconPathData, ICON_GRID, ICON_LINE } from "../render/icons.js";
+import { iconFace, iconLigature } from "../text/icon-fonts.js";
+
+/** What the generator can't work out on its own. */
+export interface CodegenOptions {
+  /** A path's geometry bounds [x, y, w, h], for a path without a viewBox (the app draws it against them). */
+  pathBounds?: (d: string) => [number, number, number, number] | null;
+}
 
 type Css = Record<string, string>;
 interface El {
@@ -67,10 +75,117 @@ const sidesOf = (v: unknown, vars: Vars): number[] => {
   return [n(v), n(v), n(v), n(v)];
 };
 
+/** The first enabled solid colour among fills, as CSS (gradients and pictures: their first stop, or none). */
+function firstColor(fill: unknown, vars: Vars): string | undefined {
+  const list = (Array.isArray(fill) ? fill : fill === undefined ? [] : [fill]) as unknown[];
+  for (const f of list) {
+    if (typeof f === "string") return colorCss(f, vars);
+    const o = f as Record<string, unknown>;
+    if (!o || resolveOr(o.enabled, vars, true) === false) continue;
+    if (o.type === "color") return colorCss(o.color, vars);
+    if (o.type === "gradient") return colorCss((o.colors as { color: string }[] | undefined)?.[0]?.color, vars);
+  }
+  return undefined;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * A shape CSS can't draw, as the app draws it: an SVG string (paths, lines, polygons, arcs, Lucide and
+ * Feather icons), or an icon font's glyph as styled text. Undefined for anything CSS draws itself.
+ */
+function svgShape(node: TreeNode, vars: Vars, box: Box, opts: CodegenOptions): string | { css: Css; text: string } | undefined {
+  const p = node.props;
+  const fill = firstColor(p.fill, vars);
+  const stroke = firstColor(p.stroke, vars);
+  const sw = typeof p.strokeWidth === "object" && p.strokeWidth !== null ? 1 : numOf(p.strokeWidth, vars, 1);
+  const paint = (closed: boolean) =>
+    `fill="${closed && fill ? fill : "none"}"${stroke && sw > 0 ? ` stroke="${stroke}" stroke-width="${r2(sw)}"${p.strokeLinecap ? ` stroke-linecap="${p.strokeLinecap}"` : ""}${p.strokeLinejoin ? ` stroke-linejoin="${p.strokeLinejoin}"` : ""}` : ""}`;
+  const svg = (viewBox: string, body: string, extra = "") =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${r2(box.w)}" height="${r2(box.h)}" viewBox="${viewBox}"${extra} overflow="visible" style="display:block">${body}</svg>`;
+  const [w, h] = [r2(box.w), r2(box.h)];
+
+  switch (node.type) {
+    case "path": {
+      if (typeof p.geometry !== "string") return undefined;
+      const vb = Array.isArray(p.viewBox) && p.viewBox.length === 4 ? p.viewBox : (opts.pathBounds?.(p.geometry) ?? [0, 0, box.w, box.h]);
+      const closed = /z\s*$/i.test(p.geometry.trim());
+      // Stretched to the box as the app draws it; the stroke keeps its width however it is stretched.
+      return svg(vb.map(r2).join(" "), `<path d="${p.geometry}" ${paint(closed)}${p.fillRule === "evenodd" ? ' fill-rule="evenodd"' : ""} vector-effect="non-scaling-stroke"/>`, ' preserveAspectRatio="none"');
+    }
+    case "line":
+      // From the box's top-left corner to its bottom-right.
+      return svg(`0 0 ${w} ${h}`, `<line x1="0" y1="0" x2="${w}" y2="${h}" ${paint(false)}/>`);
+    case "polygon": {
+      const count = Math.round(numOf(p.polygonCount, vars, 0));
+      if (count < 3) return svg(`0 0 ${w} ${h}`, "");
+      const pts: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+        pts.push(`${r2(w / 2 + (Math.cos(a) * w) / 2)},${r2(h / 2 + (Math.sin(a) * h) / 2)}`);
+      }
+      const round = numOf(p.cornerRadius, vars, 0);
+      return svg(`0 0 ${w} ${h}`, `<polygon points="${pts.join(" ")}" ${paint(true)}${round ? ` stroke-linejoin="round"` : ""}/>`);
+    }
+    case "ellipse": {
+      const inner = Math.max(0, Math.min(1, numOf(p.innerRadius, vars, 0)));
+      const sweep = Math.max(-360, Math.min(360, numOf(p.sweepAngle, vars, 360)));
+      // A whole ellipse is a div with border-radius: 50%.
+      if (Math.abs(sweep) >= 360 && !inner) return undefined;
+      const [cx, cy, rx, ry] = [w / 2, h / 2, w / 2, h / 2];
+      const [irx, iry] = [rx * inner, ry * inner];
+      let d: string;
+      if (Math.abs(sweep) >= 360) {
+        const ring = (a: number, b: number) => `M${r2(cx - a)} ${r2(cy)}a${r2(a)} ${r2(b)} 0 1 0 ${r2(2 * a)} 0a${r2(a)} ${r2(b)} 0 1 0 ${r2(-2 * a)} 0Z`;
+        d = ring(rx, ry) + ring(irx, iry);
+      } else {
+        // Angles run counter-clockwise from the right; SVG's y runs down.
+        const start = (numOf(p.startAngle, vars, 0) * Math.PI) / 180;
+        const end = start + (sweep * Math.PI) / 180;
+        const at = (a: number, x: number, y: number) => `${r2(cx + x * Math.cos(a))} ${r2(cy - y * Math.sin(a))}`;
+        const large = Math.abs(sweep) > 180 ? 1 : 0;
+        const ccw = sweep > 0 ? 0 : 1;
+        d = `M${at(start, rx, ry)}A${r2(rx)} ${r2(ry)} 0 ${large} ${ccw} ${at(end, rx, ry)}`;
+        d += inner ? `L${at(end, irx, iry)}A${r2(irx)} ${r2(iry)} 0 ${large} ${1 - ccw} ${at(start, irx, iry)}Z` : `L${r2(cx)} ${r2(cy)}Z`;
+      }
+      return svg(`0 0 ${w} ${h}`, `<path d="${d}" ${paint(true)} fill-rule="evenodd"/>`);
+    }
+    case "icon": {
+      const library = String(resolveOr(p.library ?? "lucide", vars, "lucide")).toLowerCase();
+      const name = String(resolveOr(p.icon ?? "", vars, ""));
+      const color = firstColor(p.fill, vars) ?? "currentColor";
+      const size = Math.min(box.w, box.h);
+      const face = iconFace(library, resolveOr(p.weight, vars, undefined));
+      if (face && name) {
+        // The web fonts' own family names (Phosphor's weights are separate families there too).
+        const family = face.family.startsWith("Phosphor") ? face.family.replace(" ", "-") : face.family;
+        const css: Css = {
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "center",
+          color,
+          "font-family": `"${family}"`,
+          "font-size": px(size),
+          "line-height": "1",
+          "font-feature-settings": '"liga"',
+        };
+        if (!family.startsWith("Phosphor")) css["font-variation-settings"] = `"wght" ${face.weight}`;
+        // The same ligature the app draws with: Phosphor's web fonts are the files the app loads.
+        return { css, text: iconLigature(face, name) };
+      }
+      const d = library === "lucide" || library === "feather" ? iconPathData(name, library) : null;
+      if (!d) return svg(`0 0 ${ICON_GRID} ${ICON_GRID}`, "");
+      return svg(`0 0 ${ICON_GRID} ${ICON_GRID}`, `<path d="${d}" fill="none" stroke="${color}" stroke-width="${ICON_LINE}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+    default:
+      return undefined;
+  }
+}
+
 const JUSTIFY: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", space_between: "space-between", space_around: "space-around" };
 const ALIGN: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end" };
 
-function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { box: Box; flow: boolean } | null): El | null {
+function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { box: Box; flow: boolean } | null, opts: CodegenOptions): El | null {
   const p: NodeProps = node.props;
   if (resolveOr(p.enabled, vars, true) === false) return null;
   const box = boxes.get(node.id);
@@ -122,15 +237,17 @@ function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { bo
     return el;
   }
 
+  // Shapes CSS can't draw are SVG; they take no background, radius or outline of their own.
+  const shape = svgShape(node, vars, box, opts);
   const bg = fillCss(p.fill, vars);
-  if (bg && node.type !== "path" && node.type !== "line") css.background = bg;
-  const radius = node.type === "ellipse" ? "50%" : p.cornerRadius !== undefined ? (Array.isArray(p.cornerRadius) ? sidesOf(p.cornerRadius, vars).map(px).join(" ") : px(numOf(p.cornerRadius, vars, 0))) : undefined;
+  if (bg && shape === undefined) css.background = bg;
+  const radius = shape !== undefined ? undefined : node.type === "ellipse" ? "50%" : p.cornerRadius !== undefined ? (Array.isArray(p.cornerRadius) ? sidesOf(p.cornerRadius, vars).map(px).join(" ") : px(numOf(p.cornerRadius, vars, 0))) : undefined;
   if (radius && radius !== "0px") css["border-radius"] = radius;
 
   const stroke = fillCss(p.stroke, vars);
   const strokeColor = Array.isArray(p.stroke) ? p.stroke[0] : p.stroke;
   const sc = colorCss(typeof strokeColor === "string" ? strokeColor : (strokeColor as { color?: string } | undefined)?.color, vars);
-  if (stroke && sc && node.type !== "path") {
+  if (stroke && sc && shape === undefined) {
     const w = p.strokeWidth;
     const [t, r, b, l] = typeof w === "object" && w !== null ? [w.top, w.right, w.bottom, w.left].map((x) => numOf(x, vars, 0) || 0) : Array(4).fill(numOf(w, vars, 1) || 0);
     const uniform = t === r && r === b && b === l;
@@ -162,11 +279,13 @@ function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { bo
   if (shadows.length) css["box-shadow"] = shadows.join(", ");
   if (filters.length) css.filter = filters.join(" ");
 
-  if (node.type === "path" && typeof p.geometry === "string") {
-    const vb = p.viewBox ?? [0, 0, box.w, box.h];
-    const fill = fillCss(p.fill, vars) ? colorCss((Array.isArray(p.fill) ? p.fill[0] : p.fill) && (typeof (Array.isArray(p.fill) ? p.fill[0] : p.fill) === "string" ? p.fill : (p.fill as { color?: string }).color), vars) : undefined;
-    const sw = typeof p.strokeWidth === "number" ? p.strokeWidth : 1;
-    el.svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(box.w)}" height="${Math.round(box.h)}" viewBox="${vb.join(" ")}"><path d="${p.geometry}" fill="${fill ?? "none"}"${sc ? ` stroke="${sc}" stroke-width="${sw}"` : ""}${p.fillRule === "evenodd" ? ' fill-rule="evenodd"' : ""}/></svg>`;
+  if (shape !== undefined) {
+    if (typeof shape === "string") el.svg = shape;
+    else {
+      // An icon font's glyph: its ligature in the font, one em the size of the box's shorter side.
+      Object.assign(css, shape.css);
+      el.text = shape.text;
+    }
     return el;
   }
 
@@ -188,7 +307,7 @@ function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { bo
       if (p.alignItems) css["align-items"] = ALIGN[p.alignItems] ?? "flex-start";
     }
     for (const c of node.children) {
-      const child = build(c, vars, boxes, { box, flow });
+      const child = build(c, vars, boxes, { box, flow }, opts);
       if (child) el.children.push(child);
     }
   }
@@ -230,8 +349,8 @@ function renderTailwind(els: El[]): string {
 
 
 /** Each node as markup; `style` picks a <style> block of classes or Tailwind arbitrary-property classes. */
-export function htmlFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind"): string {
-  const els = nodes.map((n) => build(n, vars, boxes, null)).filter((e): e is El => !!e);
+export function htmlFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind", opts: CodegenOptions = {}): string {
+  const els = nodes.map((n) => build(n, vars, boxes, null, opts)).filter((e): e is El => !!e);
   if (!els.length) return "";
   return style === "css" ? renderCss(els) : renderTailwind(els);
 }

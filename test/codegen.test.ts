@@ -74,3 +74,35 @@ describe("copy as HTML + Tailwind on a real design system", () => {
     if (process.env.DUMP_TW) writeFileSync(process.env.DUMP_TW, `<style>${css}</style>\n${html}`);
   });
 });
+
+describe("copy as HTML: shapes CSS can't draw", () => {
+  async function one(spec: Record<string, unknown>) {
+    const doc = new Y.Doc();
+    put(doc, { type: "frame", id: "F", name: "F", x: 0, y: 0, width: 200, height: 200, layout: "none", children: [{ id: "N", name: "N", x: 0, y: 0, ...spec } as never] });
+    const tree = store.toTree(doc);
+    const vars = store.getVars(doc);
+    await engine.fonts.ensure(facesUsed(tree, vars));
+    return htmlFor([tree.children[0]!.children[0]!], vars, layout(tree, vars, engine.text), "css");
+  }
+  it("draws a Lucide icon from its shape data", async () => {
+    const out = await one({ type: "icon", width: 24, height: 24, library: "lucide", icon: "arrow-right", fill: "#ff0000" });
+    expect(out).toContain('viewBox="0 0 24 24"');
+    expect(out).toContain('stroke="#ff0000"');
+    expect(out).toMatch(/<path d="[^"]*M5 12h14/);
+  });
+  it("writes a font icon as its ligature in the icon font", async () => {
+    const out = await one({ type: "icon", width: 24, height: 24, library: "Material Symbols Rounded", icon: "home", weight: 600 });
+    expect(out).toContain('font-family: "Material Symbols Rounded"');
+    expect(out).toContain(">home<");
+    const bold = await one({ type: "icon", width: 24, height: 24, library: "phosphor", icon: "house", weight: 700 });
+    expect(bold).toContain('font-family: "Phosphor-Bold"');
+    expect(bold).toContain(">house-bold<");
+  });
+  it("draws lines, polygons and arcs as SVG", async () => {
+    expect(await one({ type: "line", width: 60, height: 40, stroke: "#000000", strokeWidth: 3 })).toContain('<line x1="0" y1="0" x2="60" y2="40"');
+    expect(await one({ type: "polygon", width: 60, height: 60, polygonCount: 3, fill: "#00ff00" })).toContain('<polygon points="30,0 ');
+    expect(await one({ type: "ellipse", width: 60, height: 60, sweepAngle: 90, fill: "#0000ff" })).toContain("<path d=\"M60 30A30 30 0 0 0 30 0L30 30Z\"");
+    // A whole ellipse is still a div with a radius.
+    expect(await one({ type: "ellipse", width: 60, height: 60, fill: "#0000ff" })).toContain("border-radius: 50%");
+  });
+});
