@@ -9,6 +9,8 @@ import { iconFace, iconLigature } from "../text/icon-fonts.js";
 export interface CodegenOptions {
   /** A path's geometry bounds [x, y, w, h], for a path without a viewBox (the app draws it against them). */
   pathBounds?: (d: string) => [number, number, number, number] | null;
+  /** A picture's url as the copy should name it (a data: URL, so the copy carries the picture); undefined keeps the url. */
+  picture?: (url: string) => string | undefined;
 }
 
 type Css = Record<string, string>;
@@ -39,7 +41,7 @@ function colorCss(v: unknown, vars: Vars): string | undefined {
 }
 
 /** The first enabled fill as a CSS background value. */
-function fillCss(fill: unknown, vars: Vars): string | undefined {
+function fillCss(fill: unknown, vars: Vars, opts: CodegenOptions = {}): string | undefined {
   const list = (Array.isArray(fill) ? fill : fill === undefined ? [] : [fill]) as unknown[];
   const layers: string[] = [];
   for (const f of list) {
@@ -62,7 +64,7 @@ function fillCss(fill: unknown, vars: Vars): string | undefined {
       else layers.push(`linear-gradient(${(360 - (numOf(o.rotation, vars, 0) % 360)) % 360}deg, ${stops})`);
     } else if (o.type === "image" && typeof o.url === "string") {
       const mode = o.mode === "contain" ? "contain" : o.mode === "stretch" ? "100% 100%" : "cover";
-      layers.push(`url("${o.url}") center / ${mode} no-repeat`);
+      layers.push(`url("${opts.picture?.(o.url) ?? o.url}") center / ${mode} no-repeat`);
     }
   }
   // Pen draws the first fill on the bottom; CSS lists the top layer first.
@@ -239,7 +241,7 @@ function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { bo
 
   // Shapes CSS can't draw are SVG; they take no background, radius or outline of their own.
   const shape = svgShape(node, vars, box, opts);
-  const bg = fillCss(p.fill, vars);
+  const bg = fillCss(p.fill, vars, opts);
   if (bg && shape === undefined) css.background = bg;
   const radius = shape !== undefined ? undefined : node.type === "ellipse" ? "50%" : p.cornerRadius !== undefined ? (Array.isArray(p.cornerRadius) ? sidesOf(p.cornerRadius, vars).map(px).join(" ") : px(numOf(p.cornerRadius, vars, 0))) : undefined;
   if (radius && radius !== "0px") css["border-radius"] = radius;

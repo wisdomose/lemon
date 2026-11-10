@@ -106,3 +106,23 @@ describe("copy as HTML: shapes CSS can't draw", () => {
     expect(await one({ type: "ellipse", width: 60, height: 60, fill: "#0000ff" })).toContain("border-radius: 50%");
   });
 });
+
+describe("copy as HTML: pictures", () => {
+  it("names a picture by what `picture` gives, and Tailwind compiles it", async () => {
+    const doc = new Y.Doc();
+    put(doc, { type: "rectangle", id: "P", name: "Photo", x: 0, y: 0, width: 80, height: 40, fill: { type: "image", url: "./images/a.png", mode: "contain" } });
+    const tree = store.toTree(doc);
+    const vars = store.getVars(doc);
+    const boxes = layout(tree, vars, engine.text);
+    const data = "data:image/png;base64,iVBORw0KGgo+/=";
+    const opts = { picture: (url: string) => (url === "./images/a.png" ? data : undefined) };
+    expect(htmlFor(tree.children, vars, boxes, "css", opts)).toContain(`background: url("${data}") center / contain no-repeat;`);
+    // Without it the url stays as the file names it.
+    expect(htmlFor(tree.children, vars, boxes, "css")).toContain('url("./images/a.png")');
+    const tw = htmlFor(tree.children, vars, boxes, "tailwind", opts);
+    const cls = tw.match(/\[background:[^\s"]+\]/)![0];
+    const { compile } = await import("tailwindcss");
+    const css = (await compile("@tailwind utilities;", {})).build([cls]);
+    expect(css).toContain(`background: url('${data}') center / contain no-repeat`);
+  });
+});
