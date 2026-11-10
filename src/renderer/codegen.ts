@@ -1,14 +1,18 @@
 // The selection as HTML with CSS or Tailwind classes (the page's boxes give sizes and places).
-import { resolveOr, colorOf, type RGBA } from "../doc/values.js";
+import { resolveOr, colorOf, withTheme, type RGBA } from "../doc/values.js";
 import type { NodeProps, TreeNode, Vars } from "../doc/schema.js";
 import { kindOf, type Box } from "../layout/layout.js";
 import { iconPathData, ICON_GRID, ICON_LINE } from "../render/icons.js";
 import { iconFace, iconLigature } from "../text/icon-fonts.js";
+import { faceOf } from "../text/paragraph.js";
+import { facesUsed } from "../layout/layout.js";
 
 /** What the generator can't work out on its own. */
 export interface CodegenOptions {
   /** A path's geometry bounds [x, y, w, h], for a path without a viewBox (the app draws it against them). */
   pathBounds?: (d: string) => [number, number, number, number] | null;
+  /** Whether Google Fonts serves a family (the copy links only those); undefined links every family. */
+  webFont?: (family: string) => boolean;
   /** A picture's url as the copy should name it (a data: URL, so the copy carries the picture); undefined keeps the url. */
   picture?: (url: string) => string | undefined;
 }
@@ -189,6 +193,8 @@ const ALIGN: Record<string, string> = { start: "flex-start", center: "center", e
 
 function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { box: Box; flow: boolean } | null, opts: CodegenOptions): El | null {
   const p: NodeProps = node.props;
+  // A node's theme (light, dark, …) sets the variables for it and everything inside it, as on the canvas.
+  vars = withTheme(vars, p.theme);
   if (resolveOr(p.enabled, vars, true) === false) return null;
   const box = boxes.get(node.id);
   if (!box) return null;
@@ -216,12 +222,12 @@ function build(node: TreeNode, vars: Vars, boxes: Map<string, Box>, parent: { bo
   if (node.type === "text" || node.type === "note" || node.type === "prompt" || node.type === "context") {
     const color = colorCss((Array.isArray(p.fill) ? p.fill[0] : p.fill) && (typeof (Array.isArray(p.fill) ? p.fill[0] : p.fill) === "string" ? (p.fill as string) : ((Array.isArray(p.fill) ? p.fill[0] : p.fill) as { color?: string }).color), vars);
     if (color) css.color = color;
-    const family = resolveOr(p.fontFamily, vars, undefined);
-    if (typeof family === "string" && family) css["font-family"] = `"${family}", sans-serif`;
+    // The face the canvas draws with (Inter when the node names none).
+    const face = faceOf(p, vars);
+    css["font-family"] = `"${face.family}", sans-serif`;
     css["font-size"] = px(numOf(p.fontSize, vars, 14));
-    const weight = String(resolveOr(p.fontWeight, vars, "normal") ?? "normal");
-    if (weight !== "normal") css["font-weight"] = weight;
-    if (p.fontStyle === "italic") css["font-style"] = "italic";
+    if (face.weight !== 400) css["font-weight"] = String(face.weight);
+    if (face.italic) css["font-style"] = "italic";
     const ls = numOf(p.letterSpacing, vars, 0);
     if (ls) css["letter-spacing"] = px(ls);
     if (p.lineHeight !== undefined) css["line-height"] = String(resolveOr(p.lineHeight, vars, 1));
@@ -350,9 +356,47 @@ function renderTailwind(els: El[]): string {
 }
 
 
+/** Where Phosphor's web fonts' stylesheets are (the same version the app ships). */
+const PHOSPHOR_CSS = "https://unpkg.com/@phosphor-icons/web@2.1.2/src";
+const PHOSPHOR_SHEETS: Record<string, string> = { Phosphor: "regular", "Phosphor Bold": "bold", "Phosphor Thin": "thin", "Phosphor Light": "light" };
+
+/** <link>s for the fonts the nodes use: Google Fonts for text and Material Symbols, Phosphor's own stylesheets. */
+export function fontLinks(nodes: TreeNode[], vars: Vars, opts: CodegenOptions = {}): string {
+  const google = new Map<string, Set<string>>();
+  const material = new Set<string>();
+  const phosphor = new Set<string>();
+  for (const n of nodes)
+    for (const f of facesUsed(n, vars)) {
+      if (f.family in PHOSPHOR_SHEETS) phosphor.add(PHOSPHOR_SHEETS[f.family]!);
+      else if (f.family.startsWith("Material Symbols")) material.add(f.family);
+      else if (!opts.webFont || opts.webFont(f.family)) {
+        const set = google.get(f.family) ?? new Set<string>();
+        set.add(`${f.italic ? 1 : 0},${f.weight}`);
+        google.set(f.family, set);
+      }
+    }
+  const families = [...google].map(([family, styles]) => {
+    // Google wants each family's styles in order: upright before italic, then by weight.
+    const list = [...styles].sort((a, b) => a.split(",").map(Number).reduce((d, v, i) => d || v - Number(b.split(",")[i]), 0));
+    return `family=${encodeURIComponent(family).replace(/%20/g, "+")}:ital,wght@${list.join(";")}`;
+  });
+  for (const m of material) families.push(`family=${m.replace(/ /g, "+")}:wght@100..700`);
+  const links: string[] = [];
+  if (families.length)
+    links.push(
+      '<link rel="preconnect" href="https://fonts.googleapis.com">',
+      '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+      `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${families.join("&")}&display=swap">`,
+    );
+  for (const w of phosphor) links.push(`<link rel="stylesheet" href="${PHOSPHOR_CSS}/${w}/style.css">`);
+  return links.join("\n");
+}
+
 /** Each node as markup; `style` picks a <style> block of classes or Tailwind arbitrary-property classes. */
 export function htmlFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind", opts: CodegenOptions = {}): string {
   const els = nodes.map((n) => build(n, vars, boxes, null, opts)).filter((e): e is El => !!e);
   if (!els.length) return "";
-  return style === "css" ? renderCss(els) : renderTailwind(els);
+  const links = fontLinks(nodes, vars, opts);
+  const body = style === "css" ? renderCss(els) : renderTailwind(els);
+  return links ? `${links}\n\n${body}` : body;
 }

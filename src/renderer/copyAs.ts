@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { nodeAsPen } from "../doc/file.js";
 import { findNode } from "../render/screenshot.js";
 import { htmlFor, type CodegenOptions } from "./codegen.js";
-import { assets, doc, currentScene, engine } from "./scene.js";
+import { assets, doc, currentScene, engine, fontFamilies } from "./scene.js";
 import { store } from "./store.js";
 import { renderSelection } from "./export.js";
 
@@ -48,7 +48,9 @@ function dataUrl(bytes: Uint8Array): string {
 /** What the generator needs from the document and the engine. */
 export function codegenOptions(): CodegenOptions {
   const urls = new Map<string, string | undefined>();
+  const web = new Set(fontFamilies);
   return {
+    webFont: (family) => web.has(family),
     // The document's own pictures go in the copy, so it shows them wherever it is pasted.
     picture(url) {
       if (!urls.has(url)) {

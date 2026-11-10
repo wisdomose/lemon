@@ -126,3 +126,40 @@ describe("copy as HTML: pictures", () => {
     expect(css).toContain(`background: url('${data}') center / contain no-repeat`);
   });
 });
+
+describe("copy as HTML: fonts and themes", () => {
+  it("links the fonts it uses, with the weights and italics used", async () => {
+    const doc = new Y.Doc();
+    put(doc, {
+      type: "frame", id: "F", name: "F", x: 0, y: 0, width: 300, height: 200, layout: "vertical",
+      children: [
+        { type: "text", id: "a", content: "Plain" },
+        { type: "text", id: "b", content: "Bold", fontFamily: "Open Sans", fontWeight: "700" },
+        { type: "text", id: "c", content: "Italic", fontFamily: "Open Sans", fontStyle: "italic" },
+        { type: "icon", id: "i", width: 24, height: 24, library: "Material Symbols Outlined", icon: "home" },
+        { type: "icon", id: "j", width: 24, height: 24, library: "phosphor", icon: "house", weight: 700 },
+      ],
+    });
+    const tree = store.toTree(doc);
+    const vars = store.getVars(doc);
+    await engine.fonts.ensure(facesUsed(tree, vars));
+    const out = htmlFor(tree.children, vars, layout(tree, vars, engine.text), "css");
+    // Text without a family is Inter, as the canvas draws it.
+    expect(out).toContain('font-family: "Inter", sans-serif');
+    expect(out).toContain("family=Inter:ital,wght@0,400&family=Open+Sans:ital,wght@0,700;1,400");
+    expect(out).toContain("family=Material+Symbols+Outlined:wght@100..700");
+    expect(out).toContain('<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/bold/style.css">');
+    // A family Google doesn't serve is left out.
+    expect(htmlFor(tree.children, vars, layout(tree, vars, engine.text), "css", { webFont: (f) => f !== "Open Sans" })).not.toContain("Open+Sans");
+  });
+
+  it("uses a frame's theme for what is inside it", async () => {
+    const doc = new Y.Doc();
+    store.setVariables(doc, { surface: { type: "color", value: [{ value: "#ffffff", theme: { Mode: "Light" } }, { value: "#111111", theme: { Mode: "Dark" } }] } });
+    put(doc, { type: "frame", id: "D", name: "Dark", x: 0, y: 0, width: 100, height: 100, theme: { Mode: "Dark" }, layout: "none", children: [{ type: "rectangle", id: "r", name: "Box", x: 0, y: 0, width: 10, height: 10, fill: "$surface" }] });
+    const tree = store.toTree(doc);
+    const vars = store.getVars(doc);
+    const out = htmlFor(tree.children, vars, layout(tree, vars, engine.text), "css");
+    expect(out).toMatch(/\.box \{[^}]*background: linear-gradient\(#111111, #111111\)/);
+  });
+});
