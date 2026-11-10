@@ -1,5 +1,5 @@
-// File › Export Selection to…: the selection drawn at its own size (1x) as PNG, JPEG or WebP, saved
-// where the person chooses. Several selected nodes go into one picture of everything they cover.
+// File › Export Selection to… and the Properties panel's Export: the selection drawn as PNG, JPEG or
+// WebP (at its own size, or the panel's scale), saved where the person chooses. Several selected nodes go into one picture of everything they cover.
 import { drawNode, varsAt } from "../render/draw.js";
 import { findNode } from "../render/screenshot.js";
 import { assets, bridge, currentScene, engine } from "./scene.js";
@@ -57,7 +57,8 @@ export async function renderSelection(format: ExportFormat, what = "export", sca
   return { bytes, name };
 }
 
-export async function exportSelection(format: ExportFormat): Promise<void> {
-  const out = await renderSelection(format);
-  if (out) await bridge.saveExport(out.bytes, out.name, format === "jpeg" ? "jpg" : format);
+/** Saves the selection as a picture at `scale`; a file at another scale than 1x is named "Card@2x". */
+export async function exportSelection(format: ExportFormat, scale = 1): Promise<void> {
+  const out = await renderSelection(format, "export", scale);
+  if (out) await bridge.saveExport(out.bytes, scale === 1 ? out.name : `${out.name}@${scale}x`, format === "jpeg" ? "jpg" : format);
 }

@@ -112,6 +112,9 @@ export interface EditorState {
   showComments: boolean;
   /** How the Properties panel's Code section and "Export code to file…" write HTML. */
   codeStyle: "tailwind" | "css";
+  /** The Properties panel's Export: the scale and the file type. */
+  exportScale: number;
+  exportFormat: "png" | "jpeg" | "webp";
   shortcutsOpen: boolean;
   paletteOpen: boolean;
   /** The left column (panel and chat box), Ctrl+\. */
@@ -158,6 +161,8 @@ const initial: EditorState = {
   commentOpen: null,
   showComments: true,
   codeStyle: "tailwind",
+  exportScale: 1,
+  exportFormat: "png",
   shortcutsOpen: false,
   paletteOpen: false,
   panelOpen: true,

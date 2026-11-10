@@ -88,7 +88,8 @@ import {
   shared,
 } from "./panel-parts.js";
 import { shownUrl } from "./CanvasFields.js";
-import { useRightInset } from "./BrowserSidebar.js";
+import { toggleSidebar, useRightInset } from "./BrowserSidebar.js";
+import { exportSelection } from "../export.js";
 
 function typeInfo(n: TreeNode): { icon: LucideIcon; label: string } {
   if (n.instance) return { icon: Diamond, label: typeInfo({ ...n, instance: undefined }).label };
@@ -137,6 +138,8 @@ export function PropertiesPanel() {
   const selection = useEditor((s) => s.selection);
   const right = useRightInset();
   const codeStyle = useEditor((s) => s.codeStyle);
+  const exportScale = useEditor((s) => s.exportScale);
+  const exportFormat = useEditor((s) => s.exportFormat);
   useEditor((s) => s.docVersion);
   const scene = currentScene();
   const ids = scene ? selection.filter((id) => findNode(scene.tree, id)) : [];
@@ -454,15 +457,32 @@ export function PropertiesPanel() {
               Export HTML
             </button>
           </div>
-          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")}>Import Web via Browser</button>
+          {/* The browser sidebar, which opens on Pen's "Import from the web" when no page is open. */}
+          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")} onClick={() => toggleSidebar(true)}>
+            Import Web via Browser
+          </button>
         </Section>
 
         <Section title="Export" last>
           <div className="grid grid-cols-2 gap-[6px]">
-            <div className={FIELD}>1x <ChevronDown size={12} className="ml-auto" /></div>
-            <div className={FIELD}>PNG <ChevronDown size={12} className="ml-auto" /></div>
+            <Dropdown
+              value={String(exportScale)}
+              onChange={(v) => editorStore.set({ exportScale: Number(v) })}
+              options={["0.5", "1", "2", "3", "4"].map((v) => ({ value: v, label: `${v}x` }))}
+            />
+            <Dropdown
+              value={exportFormat}
+              onChange={(v) => editorStore.set({ exportFormat: v })}
+              options={[
+                { value: "png", label: "PNG" },
+                { value: "jpeg", label: "JPEG" },
+                { value: "webp", label: "WebP" },
+              ]}
+            />
           </div>
-          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")}>Export layer</button>
+          <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")} onClick={() => void exportSelection(exportFormat, exportScale)}>
+            {ids.length > 1 ? "Export layers" : "Export layer"}
+          </button>
         </Section>
       </div>
     </Island>
