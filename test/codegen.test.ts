@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import * as store from "../src/doc/store.js";
 import { layout, facesUsed } from "../src/layout/layout.js";
-import { htmlFor } from "../src/renderer/codegen.js";
+import { documentFor, htmlFor } from "../src/renderer/codegen.js";
 import { put, setup } from "./helpers.js";
 import type { Engine } from "../src/engine.js";
 
@@ -161,5 +161,27 @@ describe("copy as HTML: fonts and themes", () => {
     const vars = store.getVars(doc);
     const out = htmlFor(tree.children, vars, layout(tree, vars, engine.text), "css");
     expect(out).toMatch(/\.box \{[^}]*background: linear-gradient\(#111111, #111111\)/);
+  });
+});
+
+describe("Export HTML", () => {
+  it("writes a whole page: fonts and, for Tailwind, its browser build in the head", async () => {
+    const doc = new Y.Doc();
+    put(doc, { type: "frame", id: "F", name: "Hero <1>", x: 0, y: 0, width: 200, height: 100, fill: "#ffffff", layout: "vertical", children: [{ type: "text", id: "t", content: "Hi", fontFamily: "Outfit" }] });
+    const tree = store.toTree(doc);
+    const vars = store.getVars(doc);
+    await engine.fonts.ensure(facesUsed(tree, vars));
+    const boxes = layout(tree, vars, engine.text);
+    const tw = documentFor(tree.children, vars, boxes, "tailwind", "Hero <1>");
+    expect(tw.startsWith("<!doctype html>")).toBe(true);
+    expect(tw).toContain("<title>Hero &lt;1&gt;</title>");
+    const head = tw.slice(0, tw.indexOf("</head>"));
+    expect(head).toContain("family=Outfit");
+    expect(head).toContain('<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>');
+    // The font links are in the head only, once.
+    expect(tw.match(/fonts\.googleapis\.com\/css2/g)).toHaveLength(1);
+    const css = documentFor(tree.children, vars, boxes, "css", "Hero");
+    expect(css).not.toContain("tailwindcss");
+    expect(css).toContain("<style>");
   });
 });

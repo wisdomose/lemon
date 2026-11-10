@@ -67,6 +67,7 @@ import { scriptOutput } from "../scripts.js";
 import { Island, Tip, cx } from "../ui/kit.js";
 import { COPY_COLOUR, detachSelected, goToMain, kindOf, makeComponents, unmakeComponent } from "../components.js";
 import { placedFreely } from "../canvas/place.js";
+import { copyAsHtml, exportHtml } from "../copyAs.js";
 import {
   ButtonGroup,
   Check2,
@@ -135,6 +136,7 @@ const WEIGHT_NAMES: Record<number, string> = {
 export function PropertiesPanel() {
   const selection = useEditor((s) => s.selection);
   const right = useRightInset();
+  const codeStyle = useEditor((s) => s.codeStyle);
   useEditor((s) => s.docVersion);
   const scene = currentScene();
   const ids = scene ? selection.filter((id) => findNode(scene.tree, id)) : [];
@@ -436,12 +438,21 @@ export function PropertiesPanel() {
         <EffectsSection effects={listOf<Effect>(p.effect)} onChange={(list) => set(ids, { effect: fromList(list) } as never)} />
 
         <Section title="Code" action={<Settings size={16} strokeWidth={1.5} />}>
-          <div className={FIELD}>
-            HTML + Tailwind <ChevronDown size={12} className="ml-auto" />
-          </div>
+          <Dropdown
+            value={codeStyle}
+            onChange={(v) => editorStore.set({ codeStyle: v })}
+            options={[
+              { value: "tailwind", label: "HTML + Tailwind" },
+              { value: "css", label: "HTML + CSS" },
+            ]}
+          />
           <div className="grid grid-cols-2 gap-[6px]">
-            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")}>Copy HTML</button>
-            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")}>Export HTML</button>
+            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")} onClick={() => void copyAsHtml(codeStyle)}>
+              Copy HTML
+            </button>
+            <button type="button" className={cx(FIELD, "justify-center hover:bg-foreground/10")} onClick={() => void exportHtml(codeStyle)}>
+              Export HTML
+            </button>
           </div>
           <button type="button" className={cx(FIELD, "w-full justify-center hover:bg-foreground/10")}>Import Web via Browser</button>
         </Section>

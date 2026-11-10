@@ -11,6 +11,8 @@ import { facesUsed } from "../layout/layout.js";
 export interface CodegenOptions {
   /** A path's geometry bounds [x, y, w, h], for a path without a viewBox (the app draws it against them). */
   pathBounds?: (d: string) => [number, number, number, number] | null;
+  /** Leave out the font <link>s (a whole page puts them in its head). */
+  noFontLinks?: boolean;
   /** The variables in force at a copied node (its frames' themes); the page's when left out. */
   varsOf?: (node: TreeNode) => Vars;
   /** Whether Google Fonts serves a family (the copy links only those); undefined links every family. */
@@ -394,12 +396,30 @@ export function fontLinks(nodes: TreeNode[], vars: Vars, opts: CodegenOptions = 
   return links.join("\n");
 }
 
+/** Tailwind's in-browser build, so an exported Tailwind page shows as designed when opened on its own. */
+const TAILWIND_BROWSER = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3";
+
+/** The nodes as a whole HTML page, to save as a file and open in a browser. */
+export function documentFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind", title: string, opts: CodegenOptions = {}): string {
+  const body = htmlFor(nodes, vars, boxes, style, { ...opts, noFontLinks: true });
+  if (!body) return "";
+  const head = [
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${esc(title)}</title>`,
+    fontLinks(nodes, vars, opts),
+    style === "tailwind" ? `<script src="${TAILWIND_BROWSER}"></script>` : "",
+  ].filter(Boolean);
+  // Each top node in turn down the page, as separate frames would be shown.
+  return `<!doctype html>\n<html lang="en">\n<head>\n${head.join("\n")}\n</head>\n<body style="margin:0; display:flex; flex-direction:column; align-items:flex-start; gap:40px; padding:40px; background:#f5f5f5">\n${body}\n</body>\n</html>\n`;
+}
+
 /** Each node as markup; `style` picks a <style> block of classes or Tailwind arbitrary-property classes. */
 export function htmlFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind", opts: CodegenOptions = {}): string {
   const at = (n: TreeNode) => opts.varsOf?.(n) ?? vars;
   const els = nodes.map((n) => build(n, at(n), boxes, null, opts)).filter((e): e is El => !!e);
   if (!els.length) return "";
-  const links = fontLinks(nodes, vars, opts);
+  const links = opts.noFontLinks ? "" : fontLinks(nodes, vars, opts);
   const body = style === "css" ? renderCss(els) : renderTailwind(els);
   return links ? `${links}\n\n${body}` : body;
 }

@@ -110,6 +110,8 @@ export interface EditorState {
   commentOpen: string | null;
   /** Comment pins on the canvas (Shift+C, or the eye in the Comments panel). */
   showComments: boolean;
+  /** How the Properties panel's Code section and "Export code to file…" write HTML. */
+  codeStyle: "tailwind" | "css";
   shortcutsOpen: boolean;
   paletteOpen: boolean;
   /** The left column (panel and chat box), Ctrl+\. */
@@ -155,6 +157,7 @@ const initial: EditorState = {
   commentDraft: null,
   commentOpen: null,
   showComments: true,
+  codeStyle: "tailwind",
   shortcutsOpen: false,
   paletteOpen: false,
   panelOpen: true,

@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { nodeAsPen } from "../doc/file.js";
 import { findNode } from "../render/screenshot.js";
 import { varsAt } from "../render/draw.js";
-import { htmlFor, type CodegenOptions } from "./codegen.js";
-import { assets, doc, currentScene, engine, fontFamilies } from "./scene.js";
+import { documentFor, htmlFor, type CodegenOptions } from "./codegen.js";
+import { assets, bridge, doc, currentScene, engine, fontFamilies } from "./scene.js";
 import { store } from "./store.js";
 import { renderSelection } from "./export.js";
 
@@ -71,10 +71,27 @@ export function codegenOptions(): CodegenOptions {
   };
 }
 
-export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
+/** The selected nodes, with the options for generating their code; null when nothing is selected. */
+function selectedForCode() {
   const s = currentScene();
   const nodes = s ? store.get().selection.map((id) => findNode(s.tree, id)).filter((n): n is NonNullable<typeof n> => !!n) : [];
-  const html = s && htmlFor(nodes, s.vars, s.boxes, style, { ...codegenOptions(), varsOf: (n) => varsAt(s.tree, n.id, s.vars) });
+  if (!s || !nodes.length) return null;
+  return { s, nodes, opts: { ...codegenOptions(), varsOf: (n: { id: string }) => varsAt(s.tree, n.id, s.vars) } as CodegenOptions };
+}
+
+export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
+  const sel = selectedForCode();
+  const html = sel && htmlFor(sel.nodes, sel.s.vars, sel.s.boxes, style, sel.opts);
   if (!html) return void toast("Select something to copy first.");
   await put(html, style === "css" ? "HTML + CSS" : "HTML + Tailwind");
+}
+
+/** Export HTML: the selection as a whole page, saved where the person chooses. */
+export async function exportHtml(style: "css" | "tailwind"): Promise<void> {
+  const sel = selectedForCode();
+  if (!sel) return void toast("Select something to export first.");
+  const name = String(sel.nodes[0]!.props.name ?? sel.nodes[0]!.type).replace(/[\\/:*?"<>|]/g, "-");
+  const page = documentFor(sel.nodes, sel.s.vars, sel.s.boxes, style, name, sel.opts);
+  if (!page) return void toast("Couldn't write the selection as HTML.");
+  if (await bridge.saveExport(new TextEncoder().encode(page), name, "html")) toast("Exported HTML.");
 }
