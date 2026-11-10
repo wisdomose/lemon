@@ -11,6 +11,8 @@ import { facesUsed } from "../layout/layout.js";
 export interface CodegenOptions {
   /** A path's geometry bounds [x, y, w, h], for a path without a viewBox (the app draws it against them). */
   pathBounds?: (d: string) => [number, number, number, number] | null;
+  /** The variables in force at a copied node (its frames' themes); the page's when left out. */
+  varsOf?: (node: TreeNode) => Vars;
   /** Whether Google Fonts serves a family (the copy links only those); undefined links every family. */
   webFont?: (family: string) => boolean;
   /** A picture's url as the copy should name it (a data: URL, so the copy carries the picture); undefined keeps the url. */
@@ -366,7 +368,7 @@ export function fontLinks(nodes: TreeNode[], vars: Vars, opts: CodegenOptions = 
   const material = new Set<string>();
   const phosphor = new Set<string>();
   for (const n of nodes)
-    for (const f of facesUsed(n, vars)) {
+    for (const f of facesUsed(n, opts.varsOf?.(n) ?? vars)) {
       if (f.family in PHOSPHOR_SHEETS) phosphor.add(PHOSPHOR_SHEETS[f.family]!);
       else if (f.family.startsWith("Material Symbols")) material.add(f.family);
       else if (!opts.webFont || opts.webFont(f.family)) {
@@ -394,7 +396,8 @@ export function fontLinks(nodes: TreeNode[], vars: Vars, opts: CodegenOptions = 
 
 /** Each node as markup; `style` picks a <style> block of classes or Tailwind arbitrary-property classes. */
 export function htmlFor(nodes: TreeNode[], vars: Vars, boxes: Map<string, Box>, style: "css" | "tailwind", opts: CodegenOptions = {}): string {
-  const els = nodes.map((n) => build(n, vars, boxes, null, opts)).filter((e): e is El => !!e);
+  const at = (n: TreeNode) => opts.varsOf?.(n) ?? vars;
+  const els = nodes.map((n) => build(n, at(n), boxes, null, opts)).filter((e): e is El => !!e);
   if (!els.length) return "";
   const links = fontLinks(nodes, vars, opts);
   const body = style === "css" ? renderCss(els) : renderTailwind(els);

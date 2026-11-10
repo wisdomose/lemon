@@ -1,6 +1,6 @@
 // File › Export Selection to…: the selection drawn at its own size (1x) as PNG, JPEG or WebP, saved
 // where the person chooses. Several selected nodes go into one picture of everything they cover.
-import { drawNode } from "../render/draw.js";
+import { drawNode, varsAt } from "../render/draw.js";
 import { findNode } from "../render/screenshot.js";
 import { assets, bridge, currentScene, engine } from "./scene.js";
 import { store } from "./store.js";
@@ -9,15 +9,18 @@ import { toast } from "sonner";
 
 export type ExportFormat = "png" | "jpeg" | "webp";
 
-/** The selection drawn at 1x in `format`, with a file name from the first selected node; null (after a toast) when it can't be. */
-export async function renderSelection(format: ExportFormat, what = "export"): Promise<{ bytes: Uint8Array; name: string } | null> {
+/**
+ * The selection drawn at `scale` (1: its own size) in `format`, with a file name from the first selected
+ * node; null (after a toast) when it can't be.
+ */
+export async function renderSelection(format: ExportFormat, what = "export", scale = 1): Promise<{ bytes: Uint8Array; name: string } | null> {
   const s = currentScene();
   const ids = store.get().selection;
   const box = s && unionBox(s.boxes, ids);
   if (!s || !box) return (toast(`Select something to ${what} first.`), null);
   const { ck } = engine;
-  const width = Math.max(1, Math.round(box.w));
-  const height = Math.max(1, Math.round(box.h));
+  const width = Math.max(1, Math.round(box.w * scale));
+  const height = Math.max(1, Math.round(box.h * scale));
   const surface = ck.MakeSurface(width, height);
   if (!surface) return (toast("Couldn't draw the selection."), null);
   let bytes: Uint8Array | null = null;
@@ -25,10 +28,12 @@ export async function renderSelection(format: ExportFormat, what = "export"): Pr
     const canvas = surface.getCanvas();
     // JPEG has no transparency: a white background, as for a page.
     canvas.clear(format === "jpeg" ? ck.WHITE : ck.TRANSPARENT);
+    canvas.scale(scale, scale);
     canvas.translate(-box.x, -box.y);
     for (const id of ids) {
       const node = findNode(s.tree, id);
-      if (node) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, canvas, node);
+      // With the themes its frames set (a node inside a dark frame is drawn dark).
+      if (node) drawNode({ ck, text: engine.text, vars: varsAt(s.tree, id, s.vars), boxes: s.boxes, assets }, canvas, node);
     }
     const image = surface.makeImageSnapshot();
     if (format === "png") bytes = image.encodeToBytes(ck.ImageFormat.PNG, 100);

@@ -2,6 +2,7 @@
 import { toast } from "sonner";
 import { nodeAsPen } from "../doc/file.js";
 import { findNode } from "../render/screenshot.js";
+import { varsAt } from "../render/draw.js";
 import { htmlFor, type CodegenOptions } from "./codegen.js";
 import { assets, doc, currentScene, engine, fontFamilies } from "./scene.js";
 import { store } from "./store.js";
@@ -17,7 +18,8 @@ async function put(text: string, what: string) {
 }
 
 export async function copyAsPng(): Promise<void> {
-  const out = await renderSelection("png", "copy");
+  // Twice its size, so it is sharp on high-density screens and when pasted into a design tool.
+  const out = await renderSelection("png", "copy", 2);
   if (!out) return;
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": new Blob([out.bytes as BlobPart], { type: "image/png" }) })]);
@@ -72,7 +74,7 @@ export function codegenOptions(): CodegenOptions {
 export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
   const s = currentScene();
   const nodes = s ? store.get().selection.map((id) => findNode(s.tree, id)).filter((n): n is NonNullable<typeof n> => !!n) : [];
-  const html = s && htmlFor(nodes, s.vars, s.boxes, style, codegenOptions());
+  const html = s && htmlFor(nodes, s.vars, s.boxes, style, { ...codegenOptions(), varsOf: (n) => varsAt(s.tree, n.id, s.vars) });
   if (!html) return void toast("Select something to copy first.");
   await put(html, style === "css" ? "HTML + CSS" : "HTML + Tailwind");
 }
