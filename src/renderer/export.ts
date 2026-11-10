@@ -9,16 +9,17 @@ import { toast } from "sonner";
 
 export type ExportFormat = "png" | "jpeg" | "webp";
 
-export async function exportSelection(format: ExportFormat): Promise<void> {
+/** The selection drawn at 1x in `format`, with a file name from the first selected node; null (after a toast) when it can't be. */
+export async function renderSelection(format: ExportFormat, what = "export"): Promise<{ bytes: Uint8Array; name: string } | null> {
   const s = currentScene();
   const ids = store.get().selection;
   const box = s && unionBox(s.boxes, ids);
-  if (!s || !box) return void toast("Select something to export first.");
+  if (!s || !box) return (toast(`Select something to ${what} first.`), null);
   const { ck } = engine;
   const width = Math.max(1, Math.round(box.w));
   const height = Math.max(1, Math.round(box.h));
   const surface = ck.MakeSurface(width, height);
-  if (!surface) return void toast("Couldn't draw the selection.");
+  if (!surface) return (toast("Couldn't draw the selection."), null);
   let bytes: Uint8Array | null = null;
   try {
     const canvas = surface.getCanvas();
@@ -45,8 +46,13 @@ export async function exportSelection(format: ExportFormat): Promise<void> {
   } finally {
     surface.delete();
   }
-  if (!bytes) return void toast(`Couldn't make a ${format.toUpperCase()} of the selection.`);
+  if (!bytes) return (toast(`Couldn't make a ${format.toUpperCase()} of the selection.`), null);
   const first = findNode(s.tree, ids[0]!);
   const name = String(first?.props.name ?? first?.type ?? "Export").replace(/[\\/:*?"<>|]/g, "-");
-  await bridge.saveExport(bytes, name, format === "jpeg" ? "jpg" : format);
+  return { bytes, name };
+}
+
+export async function exportSelection(format: ExportFormat): Promise<void> {
+  const out = await renderSelection(format);
+  if (out) await bridge.saveExport(out.bytes, out.name, format === "jpeg" ? "jpg" : format);
 }
