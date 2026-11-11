@@ -2,6 +2,7 @@
 // action that can't run now is dimmed with why ("Nothing selected"); settings are switches. Typing
 // narrows the list (the match underlined); arrows and Enter pick. Actions Lemon doesn't have yet are
 // listed as Pen lists them and say so.
+import { copyAsHtml, copyAsJson, copyAsPng, exportHtml } from "../copyAs.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog as D } from "radix-ui";
 import {
@@ -239,12 +240,12 @@ function actions(): Action[] {
     a("Selection", "Select parent", CornerLeftUp, { keys: "⇧ Enter", blocked: needSelection, run: () => reselect(selectParents) }),
     a("Selection", "Edit selection", PenTool, { keys: "Enter", blocked: needSelection, run: () => reselect(selectChildren) }),
 
-    a("Copy as", "Copy as HTML + CSS", Code, { blocked: NOT_YET }),
-    a("Copy as", "Copy as HTML + Tailwind", Code, { blocked: NOT_YET }),
-    a("Copy as", "Copy as JSON", Braces, { blocked: NOT_YET }),
-    a("Copy as", "Copy as PNG", Image, { keys: "Ctrl ⇧ C", blocked: NOT_YET }),
+    a("Copy as", "Copy as HTML + CSS", Code, { blocked: needSelection, run: () => void copyAsHtml("css") }),
+    a("Copy as", "Copy as HTML + Tailwind", Code, { blocked: needSelection, run: () => void copyAsHtml("tailwind") }),
+    a("Copy as", "Copy as JSON", Braces, { blocked: needSelection, run: () => void copyAsJson() }),
+    a("Copy as", "Copy as PNG", Image, { keys: "Ctrl ⇧ C", blocked: needSelection, run: () => void copyAsPng() }),
 
-    a("Export", "Export code to file...", Code, { blocked: NOT_YET }),
+    a("Export", "Export code to file...", Code, { blocked: needSelection, run: () => void exportHtml(store.get().codeStyle) }),
     a("Export", "Export selection as PNG", Download, { blocked: needSelection, run: () => void exportSelection("png") }),
     a("Export", "Export selection as JPEG", Download, { blocked: needSelection, run: () => void exportSelection("jpeg") }),
     a("Export", "Export selection as WebP", Download, { blocked: needSelection, run: () => void exportSelection("webp") }),
