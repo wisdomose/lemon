@@ -1,6 +1,6 @@
-// File › Export Selection to…: the selection drawn at its own size (1x) as PNG, JPEG or WebP, saved
-// where the person chooses. Several selected nodes go into one picture of everything they cover.
-import { drawNode } from "../render/draw.js";
+// File › Export Selection to… and the Properties panel's Export: the selection drawn as PNG, JPEG or
+// WebP (at its own size, or the panel's scale), saved where the person chooses. Several selected nodes go into one picture of everything they cover.
+import { drawNode, varsAt } from "../render/draw.js";
 import { findNode } from "../render/screenshot.js";
 import { assets, bridge, currentScene, engine } from "./scene.js";
 import { store } from "./store.js";
@@ -9,25 +9,31 @@ import { toast } from "sonner";
 
 export type ExportFormat = "png" | "jpeg" | "webp";
 
-export async function exportSelection(format: ExportFormat): Promise<void> {
+/**
+ * The selection drawn at `scale` (1: its own size) in `format`, with a file name from the first selected
+ * node; null (after a toast) when it can't be.
+ */
+export async function renderSelection(format: ExportFormat, what = "export", scale = 1): Promise<{ bytes: Uint8Array; name: string } | null> {
   const s = currentScene();
   const ids = store.get().selection;
   const box = s && unionBox(s.boxes, ids);
-  if (!s || !box) return void toast("Select something to export first.");
+  if (!s || !box) return (toast(`Select something to ${what} first.`), null);
   const { ck } = engine;
-  const width = Math.max(1, Math.round(box.w));
-  const height = Math.max(1, Math.round(box.h));
+  const width = Math.max(1, Math.round(box.w * scale));
+  const height = Math.max(1, Math.round(box.h * scale));
   const surface = ck.MakeSurface(width, height);
-  if (!surface) return void toast("Couldn't draw the selection.");
+  if (!surface) return (toast("Couldn't draw the selection."), null);
   let bytes: Uint8Array | null = null;
   try {
     const canvas = surface.getCanvas();
     // JPEG has no transparency: a white background, as for a page.
     canvas.clear(format === "jpeg" ? ck.WHITE : ck.TRANSPARENT);
+    canvas.scale(scale, scale);
     canvas.translate(-box.x, -box.y);
     for (const id of ids) {
       const node = findNode(s.tree, id);
-      if (node) drawNode({ ck, text: engine.text, vars: s.vars, boxes: s.boxes, assets }, canvas, node);
+      // With the themes its frames set (a node inside a dark frame is drawn dark).
+      if (node) drawNode({ ck, text: engine.text, vars: varsAt(s.tree, id, s.vars), boxes: s.boxes, assets }, canvas, node);
     }
     const image = surface.makeImageSnapshot();
     if (format === "png") bytes = image.encodeToBytes(ck.ImageFormat.PNG, 100);
@@ -45,8 +51,14 @@ export async function exportSelection(format: ExportFormat): Promise<void> {
   } finally {
     surface.delete();
   }
-  if (!bytes) return void toast(`Couldn't make a ${format.toUpperCase()} of the selection.`);
+  if (!bytes) return (toast(`Couldn't make a ${format.toUpperCase()} of the selection.`), null);
   const first = findNode(s.tree, ids[0]!);
   const name = String(first?.props.name ?? first?.type ?? "Export").replace(/[\\/:*?"<>|]/g, "-");
-  await bridge.saveExport(bytes, name, format === "jpeg" ? "jpg" : format);
+  return { bytes, name };
+}
+
+/** Saves the selection as a picture at `scale`; a file at another scale than 1x is named "Card@2x". */
+export async function exportSelection(format: ExportFormat, scale = 1): Promise<void> {
+  const out = await renderSelection(format, "export", scale);
+  if (out) await bridge.saveExport(out.bytes, scale === 1 ? out.name : `${out.name}@${scale}x`, format === "jpeg" ? "jpg" : format);
 }

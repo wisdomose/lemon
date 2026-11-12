@@ -71,6 +71,17 @@ function shapePath([tag, a]: IconNode[number]): string {
   }
 }
 
+/** The icon as SVG path data on the 24 × 24 grid, to be stroked; null when the library has no icon by that name. */
+export function iconPathData(name: string, library: ShapeLibrary = "lucide"): string | null {
+  const node =
+    library === "feather"
+      ? Object.hasOwn(featherIcons, name)
+        ? featherShapes((featherIcons as Record<string, string>)[name]!)
+        : undefined
+      : (icons as Record<string, IconNode>)[pascal(name)];
+  return node ? node.map(shapePath).join("") : null;
+}
+
 const cache = new WeakMap<CanvasKit, Map<string, Path | null>>();
 
 /** The icon's path on the 24 × 24 grid (null when the library has no icon by that name). Owned by the cache. */
@@ -79,13 +90,8 @@ export function iconPath(ck: CanvasKit, name: string, library: ShapeLibrary = "l
   if (!byName) cache.set(ck, (byName = new Map()));
   const key = `${library}:${name}`;
   if (byName.has(key)) return byName.get(key)!;
-  const node =
-    library === "feather"
-      ? Object.hasOwn(featherIcons, name)
-        ? featherShapes((featherIcons as Record<string, string>)[name]!)
-        : undefined
-      : (icons as Record<string, IconNode>)[pascal(name)];
-  const path = node ? ck.Path.MakeFromSVGString(node.map(shapePath).join("")) : null;
+  const d = iconPathData(name, library);
+  const path = d ? ck.Path.MakeFromSVGString(d) : null;
   byName.set(key, path);
   return path;
 }

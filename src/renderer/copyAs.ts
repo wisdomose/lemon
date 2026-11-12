@@ -1,0 +1,97 @@
+// Copy as…: the selection on the clipboard as HTML + CSS, HTML + Tailwind, JSON (as a .pen file holds it) or a PNG.
+import { toast } from "sonner";
+import { nodeAsPen } from "../doc/file.js";
+import { findNode } from "../render/screenshot.js";
+import { varsAt } from "../render/draw.js";
+import { documentFor, htmlFor, type CodegenOptions } from "./codegen.js";
+import { assets, bridge, doc, currentScene, engine, fontFamilies } from "./scene.js";
+import { store } from "./store.js";
+import { renderSelection } from "./export.js";
+
+async function put(text: string, what: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied as ${what}.`);
+  } catch {
+    toast(`Couldn't copy as ${what}.`);
+  }
+}
+
+export async function copyAsPng(): Promise<void> {
+  // Twice its size, so it is sharp on high-density screens and when pasted into a design tool.
+  const out = await renderSelection("png", "copy", 2);
+  if (!out) return;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": new Blob([out.bytes as BlobPart], { type: "image/png" }) })]);
+    toast("Copied as PNG.");
+  } catch {
+    toast("Couldn't copy the picture.");
+  }
+}
+
+export async function copyAsJson(): Promise<void> {
+  const ids = store.get().selection;
+  const s = currentScene();
+  const list = s ? ids.filter((id) => findNode(s.tree, id)) : [];
+  if (!list.length) return void toast("Select something to copy first.");
+  const nodes = list.map((id) => nodeAsPen(doc, id));
+  await put(JSON.stringify(nodes.length === 1 ? nodes[0] : nodes, null, 2), "JSON");
+}
+
+/** A picture's bytes as a data: URL, typed by what the bytes are. */
+function dataUrl(bytes: Uint8Array): string {
+  const b = bytes;
+  const type = b[0] === 0xff && b[1] === 0xd8 ? "image/jpeg" : b[0] === 0x47 && b[1] === 0x49 ? "image/gif" : b[0] === 0x52 && b[8] === 0x57 ? "image/webp" : b[0] === 0x3c ? "image/svg+xml" : "image/png";
+  let bin = "";
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return `data:${type};base64,${btoa(bin)}`;
+}
+
+/** What the generator needs from the document and the engine. */
+export function codegenOptions(): CodegenOptions {
+  const urls = new Map<string, string | undefined>();
+  const web = new Set(fontFamilies);
+  return {
+    webFont: (family) => web.has(family),
+    // The document's own pictures go in the copy, so it shows them wherever it is pasted.
+    picture(url) {
+      if (!urls.has(url)) {
+        const bytes = assets(url);
+        urls.set(url, bytes ? dataUrl(bytes) : undefined);
+      }
+      return urls.get(url);
+    },
+    pathBounds(d) {
+      const path = engine.ck.Path.MakeFromSVGString(d);
+      if (!path) return null;
+      const [l, t, r, b] = path.getBounds();
+      path.delete();
+      return [l!, t!, r! - l!, b! - t!];
+    },
+  };
+}
+
+/** The selected nodes, with the options for generating their code; null when nothing is selected. */
+function selectedForCode() {
+  const s = currentScene();
+  const nodes = s ? store.get().selection.map((id) => findNode(s.tree, id)).filter((n): n is NonNullable<typeof n> => !!n) : [];
+  if (!s || !nodes.length) return null;
+  return { s, nodes, opts: { ...codegenOptions(), varsOf: (n: { id: string }) => varsAt(s.tree, n.id, s.vars) } as CodegenOptions };
+}
+
+export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
+  const sel = selectedForCode();
+  const html = sel && htmlFor(sel.nodes, sel.s.vars, sel.s.boxes, style, sel.opts);
+  if (!html) return void toast("Select something to copy first.");
+  await put(html, style === "css" ? "HTML + CSS" : "HTML + Tailwind");
+}
+
+/** Export HTML: the selection as a whole page, saved where the person chooses. */
+export async function exportHtml(style: "css" | "tailwind"): Promise<void> {
+  const sel = selectedForCode();
+  if (!sel) return void toast("Select something to export first.");
+  const name = String(sel.nodes[0]!.props.name ?? sel.nodes[0]!.type).replace(/[\\/:*?"<>|]/g, "-");
+  const page = documentFor(sel.nodes, sel.s.vars, sel.s.boxes, style, name, sel.opts);
+  if (!page) return void toast("Couldn't write the selection as HTML.");
+  if (await bridge.saveExport(new TextEncoder().encode(page), name, "html")) toast("Exported HTML.");
+}

@@ -1,4 +1,5 @@
 // The editor window: full-window canvas with the floating islands over it.
+import { copyAsPng } from "./copyAs.js";
 import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
 import { attach, schedule, setZoom, zoomStep, zoomToFit } from "./canvas/canvas.js";
@@ -59,6 +60,7 @@ export function App({ initial }: { initial: string }) {
       else if (mod && e.key === ",") (e.preventDefault(), store.set({ settingsOpen: true }));
       else if (mod && key === "p") (e.preventDefault(), store.set({ paletteOpen: true }));
       else if (!mod && e.key === "?") store.set({ shortcutsOpen: true });
+      else if (mod && e.shiftKey && key === "c") (e.preventDefault(), void copyAsPng());
       else if (!mod && e.shiftKey && key === "c") store.set((s) => ({ showComments: !s.showComments }));
       else if (mod && e.altKey && e.code === "KeyG") (e.preventDefault(), frameSelection());
       else if (mod && e.shiftKey && e.code === "KeyG") (e.preventDefault(), ungroupSelection());
