@@ -1,7 +1,9 @@
 // Pictures (image fills: files beside the .pen, kept in the document by url) and Lucide icons.
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
-import { assetLookup, assetsOf, pictureUrl, putAsset } from "../src/doc/assets.js";
+import { PICTURES_SAVED, assetLookup, assetsOf, hasPicture, pictureUrl, putAsset, releaseAssets, setPictureReader } from "../src/doc/assets.js";
+import { picture } from "../src/render/draw.js";
+import { shrunk, sizeFor } from "../src/renderer/picture-sizes.js";
 import { fileText, picturesOf, readFile } from "../src/doc/file.js";
 import { ROOT_ID } from "../src/doc/schema.js";
 import * as store from "../src/doc/store.js";
@@ -86,11 +88,68 @@ describe("pictures and icons", () => {
     // Used only through an instance's change.
     store.insert(doc, ROOT_ID, { type: "ref", ref: main, descendants: { [r]: { fill: { type: "image", url: ua } } } });
     expect(picturesOf(doc)).toEqual([{ url: ua, bytes: a }]);
-    // The file names it; reading the file asks for its bytes by that url.
-    const asked: string[] = [];
+    // The file names it; reading the file only looks for it by that url, and reads it when it is drawn.
+    const looked: string[] = [];
+    const read: string[] = [];
     const back = new Y.Doc();
-    readFile(fileText(doc), back, (url) => (asked.push(url), url === ua ? a : undefined));
-    expect(asked).toEqual([ua]);
-    expect(assetsOf(back).get(ua)).toEqual(a);
+    const report = readFile(fileText(doc), back, { has: (url) => (looked.push(url), url === ua), read: (url) => (read.push(url), url === ua ? a : undefined) });
+    expect(report.missingPictures).toEqual([]);
+    expect(looked).toEqual([ua]);
+    expect(read).toEqual([]);
+    expect(assetsOf(back).size).toBe(0);
+    expect(assetLookup(back)(ua)).toEqual(a);
+    expect(read).toEqual([ua]);
+  });
+
+  it("keeps a picture at the smallest size that covers how big it shows, never bigger than itself", () => {
+    expect(sizeFor(40, 4000)).toBe(128);
+    expect(sizeFor(129, 4000)).toBe(512);
+    expect(sizeFor(1500, 4000)).toBe(2048);
+    expect(sizeFor(9000, 6000)).toBe(4096);
+    // A small picture is kept as it is; one not read yet is asked for at the size it shows.
+    expect(sizeFor(1500, 300)).toBe(300);
+    expect(sizeFor(600, 0)).toBe(2048);
+    expect(shrunk(4000, 3000, 512)).toEqual({ width: 512, height: 384 });
+    expect(shrunk(300, 200, 512)).toEqual({ width: 300, height: 200 });
+  });
+
+  it("lets go of a saved picture, and still finds it", async () => {
+    const doc = new Y.Doc();
+    const a = await png([1, 0, 0]);
+    const url = await pictureUrl(a);
+    const disk = new Map<string, Uint8Array>();
+    setPictureReader(doc, { read: (u) => disk.get(u), has: (u) => disk.has(u) });
+    putAsset(doc, url, a);
+    store.insert(doc, ROOT_ID, { type: "rectangle", fill: { type: "image", url } });
+    expect(hasPicture(doc, url)).toBe(true);
+    // Saved: written beside the file, then no longer carried.
+    for (const p of picturesOf(doc)) disk.set(p.url, p.bytes);
+    const origins: unknown[] = [];
+    doc.on("update", (_u: Uint8Array, origin: unknown) => origins.push(origin));
+    releaseAssets(doc, [url]);
+    expect(origins).toEqual([PICTURES_SAVED]);
+    expect(assetsOf(doc).size).toBe(0);
+    expect(picturesOf(doc)).toEqual([]);
+    expect(assetLookup(doc)(url)).toEqual(a);
+    expect(hasPicture(doc, url)).toBe(true);
+  });
+
+  it("draws a big picture from a small copy where it shows small, and from all of it where it shows big", async () => {
+    const { engine } = await setup();
+    const { ck } = engine;
+    const surface = ck.MakeSurface(2000, 1000)!;
+    surface.getCanvas().clear(ck.Color4f(0, 0, 1, 1));
+    const snap = surface.makeImageSnapshot();
+    const big = snap.encodeToBytes()!.slice();
+    snap.delete();
+    surface.delete();
+    const url = "./images/big-for-sizes.png";
+    const small = picture(ck, () => big, url, 100)!;
+    expect([small.width, small.height]).toEqual([2000, 1000]);
+    expect([small.image.width(), small.image.height()]).toEqual([512, 256]);
+    const whole = picture(ck, () => big, url, 1500)!;
+    expect([whole.image.width(), whole.image.height()]).toEqual([2000, 1000]);
+    // Small again: the copy it kept.
+    expect(picture(ck, () => undefined, url, 100)!.image.width()).toBe(512);
   });
 });

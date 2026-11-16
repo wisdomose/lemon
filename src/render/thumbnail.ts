@@ -35,7 +35,7 @@ export async function thumbnail(engine: Engine, doc: Y.Doc): Promise<Uint8Array 
     canvas.translate((THUMB.width - (x1 - x0) * scale) / 2, (THUMB.height - (y1 - y0) * scale) / 2);
     canvas.scale(scale, scale);
     canvas.translate(-x0, -y0);
-    for (const top of page.children) drawNode({ ck, text: engine.text, vars, boxes, assets: assetLookup(doc) }, canvas, top);
+    for (const top of page.children) drawNode({ ck, text: engine.text, vars, boxes, assets: assetLookup(doc), scale, lod: true }, canvas, top);
     const image = surface.makeImageSnapshot();
     const png = image.encodeToBytes();
     image.delete();

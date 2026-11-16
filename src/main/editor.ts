@@ -6,6 +6,7 @@
 // picture for the Dashboard is redrawn a little after the saves stop, and on close.
 import { app, dialog, type BaseWindow, type WebContentsView } from "electron";
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import * as Y from "yjs";
 import { PersonChange, REPAIR, agentClientId, repairTree, touchesTree } from "../doc/live.js";
@@ -21,6 +22,8 @@ import type { ServerSignIns } from "../agent/mcp-servers.js";
 import { resolveProviderModel } from "./provider-store.js";
 import { thumbnail } from "../render/thumbnail.js";
 import { EXT, addRecent, displayName, isDraft, newDraftPath, readPen, withoutExt, writePen, writeThumb } from "./files.js";
+import { PICTURES_SAVED, assetsOf, setPictureReader } from "../doc/assets.js";
+import { pictureFile, picturesBeside } from "../doc/picture-files.js";
 import { page, reachable, type FileTab, type TabInfo } from "./shell.js";
 import { BrowserPages } from "./browser-pages.js";
 import { Scripts } from "./scripts.js";
@@ -77,7 +80,13 @@ export interface Shared {
   engine: Engine;
   sandbox: Sandbox;
   /** Where agents' scripts run (a utility process); `forget` lets go of a closed document's copy. */
-  runs?: ScriptRuns & { forget?(doc: Y.Doc): void; thumbnail?(doc: Y.Doc): Promise<Uint8Array | undefined> };
+  runs?: ScriptRuns & {
+    forget?(doc: Y.Doc): void;
+    thumbnail?(doc: Y.Doc): Promise<Uint8Array | undefined>;
+    /** Where the document's file is (its pictures are beside it), and that it moved. */
+    home?(doc: Y.Doc, path: () => string | null): void;
+    moved?(doc: Y.Doc): void;
+  };
   /** The address of one of the window's pages ("index" is the editor, "dashboard" the Dashboard). */
   pageUrl: (page: "index" | "dashboard") => string;
   preload: string;
@@ -138,17 +147,22 @@ export class Editor implements FileTab {
       Y.applyUpdate(this.doc, readFileSync(path));
       path = undefined;
     } else if (path) {
-      const report = readPen(path, this.doc);
+      const report = readPen(path, this.doc, () => this.path);
       if (report.missingPictures.length) {
         this.notice = { title: `${report.missingPictures.length} picture${report.missingPictures.length > 1 ? "s" : ""} not found`, details: report.missingPictures.map((u) => `${u} isn't beside the file.`) };
       }
     }
     // A new file starts empty (decided 26 Oct 2026; Pen starts with an 800 × 600 frame).
     this.path = path ?? null;
+    // Pictures stay in their files beside this one, wherever it is; each is read when it is drawn.
+    setPictureReader(this.doc, picturesBeside(() => this.path));
+    shared.runs?.home?.(this.doc, () => this.path);
     this.pristine = !path;
     if (path) addRecent(path);
 
     this.view = page(shared.preload);
+    // A benchmark's window keeps drawing when other windows cover it (scripts/bench-volume.ts).
+    if (process.env.LEMON_BENCH) this.view.webContents.setBackgroundThrottling(false);
     const { log } = shared;
     if (process.env.LEMON_LOG) {
       const wc = this.view.webContents;
@@ -169,6 +183,8 @@ export class Editor implements FileTab {
     }, SETTLE_MS);
     this.doc.on("update", (update: Uint8Array, origin: unknown, _doc: Y.Doc, tr: Y.Transaction) => {
       if (origin !== fromWindow) this.toWindow.push(update);
+      // Saved pictures leaving the document: nothing to repair, follow or save.
+      if (origin === PICTURES_SAVED) return;
       // Concurrent edits can leave nodes inside a deleted frame, or two frames inside each other: only
       // a change that deleted, moved or added a node can.
       if (origin !== REPAIR && touchesTree(this.doc, tr)) repairTree(this.doc);
@@ -219,6 +235,18 @@ export class Editor implements FileTab {
     return n;
   }
 
+  /** A picture's bytes for the window: one the document still carries, or its file beside this one. */
+  async pictureBytes(url: string): Promise<Uint8Array | null> {
+    const carried = assetsOf(this.doc).get(url);
+    if (carried) return carried;
+    if (!this.path) return null;
+    try {
+      return new Uint8Array(await readFile(pictureFile(this.path, url)));
+    } catch {
+      return null;
+    }
+  }
+
   /** Applies a change made in the window. */
   push(update: Uint8Array): void {
     Y.applyUpdate(this.doc, update, this.fromWindow);
@@ -245,6 +273,7 @@ export class Editor implements FileTab {
     if (this.shared.noSave) return;
     if (!this.path) {
       this.path = newDraftPath();
+      this.shared.runs?.moved?.(this.doc);
       addRecent(this.path);
       this.shared.changed();
     }
@@ -315,7 +344,8 @@ export class Editor implements FileTab {
     if (r.canceled || !r.filePath) return;
     const target = r.filePath.endsWith(EXT) ? r.filePath : `${r.filePath}${EXT}`;
     try {
-      writePen(target, this.doc);
+      // Every picture comes along (read from beside the file as it is now).
+      writePen(target, this.doc, { all: true });
     } catch (e) {
       dialog.showErrorBox("Couldn't save", e instanceof Error ? e.message : String(e));
       return;
@@ -331,6 +361,7 @@ export class Editor implements FileTab {
       if (existsSync(old)) unlinkSync(old);
       writeThumb(old, undefined);
     }
+    this.shared.runs?.moved?.(this.doc);
     void this.redrawThumb();
     this.scripts.sync(true);
     addRecent(target);
@@ -354,6 +385,7 @@ export class Editor implements FileTab {
   /** The file was renamed on Home: it is at `to` now. */
   renamed(to: string): void {
     this.path = to;
+    this.shared.runs?.moved?.(this.doc);
     this.tell();
     this.scripts.sync(true);
   }

@@ -8,7 +8,10 @@ import { createEngine } from "../engine.js";
 import { GoogleFonts } from "../text/google-fonts.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import { inProcess, type LiveScript } from "../agent/runs.js";
+import { setImagesReady } from "../agent/script-api.js";
 import { thumbnail } from "../render/thumbnail.js";
+import { setPictureReader } from "../doc/assets.js";
+import { picturesBeside } from "../doc/picture-files.js";
 import type { FromWorker, OriginData, ToWorker } from "./script-protocol.js";
 
 interface Port {
@@ -26,13 +29,17 @@ const runs = inProcess(engine, sandbox);
 /** The main process's changes, applied here: not sent back. */
 const FROM_MAIN = Symbol("from main");
 const docs = new Map<number, Y.Doc>();
+/** Each document's file: its pictures are read from beside it. */
+const paths = new Map<number, string | undefined>();
 const live = new Map<number, { script: LiveScript; origin: unknown; doc: number; told: boolean }>();
 const toOrigin = (o: OriginData) => (typeof o === "string" ? o : new AgentChange(o.agent, o.step));
 
-function open(id: number, state: Uint8Array): void {
+function open(id: number, state: Uint8Array, path?: string): void {
   docs.get(id)?.destroy();
   const doc = new Y.Doc();
   doc.clientID = agentClientId();
+  paths.set(id, path);
+  setPictureReader(doc, picturesBeside(() => paths.get(id)));
   Y.applyUpdate(doc, state, FROM_MAIN);
   doc.on("update", (update: Uint8Array, origin: unknown) => {
     if (origin === FROM_MAIN) return;
@@ -56,7 +63,10 @@ port.on("message", ({ data }) => {
   const m = data as ToWorker;
   switch (m.type) {
     case "open":
-      return open(m.doc, m.state);
+      return open(m.doc, m.state, m.path);
+    case "path":
+      paths.set(m.doc, m.path);
+      return;
     case "update": {
       const doc = docs.get(m.doc);
       if (doc) Y.applyUpdate(doc, m.update, FROM_MAIN);
@@ -65,6 +75,7 @@ port.on("message", ({ data }) => {
     case "close":
       docs.get(m.doc)?.destroy();
       docs.delete(m.doc);
+      paths.delete(m.doc);
       return;
     case "start": {
       const doc = docs.get(m.doc);
@@ -87,6 +98,7 @@ port.on("message", ({ data }) => {
     }
     case "thumbnail": {
       const doc = new Y.Doc();
+      setPictureReader(doc, picturesBeside(() => m.path));
       Y.applyUpdate(doc, m.state);
       void thumbnail(engine, doc)
         .then((png) => send({ type: "thumbnail", req: m.req, ...(png ? { png } : {}) }))
@@ -94,6 +106,8 @@ port.on("message", ({ data }) => {
         .finally(() => doc.destroy());
       return;
     }
+    case "images":
+      return setImagesReady(m.ready);
     case "cancel": {
       const l = live.get(m.run);
       if (!l) return send({ type: "cancelled", run: m.run });

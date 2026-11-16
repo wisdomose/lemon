@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { fileText, readFile, toPen } from "../src/doc/file.js";
-import { assetsOf } from "../src/doc/assets.js";
+import { assetLookup, assetsOf } from "../src/doc/assets.js";
 import * as store from "../src/doc/store.js";
 import { getVars } from "../src/doc/store.js";
 import { withTheme } from "../src/doc/values.js";
@@ -94,7 +94,9 @@ describe(".pen files", () => {
     const png = new Uint8Array([0x89, 0x50, 1, 2]);
     const { doc, report } = open(FIXTURE, { "./images/a.png": png });
     expect(report.missingPictures).toEqual([]);
-    expect(assetsOf(doc).get("./images/a.png")).toEqual(png);
+    // The picture stays in its file: the document carries none of it, and reads it when asked.
+    expect(assetsOf(doc).size).toBe(0);
+    expect(assetLookup(doc)("./images/a.png")).toEqual(png);
     expect(normal(JSON.parse(fileText(doc)))).toEqual(normal(FIXTURE));
     // And again from what was written.
     const again = new Y.Doc();

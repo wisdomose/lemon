@@ -1,12 +1,12 @@
 // Pictures in the window: choosing one for a fill (the colour picker's Image tab), showing one in the
 // picker, and dropping picture files onto the canvas, where each becomes an image the size of the
 // picture (no wider than MAX_SIDE), in the frame it was dropped on.
-import { assetsOf, pictureUrl, putAsset } from "../doc/assets.js";
+import { pictureUrl, putAsset } from "../doc/assets.js";
 import { ROOT_ID, type ImageFill, type PenNode } from "../doc/schema.js";
 import * as docStore from "../doc/store.js";
 import type { PictureSource } from "./ui/ColourPicker.js";
 import { flowSlot, flows, frameAt } from "./canvas/place.js";
-import { currentScene, doc, edit } from "./scene.js";
+import { assets, currentScene, doc, edit } from "./scene.js";
 import { store } from "./store.js";
 
 /** The picture types the canvas takes (what CanvasKit decodes). */
@@ -42,11 +42,11 @@ function choose(): Promise<ImageFill | undefined> {
 }
 
 const urls = new Map<string, string>();
-/** A picture's address for <img> (made once per picture). */
+/** A picture's address for <img> (made once per picture); none until its bytes have been fetched. */
 function url(picture: string): string | undefined {
   const known = urls.get(picture);
   if (known) return known;
-  const bytes = assetsOf(doc).get(picture);
+  const bytes = assets(picture);
   if (!bytes) return undefined;
   const made = URL.createObjectURL(new Blob([bytes as BlobPart]));
   urls.set(picture, made);

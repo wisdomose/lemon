@@ -6,7 +6,7 @@
 import type * as Y from "yjs";
 import { z } from "zod";
 import type { Engine } from "../engine.js";
-import { assetsOf, putAsset } from "../doc/assets.js";
+import { hasPicture, putAsset } from "../doc/assets.js";
 import { ROOT_ID } from "../doc/schema.js";
 import * as store from "../doc/store.js";
 import { ScriptSession } from "./script-api.js";
@@ -206,9 +206,8 @@ function toCanvas(ctx: BrowserContext, shot: PageShot): string {
   try {
     host = new URL(shot.url).hostname || host;
   } catch {}
-  const taken = assetsOf(doc);
   let url = `images/screenshot-${host}.png`;
-  for (let n = 1; taken.has(url); n++) url = `images/screenshot-${host}-${n}.png`;
+  for (let n = 1; hasPicture(doc, url); n++) url = `images/screenshot-${host}-${n}.png`;
   let at = { x: 0, y: 0 };
   try {
     at = new ScriptSession(doc, ctx.engine).findEmptySpace({ width: shot.width, height: shot.height, padding: SHOT_GAP });

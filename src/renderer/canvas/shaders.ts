@@ -99,7 +99,7 @@ export class EditorShaders implements ShaderHost {
       pixel: this.pixel,
       ...(uniforms ? { values: uniforms } : {}),
       time: this.time(node),
-      image: (name) => (name === "pencil:object" ? inputs.object() : name === "pencil:background" ? inputs.background() : picture(this.ck, this.assets, name)),
+      image: (name) => (name === "pencil:object" ? inputs.object() : name === "pencil:background" ? inputs.background() : (picture(this.ck, this.assets, name)?.image ?? null)),
       sdf: () => this.field(node, box, inputs),
     });
     if ("error" in made) {
@@ -172,8 +172,10 @@ export class EditorShaders implements ShaderHost {
 
   private bitmap(url: string): ImageBitmap | null {
     if (this.bitmaps.has(url)) return this.bitmaps.get(url)!;
-    this.bitmaps.set(url, null);
     const bytes = this.assets(url);
+    // Not fetched yet: tried again when it has come.
+    if (!bytes) return null;
+    this.bitmaps.set(url, null);
     if (bytes)
       void createImageBitmap(new Blob([bytes as BlobPart]))
         .then((b) => (this.bitmaps.set(url, b), this.changed()))

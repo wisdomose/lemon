@@ -6,7 +6,6 @@ import selawik600 from "./ui-fonts/selawksb.ttf?url";
 import { createEngine, type Engine } from "../engine.js";
 import { getVars } from "../doc/store.js";
 import { IncrementalTree, changedRecords } from "../doc/incremental.js";
-import { assetLookup } from "../doc/assets.js";
 import { PERSON_EDIT, personClientId, personUndo, reconcileSelection } from "../doc/live.js";
 import { layout, type Boxes, type LayoutReuse } from "../layout/layout.js";
 import { DEFAULT_FONT, FontsNeeded } from "../text/fonts.js";
@@ -14,6 +13,7 @@ import type { TreeNode, Vars } from "../doc/schema.js";
 import { bridge } from "./bridge.js";
 import { graftScript, onScriptOutput } from "./scripts.js";
 import { store } from "./store.js";
+import { PictureBytes } from "./picture-store.js";
 
 export { bridge };
 export const doc = new Y.Doc();
@@ -22,8 +22,14 @@ doc.clientID = personClientId();
 export let engine: Engine;
 /** The person's own undo history (Ctrl+Z); agents' changes are never in it. */
 export const history = personUndo(doc);
-/** The document's pictures, for drawing. */
-export const assets = assetLookup(doc);
+/**
+ * Whole pictures for the few places that draw from their bytes (shader inputs, slide and export
+ * pictures, the colour picker): given if they are here, fetched if not (panels hear when one comes).
+ * The canvas has its own, sized to what shows (picture-store.ts).
+ */
+export const pictureBytes = new PictureBytes(doc, (url) => bridge.pictureBytes(url));
+export const assets = pictureBytes.now;
+pictureBytes.onArrive(() => store.set((s) => ({ docVersion: s.docVersion + 1 })));
 
 /** The UI font family on the canvas (frame names, size pills, cursor labels): Segoe UI's open twin. */
 export const CANVAS_UI_FONT = "Selawik";

@@ -1,7 +1,7 @@
 // One in-flight request per window; reopening refreshes metadata without blanking cached choices.
 import { bridge } from "../bridge.js";
 import { store } from "../store.js";
-import { modelProvider, type CodexModel } from "../../agent/models.js";
+import { modelProvider, type ClaudeModel, type CodexModel } from "../../agent/models.js";
 import { BUILT_IN_PROVIDERS, parseProviderModel, type ProviderRecord } from "../../agent/providers.js";
 
 /**
@@ -9,7 +9,10 @@ import { BUILT_IN_PROVIDERS, parseProviderModel, type ProviderRecord } from "../
  * doesn't know ("minimal") into "high", so only what it passes on is offered.
  */
 const SDK_EFFORTS = ["low", "medium", "high", "xhigh"];
-/** Claude's own models also offer Max, as in Pen (4 Nov 2026: every Claude 5.x model, Low to Max). */
+/**
+ * Claude's own models also offer Max, as in Pen (4 Nov 2026: every Claude 5.x model, Low to Max). Used
+ * until Claude has listed its models; after that each model offers the levels Claude gave for it.
+ */
 const CLAUDE_EFFORTS = [...SDK_EFFORTS, "max"];
 /** What the SDK sends when no effort is chosen (read from its requests): high for Fable, else medium. */
 const CLAUDE_DEFAULT_EFFORT: Record<string, string> = {
@@ -29,9 +32,14 @@ export function effortChoices(
   model: string,
   codexModels: readonly CodexModel[],
   providers: readonly ProviderRecord[] = [],
+  claudeModels: readonly ClaudeModel[] = [],
 ): { levels: string[]; fallback?: string } {
   const backend = modelProvider(model);
-  if (backend === "claude") return { levels: CLAUDE_EFFORTS, ...(CLAUDE_DEFAULT_EFFORT[model] ? { fallback: CLAUDE_DEFAULT_EFFORT[model] } : {}) };
+  if (backend === "claude") {
+    const levels = claudeModels.find((m) => m.id === model)?.efforts ?? CLAUDE_EFFORTS;
+    const fallback = CLAUDE_DEFAULT_EFFORT[model];
+    return { levels, ...(fallback && levels.includes(fallback) ? { fallback } : {}) };
+  }
   if (backend === "provider") {
     const id = parseProviderModel(model)?.providerId;
     const provider = providers.find((p) => p.id === id) ?? BUILT_IN_PROVIDERS.find((p) => p.id === id);
@@ -59,6 +67,26 @@ export function refreshCodexModels(fresh = false): Promise<void> {
     store.set({ codexModelsState: "error", codexModelsError: error instanceof Error ? error.message : "Could not load Codex models." });
   }).finally(() => { pending = undefined; });
   return pending;
+}
+
+let pendingClaude: Promise<void> | undefined;
+
+/**
+ * Asks Claude for its models (`fresh`: ask again rather than reuse its recent answer). When it can't
+ * be asked (not installed, not signed in, no answer), what is already shown stays: the last list it
+ * gave, else the built-in one.
+ */
+export function refreshClaudeModels(fresh = false): Promise<void> {
+  if (pendingClaude) return pendingClaude;
+  pendingClaude = bridge.claudeModels(fresh).then((models) => {
+    if (!models.length) return;
+    store.set((s) => {
+      // A refreshed list may drop an effort from the selected model: its default is used then.
+      const efforts = modelProvider(s.model) === "claude" ? models.find((m) => m.id === s.model)?.efforts : undefined;
+      return { claudeModels: models, effort: efforts && s.effort && !efforts.includes(s.effort) ? undefined : s.effort };
+    });
+  }).catch(() => {}).finally(() => { pendingClaude = undefined; });
+  return pendingClaude;
 }
 
 /** Reads the AI providers again (after a key or a provider page changed something). */

@@ -11,6 +11,7 @@ import { FontsNeeded } from "../text/fonts.js";
 import type { Engine } from "../engine.js";
 import { PRELUDE, ScriptSession } from "./script-api.js";
 import { statements, type Piece } from "./statements.js";
+import type { Generation } from "./image-gen.js";
 
 export interface ExecuteResult {
   ok: boolean;
@@ -31,6 +32,8 @@ export interface ExecuteResult {
   /** Where the script last worked (the last node it created or changed), for the agent's cursor. */
   focus?: Focus;
   pictures: { id: string; png: Uint8Array; width: number; height: number }[];
+  /** Pictures the script asked for with Generate("ai", …), to be made now that it has returned. */
+  generations?: Generation[];
   timings: { totalMs: number; scriptMs: number; layoutMs: number; picturesMs: number; fontsMs: number; attempts: number };
 }
 
@@ -275,6 +278,7 @@ export class LiveRun {
       frames,
       ...(focus ? { focus } : {}),
       pictures,
+      ...(s.generations.length ? { generations: s.generations } : {}),
       timings: timings(),
     };
   }

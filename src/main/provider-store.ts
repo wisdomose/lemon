@@ -5,6 +5,7 @@ import { app, safeStorage } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_IMAGE_SERVER, type ImageModel, type ImageSettings } from "../agent/image-gen.js";
 import {
   BUILT_IN_PROVIDERS,
   builtInProvider,
@@ -39,6 +40,8 @@ interface Stored {
   customs: StoredCustom[];
   /** Built-in providers' keys, by their fixed ids. */
   keys: Record<string, StoredKey | undefined>;
+  /** The image model scripts' Generate("ai", …) asks (Settings → Images). */
+  images?: { baseUrl: string; key: StoredKey | null };
 }
 
 const EMPTY: Stored = { version: 1, customs: [], keys: {} };
@@ -57,6 +60,7 @@ function load(): Stored {
             .map((c) => ({ ...c, models: Array.isArray(c.models) ? c.models : [] }))
         : [],
       keys: raw.keys && typeof raw.keys === "object" ? raw.keys : {},
+      ...(raw.images && typeof raw.images === "object" && typeof raw.images.baseUrl === "string" ? { images: { baseUrl: raw.images.baseUrl, key: raw.images.key ?? null } } : {}),
     };
   } catch {
     // A broken file must not keep the app from starting; it is rewritten on the next change.
@@ -195,4 +199,36 @@ export function resolveProviderModel(model: string): ResolvedProvider | undefine
     ...(found.maxTokens ? { maxTokens: found.maxTokens } : {}),
     ...(found.images ? { images: true } : {}),
   };
+}
+
+export function imageSettings(): ImageSettings {
+  const images = load().images;
+  const masked = shown(images?.key);
+  return { baseUrl: images?.baseUrl || DEFAULT_IMAGE_SERVER, ...(masked ? { keyMasked: masked } : {}) };
+}
+
+/** Saves the image server (and its key when `key` is given; an empty one clears it). */
+export function setImageSettings(raw: unknown): ImageSettings {
+  const draft = (raw && typeof raw === "object" ? raw : {}) as { baseUrl?: unknown; key?: unknown };
+  const stored = load();
+  const baseUrl = typeof draft.baseUrl === "string" && draft.baseUrl.trim() ? draft.baseUrl.trim() : stored.images?.baseUrl || DEFAULT_IMAGE_SERVER;
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new Error("The server address isn't a web address.");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error("The server address must start with https://.");
+  if (draft.key !== undefined && (typeof draft.key !== "string" || draft.key.length > 4000)) throw new Error("That key couldn't be read.");
+  const key = typeof draft.key === "string" ? (draft.key.trim() ? encrypt(draft.key.trim()) : null) : (stored.images?.key ?? null);
+  stored.images = { baseUrl, key };
+  store(stored);
+  return imageSettings();
+}
+
+/** The image model to ask, or undefined when no key is saved. */
+export function imageModel(): ImageModel | undefined {
+  const images = load().images;
+  const apiKey = images?.key ? decrypt(images.key) : "";
+  return apiKey ? { baseUrl: images?.baseUrl || DEFAULT_IMAGE_SERVER, apiKey } : undefined;
 }

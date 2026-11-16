@@ -1,6 +1,6 @@
 // The document API the agent's scripts use: Pen's execute API, over .pen nodes (doc/schema.ts):
 // Insert, Copy, Update, Replace, Move, Delete, Get, SetVariables, GetVariables, FindEmptySpace,
-// Print and TakeScreenshot, with `document` naming the document itself; plus Check (the automatic
+// Print, TakeScreenshot and Generate("ai"), with `document` naming the document itself; plus Check (the automatic
 // layout check) and Font (whether a Google Fonts family exists). Implemented on the host side: each
 // operation receives JSON-decoded arguments from the sandbox and returns JSON-able data. `Get` with a
 // visitor runs the visitor in the sandbox over a subtree the host reads out.
@@ -19,6 +19,13 @@ import { hasIcon } from "../render/icons.js";
 import { FontsNeeded } from "../text/fonts.js";
 import { Abort } from "../sandbox/sandbox.js";
 import type { Engine } from "../engine.js";
+import { pendingImageUrl, type Generation } from "./image-gen.js";
+
+/** Whether an image model is set up (Settings → Images), so Generate("ai", …) can work; set in each process. */
+let imagesReady = false;
+export function setImagesReady(on: boolean): void {
+  imagesReady = on;
+}
 
 /** Runs inside the sandbox before every script: defines Pen's functions, `document`, Print and console. */
 export const PRELUDE = `
@@ -76,6 +83,7 @@ globalThis.FindEmptySpace = (input) => __call("findEmptySpace", [input || {}]);
 globalThis.TakeScreenshot = (ids) => { __call("screenshot", [Array.isArray(ids) ? ids : [ids]]); };
 globalThis.Check = (id) => __call("check", [id === undefined ? null : id]);
 globalThis.Font = (family) => __call("font", [family]);
+globalThis.Generate = (type, nodeId, prompt) => { __call("generate", [type, __id(nodeId, "Generate's nodeId"), prompt]); };
 globalThis.Print = (...a) => { __call("print", [a.map(__fmt).join(" ")]); };
 globalThis.console = Object.freeze({ log: Print, info: Print, warn: Print, error: Print });
 `;
@@ -137,6 +145,8 @@ export class ScriptSession {
   readonly created: { id: string; name?: string; type: string }[] = [];
   readonly logs: string[] = [];
   readonly screenshots: string[] = [];
+  /** Pictures asked for with Generate, made once the script has returned. */
+  readonly generations: Generation[] = [];
   /** Nodes this run created or changed, for the automatic check afterwards. */
   readonly touched = new Set<string>();
   /** The element the script is working on, where the agent's cursor goes (see `aimAt`). */
@@ -535,6 +545,22 @@ export class ScriptSession {
           if (!this.screenshots.includes(id)) this.screenshots.push(id);
         }
         if (this.screenshots.length > 4) throw new Error("TakeScreenshot: at most 4 pictures per script.");
+        return null;
+      }
+      case "generate": {
+        const [type, rawId, prompt] = args;
+        if (type !== "ai") {
+          throw new Error(`Generate("${String(type)}") isn't available here; only Generate("ai", nodeId, prompt) is. Use icons, shapes and layout for the rest.`);
+        }
+        if (!imagesReady) throw new Error('Generate needs an image model: the person sets one up in Settings → Images. Use a placeholder fill and tell them.');
+        const id = str(rawId, "Generate's nodeId");
+        if (!store.exists(doc, id) || id === ROOT_ID) throw new Error(`Generate: no node "${id}".`);
+        if (typeof prompt !== "string" || !prompt.trim()) throw new Error("Generate needs a prompt describing the picture.");
+        if (this.generations.length >= 8) throw new Error("Generate: at most 8 pictures per script.");
+        const box = this.measured().boxes.get(id);
+        const url = pendingImageUrl();
+        this.host("update", [id, { fill: { type: "image", url, mode: "cover" } }]);
+        this.generations.push({ url, prompt: prompt.trim(), width: box?.w ?? 512, height: box?.h ?? 512 });
         return null;
       }
       case "font": {
