@@ -10,11 +10,14 @@ import { nodesOf, toTree } from "./store.js";
 
 /**
  * The records a transaction changed (added, removed or edited), or "all" when something every node may
- * read changed (variables, themes, pictures). Comments change nothing drawn.
+ * read changed (variables, themes). Comments change nothing drawn; nor does a picture the document
+ * starts or stops carrying (its bytes are the same wherever they are; whoever draws pictures watches
+ * for them itself).
  */
 export function changedRecords(doc: Y.Doc, tr: Y.Transaction): Set<string> | "all" {
   const nodes = nodesOf(doc) as unknown;
   const comments = doc.getMap("comments") as unknown;
+  const assets = doc.getMap("assets") as unknown;
   const out = new Set<string>();
   for (const [type, keys] of tr.changed) {
     if ((type as unknown) === nodes) {
@@ -29,7 +32,7 @@ export function changedRecords(doc: Y.Doc, tr: Y.Transaction): Set<string> | "al
       if (id) out.add(id);
       continue;
     }
-    if (t === comments || (type as unknown) === comments) continue;
+    if (t === comments || (type as unknown) === comments || (type as unknown) === assets) continue;
     return "all";
   }
   return out;

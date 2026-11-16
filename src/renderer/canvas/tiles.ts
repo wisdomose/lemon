@@ -3,7 +3,11 @@
 // tiles in view that need it, nearest the middle first, until its time is up, then asks for another
 // frame; meanwhile a damaged tile keeps showing what it showed (new tiles are shown together once all
 // in view are ready, or after 32 ms), and a tile not painted yet at this zoom shows the nearest other
-// zoom's, scaled. Old tiles go least recently used first.
+// zoom's, scaled. While the zoom is changing (canvas.ts), tiles are painted only at whole steps of it
+// (powers of two) and shown scaled: each step's tiles last for many frames of the zoom, where tiles of
+// every zoom passed through would each be thrown away after one. Once the view is painted, so is a margin around it (canvas.ts), ahead of where the
+// view is going first: what scrolls or zooms into view is already there, not filled in as one watches.
+// Old tiles go least recently used first.
 //
 // This file keeps the books (what is where, what is damaged, what to paint next); canvas.ts paints.
 import type { Box } from "../../layout/layout.js";
@@ -113,27 +117,49 @@ export class Tiles<T> {
     this.frame++;
   }
 
-  /** The tiles covering `view` (page coordinates) at `scale`, made when missing. */
-  inView(view: Box, scale: number): Tile<T>[] {
-    const l = this.level(scale);
-    const { i0, i1, j0, j1 } = tileRange(view, l.scale);
+  /**
+   * The tiles covering `view` (page coordinates) at `scale`, made when missing. With `keep` false the
+   * missing ones are only stood for (not kept): for a zoom passed through, whose tiles are never painted.
+   */
+  inView(view: Box, scale: number, keep = true): Tile<T>[] {
+    const l = keep ? this.level(scale) : this.levels.get(levelKey(scale));
+    const { i0, i1, j0, j1 } = tileRange(view, levelKey(scale));
     const out: Tile<T>[] = [];
     for (let j = j0; j <= j1; j++)
       for (let i = i0; i <= i1; i++) {
         const k = key(i, j);
-        let t = l.tiles.get(k);
-        if (!t) l.tiles.set(k, (t = { i, j, dirty: true, used: this.frame }));
+        let t = l?.tiles.get(k);
+        if (!t) {
+          t = { i, j, dirty: true, used: this.frame };
+          if (keep) l!.tiles.set(k, t);
+        }
         t.used = this.frame;
         out.push(t);
       }
     return out;
   }
 
-  /** Of `tiles`, those to paint, the middle of the view first. */
-  toPaint(tiles: Tile<T>[]): Tile<T>[] {
+  /** Whether a picture from another zoom covers the page point (x, y): something to show there meanwhile. */
+  coveredAt(x: number, y: number, scale: number): boolean {
+    const here = levelKey(scale);
+    for (const l of this.levels.values()) {
+      if (l.scale === here) continue;
+      const size = TILE / l.scale;
+      if (l.tiles.get(key(Math.floor(x / size), Math.floor(y / size)))?.image !== undefined) return true;
+    }
+    return false;
+  }
+
+  /** Of `tiles`, those to paint, the middle of the view first (or what is nearest `centre`, in tiles). */
+  toPaint(tiles: Tile<T>[], centre?: { i: number; j: number }): Tile<T>[] {
     if (!tiles.length) return [];
-    const ci = (Math.min(...tiles.map((t) => t.i)) + Math.max(...tiles.map((t) => t.i))) / 2;
-    const cj = (Math.min(...tiles.map((t) => t.j)) + Math.max(...tiles.map((t) => t.j))) / 2;
+    let [ci, cj] = [0, 0];
+    if (centre) [ci, cj] = [centre.i, centre.j];
+    else {
+      let [i0, i1, j0, j1] = [Infinity, -Infinity, Infinity, -Infinity];
+      for (const t of tiles) [i0, i1, j0, j1] = [Math.min(i0, t.i), Math.max(i1, t.i), Math.min(j0, t.j), Math.max(j1, t.j)];
+      [ci, cj] = [(i0 + i1) / 2, (j0 + j1) / 2];
+    }
     return tiles.filter((t) => t.dirty).sort((a, b) => Math.hypot(a.i - ci, a.j - cj) - Math.hypot(b.i - ci, b.j - cj));
   }
 
@@ -167,22 +193,41 @@ export class Tiles<T> {
 
   /**
    * Pictures from other zooms covering `rect` (page coordinates), to show while this zoom's are
-   * painted: nearest zoom last, so it ends up on top.
+   * painted: nearest zoom last, so it ends up on top. Zooms further off than one that covers all of
+   * `rect` are left out (they would be drawn over): a frame of a zoom in progress draws a few pictures
+   * per tile, not every one kept under it.
    */
   standIns(rect: Box, scale: number): { level: Level<T>; tile: Tile<T> }[] {
     const here = levelKey(scale);
-    const others = [...this.levels.values()].filter((l) => l.scale !== here).sort((a, b) => Math.abs(Math.log(b.scale / here)) - Math.abs(Math.log(a.scale / here)));
+    const others = this.others(here);
     const out: { level: Level<T>; tile: Tile<T> }[] = [];
-    for (const l of others) {
+    // Nearest first, until one covers the rect; then turned round.
+    for (let n = others.length - 1; n >= 0; n--) {
+      const l = others[n]!;
       const { i0, i1, j0, j1 } = tileRange(rect, l.scale);
+      // A zoom far closer than this one: its tiles here are too many and too small to be worth drawing.
+      if ((i1 - i0 + 1) * (j1 - j0 + 1) > 64) continue;
+      let whole = true;
       for (let i = i0; i <= i1; i++)
         for (let j = j0; j <= j1; j++) {
           const t = l.tiles.get(key(i, j));
           if (t?.image !== undefined) out.push({ level: l, tile: t });
+          else whole = false;
         }
+      if (whole) break;
     }
-    return out;
+    return out.reverse();
   }
+
+  /** The other zooms' levels, furthest from `here` first (worked out once per frame and set of levels). */
+  private others(here: number): Level<T>[] {
+    const c = this.othersCache;
+    if (c && c.here === here && c.frame === this.frame && c.count === this.levels.size) return c.list;
+    const list = [...this.levels.values()].filter((l) => l.scale !== here).sort((a, b) => Math.abs(Math.log(b.scale / here)) - Math.abs(Math.log(a.scale / here)));
+    this.othersCache = { here, frame: this.frame, count: this.levels.size, list };
+    return list;
+  }
+  private othersCache: { here: number; frame: number; count: number; list: Level<T>[] } | undefined;
 
   /** Whether any tile in view (in the last frame) at `scale` under `rects` still waits to be painted or shown. */
   pendingUnder(rects: Box[], scale: number): boolean {

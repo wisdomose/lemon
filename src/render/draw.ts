@@ -29,6 +29,19 @@ export interface DrawContext {
   boxes: Boxes;
   /** The document's pictures, by url. */
   assets: Assets;
+  /**
+   * Device pixels per page unit, when the caller knows it: a picture is then decoded no larger than
+   * it shows (see `picture`).
+   */
+  scale?: number;
+  /** With `scale`: what would be under half a pixel isn't drawn, as in Pen (the canvas and small pictures of a page; not exports). */
+  lod?: boolean;
+  /**
+   * The editor's pictures, loaded as they come into view (renderer/picture-store.ts): the picture at
+   * about `wanted` pixels on its longest side (the best it has meanwhile), "loading" while none of it
+   * has come, null when there is no such picture. Elsewhere pictures are decoded from `assets` as drawn.
+   */
+  pictures?: (url: string, wanted: number) => Shown | "loading" | null;
   /** A browser node's live page as it looks now (in the editor; elsewhere a browser shows its address bar). */
   pages?: (id: string) => Image | undefined;
   /** What a script node's script gave (in the editor; elsewhere a script shows its stand-in). */
@@ -239,25 +252,83 @@ function outline(ck: CanvasKit, node: TreeNode, vars: Vars, box: Box): { path: P
 const isOpenPath = (node: TreeNode) =>
   node.type === "line" || (node.type === "path" && typeof node.props.geometry === "string" && !/z\s*$/i.test(node.props.geometry.trim()));
 
-/** Decoded pictures by url (a url's bytes never change in a document, so each is decoded once). Null: not a picture. */
-const pictures = new WeakMap<CanvasKit, Map<string, Image | null>>();
-export function picture(ck: CanvasKit, assets: Assets, url: string): Image | null {
-  let byUrl = pictures.get(ck);
-  if (!byUrl) pictures.set(ck, (byUrl = new Map()));
-  if (byUrl.has(url)) return byUrl.get(url)!;
-  const bytes = assets(url);
-  // Not in this document (yet): try again next time.
-  if (!bytes) return null;
-  const image = ck.MakeImageFromEncoded(bytes);
-  byUrl.set(url, image);
-  return image;
+/** A picture ready to draw: `image` may hold fewer pixels than the picture itself has (`width` × `height`). */
+export interface Shown {
+  image: Image;
+  width: number;
+  height: number;
 }
 
-/** A picture's shader, placed in `box` by the fill's mode (and crop). Null when there is no picture to show. */
-function pictureShader(ck: CanvasKit, fill: ImageFill, assets: Assets, box: Box): Shader | null {
-  if (!isLocalUrl(fill.url)) return null;
-  const image = picture(ck, assets, fill.url);
-  if (!image) return null;
+/**
+ * Pictures decoded here (everywhere but the editor's canvas, which has its own store), by url: the
+ * picture whole, or, where it only ever shows small, a copy no bigger than SMALL on its longest side
+ * (a 4000 × 3000 photo is 46 MB decoded, its small copy under 1 MB). The least recently drawn are let
+ * go over KEEP_BYTES, so a board of thousands of photos never fills CanvasKit's memory (2 GB at most).
+ */
+const SMALL = 512;
+const KEEP_BYTES = 256 * 1024 * 1024;
+interface Kept {
+  /** Null: not a picture. */
+  whole?: Image | null;
+  small?: Image;
+  width: number;
+  height: number;
+  used: number;
+}
+const kept = new WeakMap<CanvasKit, { byUrl: Map<string, Kept>; tick: number }>();
+const bytesOf = (i: Image | null | undefined) => (i ? i.width() * i.height() * 4 : 0);
+
+/** The picture under `url` for drawing at about `wanted` pixels on its longest side; null when there is none (yet). */
+export function picture(ck: CanvasKit, assets: Assets, url: string, wanted = Infinity): Shown | null {
+  let store = kept.get(ck);
+  if (!store) kept.set(ck, (store = { byUrl: new Map(), tick: 0 }));
+  let k = store.byUrl.get(url);
+  const fits = (k: Kept) => (wanted <= SMALL && k.small) || k.whole !== undefined;
+  if (!k || !fits(k)) {
+    const bytes = assets(url);
+    // Not in this document (yet): try again next time.
+    if (!bytes) return k?.small ? { image: k.small, width: k.width, height: k.height } : null;
+    const whole = ck.MakeImageFromEncoded(bytes);
+    k ??= { width: whole?.width() ?? 0, height: whole?.height() ?? 0, used: 0 };
+    store.byUrl.set(url, k);
+    const longest = Math.max(k.width, k.height);
+    if (whole && wanted <= SMALL && longest > SMALL) {
+      // Shown small: keep a small copy and let the decoded picture go.
+      const [w, h] = [Math.max(1, Math.round((k.width * SMALL) / longest)), Math.max(1, Math.round((k.height * SMALL) / longest))];
+      const surface = ck.MakeSurface(w, h);
+      if (surface) {
+        surface.getCanvas().drawImageRectOptions(whole, ck.XYWHRect(0, 0, k.width, k.height), ck.XYWHRect(0, 0, w, h), ck.FilterMode.Linear, ck.MipmapMode.Linear, null);
+        k.small = surface.makeImageSnapshot();
+        surface.delete();
+        whole.delete();
+      } else k.whole = whole;
+    } else k.whole = whole;
+  }
+  k.used = ++store.tick;
+  // Over the limit: the least recently drawn go (this one stays).
+  let total = 0;
+  for (const o of store.byUrl.values()) total += bytesOf(o.whole) + bytesOf(o.small);
+  if (total > KEEP_BYTES) {
+    for (const [u, o] of [...store.byUrl].sort((a, b) => a[1].used - b[1].used)) {
+      if (total <= KEEP_BYTES || o === k) break;
+      total -= bytesOf(o.whole) + bytesOf(o.small);
+      o.whole?.delete();
+      o.small?.delete();
+      store.byUrl.delete(u);
+    }
+  }
+  const image = (wanted <= SMALL && k.small) || k.whole || k.small;
+  return image ? { image, width: k.width, height: k.height } : null;
+}
+
+/**
+ * A picture's shader, placed in `box` by the fill's mode (and crop). Null when there is no picture to
+ * show, "loading" while the editor fetches it.
+ */
+function pictureShader(c: DrawContext, fill: ImageFill, box: Box): Shader | "loading" | null {
+  const { ck } = c;
+  const url = fill.url;
+  if (!isLocalUrl(url)) return null;
   // The crop: the part of the picture shown, in its 0..1 space (the inverse of the fill's transform).
   let [cx, cy, cw, ch] = [0, 0, 1, 1];
   const t = fill.transform;
@@ -267,13 +338,30 @@ function pictureShader(ck: CanvasKit, fill: ImageFill, assets: Assets, box: Box)
     cx = -t[4] * cw;
     cy = -t[5] * ch;
   }
-  const [iw, ih] = [image.width() * cw, image.height() * ch];
-  let [sx, sy] = [box.w / iw, box.h / ih];
+  const get = (wanted: number) => (c.pictures ? c.pictures(url, wanted) : picture(ck, c.assets, url, wanted));
+  // How big it shows, at first by its box (its own size isn't known until it has been read once).
+  const scale = c.scale ?? Infinity;
+  const guess = Math.max(box.w / Math.abs(cw), box.h / Math.abs(ch)) * scale;
+  let shown = get(guess);
+  if (!shown || shown === "loading") return shown;
   const mode = fill.mode ?? "cover";
+  const [iw, ih] = [shown.width * cw, shown.height * ch];
+  let [sx, sy] = [box.w / iw, box.h / ih];
   if (mode !== "stretch") sx = sy = mode === "contain" ? Math.min(sx, sy) : Math.max(sx, sy);
-  const tx = box.x + (box.w - iw * sx) / 2 - cx * image.width() * sx;
-  const ty = box.y + (box.h - ih * sy) / 2 - cy * image.height() * sy;
-  return image.makeShaderOptions(ck.TileMode.Decal, ck.TileMode.Decal, ck.FilterMode.Linear, ck.MipmapMode.Linear, [sx, 0, tx, 0, sy, ty, 0, 0, 1]);
+  // A picture shaped unlike its box shows bigger than the box (a panorama covering a square).
+  const exact = Math.max(Math.abs(shown.width * sx), Math.abs(shown.height * sy)) * scale;
+  if (exact > guess * 1.01) {
+    const better = get(exact);
+    if (better && better !== "loading") shown = better;
+  }
+  const { image } = shown;
+  const tx = box.x + (box.w - iw * sx) / 2 - cx * shown.width * sx;
+  const ty = box.y + (box.h - ih * sy) / 2 - cy * shown.height * sy;
+  // From the pixels held to the picture's own, then to the page.
+  const [kx, ky] = [shown.width / image.width(), shown.height / image.height()];
+  // The editor's are textures without smaller copies of themselves (it holds each near the size it shows).
+  const mips = c.pictures ? ck.MipmapMode.None : ck.MipmapMode.Linear;
+  return image.makeShaderOptions(ck.TileMode.Decal, ck.TileMode.Decal, ck.FilterMode.Linear, mips, [sx * kx, 0, tx, 0, sy * ky, ty, 0, 0, 1]);
 }
 
 /** A gradient's shader. Positions are in the box's 0..1 space; rotation runs counter-clockwise from "up". */
@@ -337,9 +425,10 @@ const BLEND: Partial<Record<BlendMode, keyof CanvasKit["BlendMode"]>> = {
 
 /**
  * Sets `paint` to one fill. "missing" for a picture that can't be shown (the caller draws a
- * placeholder); false for a fill that draws nothing (switched off, not drawable yet, or unresolvable).
+ * placeholder), "loading" for one on its way (a plain stand-in); false for a fill that draws nothing
+ * (switched off, not drawable yet, or unresolvable).
  */
-function setFill(c: DrawContext, paint: CKPaint, f: Fill, vars: Vars, box: Box): boolean | "missing" {
+function setFill(c: DrawContext, paint: CKPaint, f: Fill, vars: Vars, box: Box): boolean | "missing" | "loading" {
   const { ck } = c;
   if (!isEnabled(f, vars)) return false;
   paint.setShader(null);
@@ -355,8 +444,10 @@ function setFill(c: DrawContext, paint: CKPaint, f: Fill, vars: Vars, box: Box):
     let shader: Shader | null = null;
     if (f.type === "gradient") shader = gradientShader(ck, f, vars, box);
     else if (f.type === "image") {
-      shader = pictureShader(ck, f, c.assets, box);
-      if (!shader) return "missing";
+      const made = pictureShader(c, f, box);
+      if (!made) return "missing";
+      if (made === "loading") return "loading";
+      shader = made;
     }
     if (!shader) return false;
     paint.setColor(ck.Color4f(1, 1, 1, opacity));
@@ -368,7 +459,16 @@ function setFill(c: DrawContext, paint: CKPaint, f: Fill, vars: Vars, box: Box):
   }
 }
 
-/** A picture still to come (or one this document doesn't have): a hatched placeholder in the shape. */
+/** A picture on its way: its shape in a quiet grey until it comes. */
+function drawLoading(c: DrawContext, canvas: Canvas, shape: Path): void {
+  const paint = new c.ck.Paint();
+  paint.setAntiAlias(true);
+  paint.setColor(c.ck.Color4f(0.5, 0.5, 0.5, 0.18));
+  canvas.drawPath(shape, paint);
+  paint.delete();
+}
+
+/** A picture this document doesn't have: a hatched placeholder in the shape. */
 function drawPlaceholder(c: DrawContext, canvas: Canvas, shape: Path, box: Box): void {
   const { ck } = c;
   const paint = new ck.Paint();
@@ -580,16 +680,22 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
     c.stop.hit = true;
     return;
   }
+  // First what costs least: most of a big board is outside any one tile.
+  const reach = c.cull?.reach(node.id);
+  if (c.cull && reach) {
+    const r = c.cull.rect;
+    if (reach.x >= r.x + r.w || reach.x + reach.w <= r.x || reach.y >= r.y + r.h || reach.y + reach.h <= r.y) return;
+  }
+  const box = boxes.get(node.id);
+  if (c.lod && c.scale) {
+    // Under half a pixel on screen, with everything in it: not drawn (as in Pen).
+    const extent = reach ?? (node.children.length ? undefined : box);
+    if (extent && Math.max(extent.w, extent.h) * c.scale < 0.5) return;
+  }
   const vars = withTheme(c.vars, node.props.theme);
   const here = vars === c.vars ? c : { ...c, vars };
   const p = node.props;
-  const box = boxes.get(node.id);
   if (isOff(p, vars)) return;
-  if (c.cull) {
-    const reach = c.cull.reach(node.id);
-    const r = c.cull.rect;
-    if (reach && (reach.x >= r.x + r.w || reach.x + reach.w <= r.x || reach.y >= r.y + r.h || reach.y + reach.h <= r.y)) return;
-  }
   if (box && c.shaders && !c.plain?.has(node.id) && drawWithShaderEffects(here, canvas, node, box)) return;
   if (!box) {
     for (const child of node.children) drawNode(here, canvas, child);
@@ -672,6 +778,7 @@ export function drawNode(c: DrawContext, canvas: Canvas, node: TreeNode): void {
         if (typeof f === "object" && f.type === "shader") return drawShaderFill(here, canvas, node, shape, box, f, fills.slice(0, i));
         const set = setFill(here, paint, f, vars, box);
         if (set === "missing") drawPlaceholder(here, canvas, shape, box);
+        else if (set === "loading") drawLoading(here, canvas, shape);
         else if (set) canvas.drawPath(shape, paint);
       });
       paint.setShader(null);

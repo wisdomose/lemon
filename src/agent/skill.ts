@@ -86,6 +86,7 @@ Print(...values)                      // a line in the result
 TakeScreenshot(ids)                   // attach pictures to the result (up to 4 per call)
 Check(id?)                            // the automatic check, now
 Font(family)                          // whether a Google Fonts family exists, and its styles
+Generate("ai", nodeId, prompt): void  // make a picture as the node's image fill (see Pictures)
 \`\`\`
 
 \`path\` is a node id, or "instanceId/childId" for a node inside an instance (any depth). Always pass
@@ -158,9 +159,19 @@ instance fills it with \`Insert(instanceId + "/" + slotId, node)\`. An instance 
 own; Delete on a node inside it hides it. Keep components where they belong in the design (the first
 card is the component) or, for a design system, on their own frame.
 
-Pictures: there is no photo source yet. Use a \`rectangle\` (or frame) sized and shaped for the photo,
-named for what it should show ("Photo: pastel de nata on a tiled table"), filled with
-\`{ type: "image", url: "" }\` — it is drawn as a placeholder the person can replace.`;
+Pictures: make photos, textures, hero and background imagery, avatars and product shots with
+\`Generate("ai", nodeId, prompt)\`. Insert the rectangle or frame first, sized and shaped for the
+picture and named for what it shows, then Generate sets its fill to the picture. The prompt is a
+detailed description: subject, setting, composition, lighting, colours, style ("photo of a pastel de
+nata on blue azulejo tiles, overhead, soft morning light"). It never sees the design, so say everything.
+- It is slow and lands after your call has returned: the fill's url starts with
+  \`lemon:pending-image-\` until the picture arrives, so a screenshot taken right away won't show it.
+  Keep designing; never Generate again for pending work or draw the picture by hand. If the url has
+  disappeared from the fill, it failed, and that is the one time to Generate again.
+- At most 8 per call. Don't use it for icons, logos, badges or decoration: use icons, shapes and layout.
+- If Generate throws because no image model is set up, use a placeholder instead: fill the rectangle
+  with \`{ type: "image", url: "" }\` (drawn as a placeholder the person can replace) and tell the person
+  that adding an image model key in Settings → Images lets you make the pictures.`;
 
 /** Making a new design, and changing one. */
 export function newDesign(a: Audience): string {

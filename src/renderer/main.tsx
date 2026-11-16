@@ -6,7 +6,7 @@ import { PRODUCT } from "../product.js";
 import type { TaggedEvent } from "../agent/team.js";
 import { App } from "./App.js";
 import { handleAgentEvent, loadHistory, sendPrompt } from "./agent/chat.js";
-import { setView } from "./canvas/canvas.js";
+import { canvasState, setView, zoomToFit } from "./canvas/canvas.js";
 import { boot, bridge, laidOut } from "./scene.js";
 import { store, type Tab } from "./store.js";
 import { applyTheme, setSetting } from "./settings.js";
@@ -31,6 +31,8 @@ store.subscribe(() => {
   if (now !== sentSelection) bridge.selection((sentSelection = now));
 });
 
+// Benchmarks drive the canvas from outside (over the DevTools protocol).
+(window as unknown as { __lemon?: unknown }).__lemon = { setView, zoomToFit, canvasState };
 // Headless checks set up a state from the address: ?view=x,y,zoom&select=id&tab=layers&chat=events.jsonl
 const q = new URLSearchParams(location.search);
 const initial = q.get("initial") ?? "Y";

@@ -1,7 +1,7 @@
 // The window's state: what panel is open, what is selected, and the agent chat. One small store read
 // by React through useSyncExternalStore; the canvas reads it directly.
 import { useSyncExternalStore } from "react";
-import { DEFAULT_MODEL, type Team, type CodexModel } from "../agent/models.js";
+import { DEFAULT_MODEL, type Team, type ClaudeModel, type CodexModel } from "../agent/models.js";
 import type { ProviderRecord } from "../agent/providers.js";
 import { PRODUCT } from "../product.js";
 import type { FileInfo } from "../main/editor.js";
@@ -78,6 +78,8 @@ export interface EditorState {
   liveSessions: string[];
   model: string;
   /** Session cache stays visible while the picker refreshes its live Codex catalog. */
+  /** Claude's models as Claude last listed them; empty until it has (the built-in list shows meanwhile). */
+  claudeModels: ClaudeModel[];
   codexModels: CodexModel[];
   codexModelsState: "idle" | "loading" | "ready" | "error";
   codexModelsError?: string;
@@ -110,6 +112,11 @@ export interface EditorState {
   commentOpen: string | null;
   /** Comment pins on the canvas (Shift+C, or the eye in the Comments panel). */
   showComments: boolean;
+  /** How the Properties panel's Code section and "Export code to file…" write HTML. */
+  codeStyle: "tailwind" | "css";
+  /** The Properties panel's Export: the scale and the file type. */
+  exportScale: number;
+  exportFormat: "png" | "jpeg" | "webp";
   shortcutsOpen: boolean;
   paletteOpen: boolean;
   /** The left column (panel and chat box), Ctrl+\. */
@@ -139,6 +146,7 @@ const initial: EditorState = {
   session: null,
   liveSessions: [],
   model: DEFAULT_MODEL,
+  claudeModels: [],
   codexModels: [],
   codexModelsState: "idle",
   providers: [],
@@ -155,6 +163,9 @@ const initial: EditorState = {
   commentDraft: null,
   commentOpen: null,
   showComments: true,
+  codeStyle: "tailwind",
+  exportScale: 1,
+  exportFormat: "png",
   shortcutsOpen: false,
   paletteOpen: false,
   panelOpen: true,

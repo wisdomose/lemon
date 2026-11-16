@@ -82,6 +82,9 @@ function ProvidersList({
   onAdd: () => void;
 }) {
   const [signingIn, setSigningIn] = useState(false);
+  // Claude's own list once it has given one (the model picker asks), else the built-in one.
+  const listed = useEditor((s) => s.claudeModels);
+  const claudeModels = listed.length ? listed : MODELS.filter((m) => m.provider === "claude");
   // Codex comes with the app; signing in opens the browser (ChatGPT account), as `codex login` does.
   const signIn = () => {
     setSigningIn(true);
@@ -101,7 +104,7 @@ function ProvidersList({
       <div className="flex min-h-[41px] items-center border-b border-row-line py-[9px]">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-foreground">Claude</div>
-          <div className="mt-0.5 text-[12px] text-muted-foreground">{MODELS.filter((m) => m.provider === "claude").map((m) => m.label.replace("Claude ", "")).join(", ")}</div>
+          <div className="mt-0.5 text-[12px] text-muted-foreground">{claudeModels.map((m) => m.label.replace("Claude ", "")).join(", ")}</div>
         </div>
         <span className={cx("flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[12px]", claude?.loggedIn ? "border-input text-foreground" : "border-amber-500/60 text-amber-400")}>
           {claude?.loggedIn && <span className="h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />}
@@ -172,7 +175,7 @@ function ProviderRow({ record, onOpen }: { record: ProviderRecord; onOpen: () =>
   );
 }
 
-const StatusPill = ({ set }: { set: boolean }) => (
+export const StatusPill = ({ set }: { set: boolean }) => (
   <span className={cx("flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12px]", set ? "border-[#3b82f6]/50 text-[#3b82f6]" : "border-row-line text-muted-foreground")}>
     <span className={cx("h-1.5 w-1.5 rounded-full", set ? "bg-[#3b82f6]" : "bg-muted-foreground/60")} />
     {set ? "API key set" : "Not connected"}
@@ -525,13 +528,13 @@ function ProviderForm({ record, onSubmitted, onRemoved }: { record?: ProviderRec
 // ---- Pieces ----------------------------------------------------------------------------------------
 // Inputs share the reference's focus treatment: a crisp blue ring (border + 1px halo) while focused.
 const FOCUS = "focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]";
-const INPUT = `h-10 w-full rounded-[8px] border border-input bg-transparent px-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground ${FOCUS}`;
-const PRIMARY = "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] bg-foreground px-4 text-[13px] font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40";
-const GHOST = "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-input px-3.5 text-[13px] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-default disabled:opacity-40";
+export const INPUT = `h-10 w-full rounded-[8px] border border-input bg-transparent px-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground ${FOCUS}`;
+export const PRIMARY = "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] bg-foreground px-4 text-[13px] font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40";
+export const GHOST = "flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border border-input px-3.5 text-[13px] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-default disabled:opacity-40";
 const GHOST_SM = "flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-input px-3 text-[12.5px] text-foreground transition-colors hover:bg-foreground/5";
 const DANGER = "flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] px-3 text-[13px] text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-default disabled:opacity-40";
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
       <div className="mb-1.5 text-[13px] text-foreground">{label}</div>

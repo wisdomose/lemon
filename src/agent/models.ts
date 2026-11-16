@@ -11,6 +11,21 @@ export interface CodexModel {
   isDefault: boolean;
 }
 
+/** A Claude model as the signed-in Claude CLI offers it (`efforts` absent: it didn't say which). */
+export interface ClaudeModel {
+  id: string;
+  label: string;
+  provider: "claude";
+  efforts?: string[];
+}
+
+/** "Claude Opus 5.5" for claude-opus-5-5; nothing for an id not shaped like that. */
+export function claudeLabel(id: string): string | undefined {
+  const m = /^claude-([a-z]+)-(\d+)-(\d+)$/.exec(id);
+  return m ? `Claude ${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}.${m[3]}` : undefined;
+}
+
+/** Claude's models until Claude has been asked for its own (and when it can't be), and Codex's default. */
 export const MODELS = [
   { id: "claude-fable-5-1", provider: "claude", label: "Claude Fable 5.1" },
   { id: "claude-opus-5-5", provider: "claude", label: "Claude Opus 5.5" },
@@ -24,10 +39,11 @@ export const modelProvider = (id: string): ModelBackend =>
   id === "codex" || id.startsWith("codex:") ? "codex" : id.startsWith("prov:") ? "provider" : "claude";
 
 export const DEFAULT_MODEL: string = "claude-opus-5-5";
-export const modelLabel = (id: string, discovered: readonly CodexModel[] = [], providers: readonly ProviderRecord[] = []) =>
+export const modelLabel = (id: string, discovered: readonly { id: string; label: string }[] = [], providers: readonly ProviderRecord[] = []) =>
   discovered.find((m) => m.id === id)?.label ??
   MODELS.find((m) => m.id === id)?.label ??
   providerModelLabel(id, providers) ??
+  claudeLabel(id) ??
   id.replace(/^codex:/, "");
 
 /**

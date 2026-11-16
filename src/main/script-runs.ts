@@ -7,6 +7,7 @@ import { utilityProcess, type UtilityProcess } from "electron";
 import * as Y from "yjs";
 import type { AgentChange } from "../doc/live.js";
 import type { ExecuteResult, Focus } from "../agent/execute.js";
+import type { Generation } from "../agent/image-gen.js";
 import type { LiveScript, ScriptRuns } from "../agent/runs.js";
 import type { FromWorker, OriginData, ToWorker } from "./script-protocol.js";
 
@@ -40,6 +41,8 @@ export class WorkerScripts implements ScriptRuns {
   private ready = false;
   private queue: ToWorker[] = [];
   private ids = new WeakMap<Y.Doc, number>();
+  /** Where each document's file is, for its pictures. */
+  private homes = new WeakMap<Y.Doc, () => string | null>();
   private docs = new Map<number, { doc: Y.Doc; stop: () => void }>();
   private runs = new Map<number, Run>();
   private nextDoc = 1;
@@ -47,6 +50,10 @@ export class WorkerScripts implements ScriptRuns {
   private thumbs = new Map<number, (r: { png?: Uint8Array; error?: string }) => void>();
   /** Changes from the worker being applied here (not sent back). */
   private applying = false;
+  /** Whether an image model is set up (told to the worker as it starts, and on each change). */
+  private images = false;
+  /** Makes the pictures a script asked for with Generate, once its result is here. */
+  pictures?: (doc: Y.Doc, generations: Generation[], origin: AgentChange | string) => void;
 
   constructor(
     /** The built worker's file. */
@@ -66,6 +73,7 @@ export class WorkerScripts implements ScriptRuns {
     if (this.child) return;
     const child = utilityProcess.fork(this.entry, [this.fontsDir], { serviceName: "Lemon scripts", stdio: "pipe" });
     this.child = child;
+    this.queue.push({ type: "images", ready: this.images });
     child.stdout?.on("data", (b: Buffer) => this.log(`[scripts] ${b.toString().trimEnd()}`));
     child.stderr?.on("data", (b: Buffer) => this.log(`[scripts] ${b.toString().trimEnd()}`));
     child.on("message", (m: FromWorker) => this.receive(m));
@@ -116,6 +124,8 @@ export class WorkerScripts implements ScriptRuns {
       case "result": {
         const r = this.runs.get(m.run);
         this.runs.delete(m.run);
+        // The script's changes (with its pending fills) have landed here already, before its result.
+        if (r && m.result.ok && m.result.generations?.length) this.pictures?.(r.doc, m.result.generations, r.origin);
         return r?.result?.(m.result);
       }
       case "thumbnail": {
@@ -137,13 +147,28 @@ export class WorkerScripts implements ScriptRuns {
     if (known !== undefined && this.child) return known;
     const id = this.nextDoc++;
     this.ids.set(doc, id);
-    this.send({ type: "open", doc: id, state: Y.encodeStateAsUpdate(doc) });
+    this.send({ type: "open", doc: id, state: Y.encodeStateAsUpdate(doc), ...this.pathOf(doc) });
     const onUpdate = (update: Uint8Array) => {
       if (!this.applying) this.send({ type: "update", doc: id, update });
     };
     doc.on("update", onUpdate);
     this.docs.set(id, { doc, stop: () => doc.off("update", onUpdate) });
     return id;
+  }
+
+  private pathOf(doc: Y.Doc): { path?: string } {
+    const path = this.homes.get(doc)?.();
+    return path ? { path } : {};
+  }
+
+  home(doc: Y.Doc, path: () => string | null): void {
+    this.homes.set(doc, path);
+  }
+
+  /** The document's file is somewhere else now. */
+  moved(doc: Y.Doc): void {
+    const id = this.ids.get(doc);
+    if (id !== undefined && this.child) this.send({ type: "path", doc: id, ...this.pathOf(doc) });
   }
 
   /** The document is closed: its copy in the worker goes. */
@@ -154,6 +179,12 @@ export class WorkerScripts implements ScriptRuns {
     this.docs.get(id)?.stop();
     this.docs.delete(id);
     if (this.child) this.send({ type: "close", doc: id });
+  }
+
+  /** Says whether an image model is set up. */
+  imagesReady(on: boolean): void {
+    this.images = on;
+    if (this.child) this.send({ type: "images", ready: on });
   }
 
   live(doc: Y.Doc, origin: AgentChange | string, protect: Parameters<ScriptRuns["live"]>[2], globals: Parameters<ScriptRuns["live"]>[3], onProgress?: (focus: Focus) => void): LiveScript {
@@ -203,7 +234,7 @@ export class WorkerScripts implements ScriptRuns {
     const req = this.nextRun++;
     return new Promise((resolve, reject) => {
       this.thumbs.set(req, (r) => (r.error ? reject(new Error(r.error)) : resolve(r.png)));
-      this.send({ type: "thumbnail", req, state: Y.encodeStateAsUpdate(doc) });
+      this.send({ type: "thumbnail", req, state: Y.encodeStateAsUpdate(doc), ...this.pathOf(doc) });
     });
   }
 
