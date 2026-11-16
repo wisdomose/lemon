@@ -1,8 +1,11 @@
 // Pictures in a document. In a .pen file a picture is a file beside it, named by an image fill's `url`
-// ("./images/hero.jpg"); the document keeps each picture's bytes in the "assets" map under that url,
-// so drawing never touches the disk and saving can write the ones that aren't there yet. A picture
-// added in Lemon is named after its bytes ("./images/<hash>.png"), so the same picture added twice is
-// one file, and a name never changes meaning.
+// ("./images/hero.jpg"), and that file is where its bytes stay: a board of ten thousand photos is ten
+// gigabytes on disk and a few megabytes of document. Only a picture just added is carried in the
+// document, in the "assets" map under its url, until the file is saved and it is beside the .pen like
+// the rest; then it leaves the map. Each process reads a saved picture when it draws it, through the
+// document's reader (the main process and the scripts' process read the file; the window asks the
+// main process, see renderer/picture-store.ts). A picture added in Lemon is named after its bytes
+// ("./images/<hash>.png"), so the same picture added twice is one file, and a name never changes meaning.
 import * as Y from "yjs";
 import type { Fills, ImageFill } from "./schema.js";
 import { nodesOf } from "./store.js";
@@ -37,7 +40,39 @@ export function putAsset(doc: Y.Doc, url: string, bytes: Uint8Array): void {
   if (!map.has(url)) map.set(url, bytes);
 }
 
-export const assetLookup = (doc: Y.Doc): Assets => (url) => assetsOf(doc).get(url);
+/** Reads a document's saved pictures (the files beside it) in this process. */
+export interface PictureReader {
+  read(url: string): Uint8Array | undefined;
+  /** Whether the picture is there, without reading it. */
+  has?(url: string): boolean;
+}
+const readers = new WeakMap<Y.Doc, PictureReader>();
+
+/** Says where this process finds the document's saved pictures (none: only the ones it carries). */
+export function setPictureReader(doc: Y.Doc, reader: PictureReader | undefined): void {
+  if (reader) readers.set(doc, reader);
+  else readers.delete(doc);
+}
+
+/** A picture's bytes: one the document carries (not saved yet), or its file through the reader. */
+export const assetLookup = (doc: Y.Doc): Assets => (url) => assetsOf(doc).get(url) ?? readers.get(doc)?.read(url);
+
+/** Whether the document has a picture under `url`: carried, or saved beside it. */
+export function hasPicture(doc: Y.Doc, url: string): boolean {
+  if (assetsOf(doc).has(url)) return true;
+  const r = readers.get(doc);
+  return !!r && (r.has ? r.has(url) : !!r.read(url));
+}
+
+/** The origin of the change that lets go of pictures once they are saved (nothing to save or redraw). */
+export const PICTURES_SAVED = "pictures-saved";
+
+/** Lets go of carried pictures (they are beside the file now). */
+export function releaseAssets(doc: Y.Doc, urls: string[]): void {
+  const map = assetsOf(doc);
+  const held = urls.filter((u) => map.has(u));
+  if (held.length) doc.transact(() => held.forEach((u) => map.delete(u)), PICTURES_SAVED);
+}
 
 /** Whether a url names a file beside the .pen (not a web address or an empty one). */
 export const isLocalUrl = (url: unknown): url is string => typeof url === "string" && url.length > 0 && !/^[a-z][a-z0-9+.-]*:/i.test(url);

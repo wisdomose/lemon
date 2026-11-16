@@ -2,7 +2,9 @@
 // WebP (at its own size, or the panel's scale), saved where the person chooses. Several selected nodes go into one picture of everything they cover.
 import { drawNode, varsAt } from "../render/draw.js";
 import { findNode } from "../render/screenshot.js";
-import { assets, bridge, currentScene, engine } from "./scene.js";
+import { bridge, currentScene, engine, pictureBytes } from "./scene.js";
+import { imageFills, isLocalUrl } from "../doc/assets.js";
+import type { TreeNode } from "../doc/schema.js";
 import { store } from "./store.js";
 import { unionBox } from "./canvas/pick.js";
 import { toast } from "sonner";
@@ -19,6 +21,17 @@ export async function renderSelection(format: ExportFormat, what = "export", sca
   const box = s && unionBox(s.boxes, ids);
   if (!s || !box) return (toast(`Select something to ${what} first.`), null);
   const { ck } = engine;
+  // The pictures it shows are fetched whole first (the canvas holds them only as big as they show).
+  const urls: string[] = [];
+  const walk = (n: TreeNode) => {
+    for (const f of [...imageFills(n.props.fill), ...imageFills(n.props.stroke)]) if (isLocalUrl(f.url)) urls.push(f.url);
+    n.children.forEach(walk);
+  };
+  for (const id of ids) {
+    const node = findNode(s.tree, id);
+    if (node) walk(node);
+  }
+  const assets = await pictureBytes.all(urls);
   const width = Math.max(1, Math.round(box.w * scale));
   const height = Math.max(1, Math.round(box.h * scale));
   const surface = ck.MakeSurface(width, height);

@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Dialog as D, Switch as S } from "radix-ui";
-import { Bot, Check, Copy, MessageSquare, Minus, Moon, Plus, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
+import { Bot, Check, Copy, Image as ImageIcon, MessageSquare, Minus, Moon, Plus, Settings as Cog, Sun, Tag, Terminal, X, type LucideIcon } from "lucide-react";
 import { PRODUCT } from "../../product.js";
 import { MODELS } from "../../agent/models.js";
 import type { ProviderStatus } from "../../agent/codex.js";
@@ -11,12 +11,14 @@ import { setSetting, useSettings, type Settings } from "../settings.js";
 import { Tip, cx } from "../ui/kit.js";
 import { EMPTY_SERVERS, MCP_CLIENTS, POPULAR_SERVERS, parseServers, type McpPage, type ServerStatus } from "../../mcp/settings.js";
 import { store } from "../store.js";
-import { AgentsPage } from "./providers.js";
+import { AgentsPage, Field, GHOST, INPUT, PRIMARY, StatusPill } from "./providers.js";
+import type { ImageSettings } from "../../agent/image-gen.js";
 
-type Page = "general" | "agents" | "names" | "chat" | "mcp";
+type Page = "general" | "agents" | "images" | "names" | "chat" | "mcp";
 const PAGES: { page: Page; icon: LucideIcon; label: string }[] = [
   { page: "general", icon: Cog, label: "General" },
   { page: "agents", icon: Bot, label: "Agents" },
+  { page: "images", icon: ImageIcon, label: "Images" },
   { page: "names", icon: Tag, label: "Agent Names" },
   { page: "chat", icon: MessageSquare, label: "Chat" },
   { page: "mcp", icon: Terminal, label: "MCP" },
@@ -86,6 +88,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             </D.Close>
             {page === "general" && <General />}
             {page === "agents" && <AgentsPage key={provider} claude={claude} codex={codex} onCodex={setCodex} provider={provider} />}
+            {page === "images" && <ImagesPage />}
             {page === "names" && <Placeholder title="Agent Names" text="Choose the names agents show on their cursors. Coming with parallel agents." />}
             {page === "chat" && <ChatPage />}
             {page === "mcp" && <Mcp />}
@@ -208,6 +211,75 @@ function General() {
       <Row label="Cursor size"><Choice k="cursorSize" /></Row>
       <Row label="Show name on cursor"><Toggle k="cursorLabel" /></Row>
       <Row label="Show agent input on dashboard"><Toggle k="dashboardPrompt" /></Row>
+    </>
+  );
+}
+
+/** Settings → Images: the image model agents' Generate("ai", …) asks, and its key. */
+function ImagesPage() {
+  const [saved, setSaved] = useState<ImageSettings>();
+  const [baseUrl, setBaseUrl] = useState<string | null>(null);
+  const [key, setKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    void bridge.imageSettings().then(setSaved).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+  const change = (draft: { baseUrl?: string; key?: string }) => {
+    setBusy(true);
+    setError(undefined);
+    void bridge
+      .setImageSettings(draft)
+      .then((s) => (setSaved(s), setBaseUrl(null), setKey(null)))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  const dirty = (baseUrl !== null && baseUrl.trim() !== saved?.baseUrl) || !!key?.trim();
+  return (
+    <>
+      <div className="mb-[33px] flex items-center gap-4">
+        <h1 className="flex-1 text-[24px] leading-8 font-semibold text-foreground">Images</h1>
+        <StatusPill set={!!saved?.keyMasked} />
+      </div>
+      <p className="mb-5 text-[13px] text-foreground">
+        Agents make pictures for image fills with this model. It is asked at its OpenAI-style <code className="font-mono text-[12.5px]">/v1/images/generations</code> address, with the key below.
+      </p>
+      <div className="flex flex-col gap-4">
+        <Field label="Server">
+          <input
+            value={baseUrl ?? saved?.baseUrl ?? ""}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://images.example.com"
+            spellCheck={false}
+            className={cx(INPUT, "font-mono text-[12.5px]")}
+          />
+        </Field>
+        <Field label="API key">
+          <input
+            value={key ?? saved?.keyMasked ?? ""}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Paste your key"
+            spellCheck={false}
+            autoComplete="off"
+            className={cx(INPUT, "font-mono text-[12.5px]")}
+          />
+        </Field>
+      </div>
+      {saved?.keyMasked && <p className="mt-2.5 text-[13px] text-muted-foreground">A key is already saved — enter a new one to replace it.</p>}
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={!dirty || busy}
+          onClick={() => change({ ...(baseUrl !== null ? { baseUrl: baseUrl.trim() } : {}), ...(key?.trim() ? { key: key.trim() } : {}) })}
+          className={PRIMARY}
+        >
+          Save
+        </button>
+        <button type="button" disabled={!saved?.keyMasked || busy} onClick={() => change({ key: "" })} className={GHOST}>
+          Clear key
+        </button>
+      </div>
+      {error && <p role="alert" className="mt-2.5 text-[12px] text-destructive">{error}</p>}
     </>
   );
 }

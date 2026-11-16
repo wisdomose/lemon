@@ -49,7 +49,7 @@ export function screenshot(
     canvas.clear(ck.WHITE);
     canvas.scale(scale, scale);
     canvas.translate(-box.x, -box.y);
-    drawNode({ ck, text, vars, boxes, assets }, canvas, node);
+    drawNode({ ck, text, vars, boxes, assets, scale }, canvas, node);
     const image = surface.makeImageSnapshot();
     const png = image.encodeToBytes();
     image.delete();

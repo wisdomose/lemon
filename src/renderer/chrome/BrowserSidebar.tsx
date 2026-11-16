@@ -38,7 +38,7 @@ import type { PickInfo, SidebarState } from "../../main/browser-pages.js";
 import type { PageShot } from "../../agent/browser-tool.js";
 import { ROOT_ID } from "../../doc/schema.js";
 import * as docStore from "../../doc/store.js";
-import { assetsOf, putAsset } from "../../doc/assets.js";
+import { assetsOf, imageUrls, putAsset } from "../../doc/assets.js";
 import { emptySpot, GAP_BETWEEN_FRAMES } from "../../layout/space.js";
 import { zoomToFit } from "../canvas/canvas.js";
 import { bridge, currentScene, doc, edit } from "../scene.js";
@@ -222,7 +222,7 @@ async function screenshotToCanvas(mode: "full" | "visible" | "pick"): Promise<vo
   try {
     host = new URL(shot.url).hostname || host;
   } catch {}
-  const taken = assetsOf(doc);
+  const taken = new Set([...assetsOf(doc).keys(), ...imageUrls(doc)]);
   let url = `images/screenshot-${host}.png`;
   for (let n = 1; taken.has(url); n++) url = `images/screenshot-${host}-${n}.png`;
   // Beside the content, 40 apart rather than a new frame's 120.

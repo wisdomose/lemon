@@ -20,11 +20,14 @@ import { reachable, Shell } from "./shell.js";
 import { PICKED, SIDEBAR, type PageInput, type SidebarAction } from "./browser-pages.js";
 import { buildMenu, type AppCommand, type MenuState } from "./menu.js";
 import { codexModels, codexSignIn, codexStatus } from "../agent/codex.js";
+import { claudeModels } from "../agent/claude-models.js";
 import { startMcpServer } from "./mcp.js";
 import { WorkerScripts } from "./script-runs.js";
 import { McpSettingsStore, copyableConfig, type Launch } from "./mcp-settings.js";
 import { McpAuth } from "./mcp-auth.js";
-import { clearProviderKey, listProviders, removeProvider, saveProvider, setProviderKey } from "./provider-store.js";
+import { clearProviderKey, imageModel, imageSettings, listProviders, removeProvider, saveProvider, setImageSettings, setProviderKey } from "./provider-store.js";
+import { makePictures } from "../agent/image-gen.js";
+import { setImagesReady } from "../agent/script-api.js";
 import { builtInProvider } from "../agent/providers.js";
 import type { Team } from "../agent/models.js";
 import type { Variants } from "../agent/agent.js";
@@ -208,6 +211,15 @@ async function main() {
   // Agents' scripts run in a utility process of their own, so the main process keeps answering.
   const scripts = new WorkerScripts(join(import.meta.dirname, "script-worker.js"), join(app.getPath("userData"), "fonts"), log);
   app.on("will-quit", () => scripts.dispose());
+  // Generate("ai", …) in a script: the picture is asked of the image model here, where its key is, and
+  // lands in the document once made. Scripts (here and in the worker) are told whether a key is set.
+  scripts.pictures = (doc, generations, origin) => void makePictures(doc, generations, origin, imageModel, log);
+  const imagesChanged = () => {
+    const on = !!imageModel();
+    setImagesReady(on);
+    scripts.imagesReady(on);
+  };
+  imagesChanged();
 
   // Messages come from a window; each goes to that window's editor.
   const editorOf = (e: IpcMainEvent | IpcMainInvokeEvent) => editors.get(e.sender.id);
@@ -216,6 +228,8 @@ async function main() {
     const editor = editorOf(e);
     return editor ? Y.encodeStateAsUpdate(editor.doc) : new Uint8Array();
   });
+  // A picture's bytes, read from beside the file when the window draws it.
+  ipcMain.handle("picture:read", (e, url: string) => editorOf(e)?.pictureBytes(url) ?? null);
   ipcMain.handle("file:info", (e) => editorOf(e)?.info());
   // The "@" list offers the open file too (as Pen's does); "Add from workspace" doesn't.
   ipcMain.handle("workspace:list", (e, withOpen?: boolean) => listWorkspace(workspaceFolder(editorOf(e)?.path ?? null), withOpen ? null : editorOf(e)?.path));
@@ -304,6 +318,7 @@ async function main() {
   ipcMain.handle("codex:status", () => codexStatus());
   ipcMain.handle("codex:sign-in", () => codexSignIn((url) => void shell.openExternal(url)));
   ipcMain.handle("codex:models", (_e, fresh?: boolean) => codexModels(!!fresh));
+  ipcMain.handle("claude:models", (_e, fresh?: boolean) => claudeModels(!!fresh));
   // AI providers and their keys are owned here; answers to the window only carry masked key previews.
   ipcMain.handle("providers:list", () => listProviders());
   // What a window sends is checked by the store before anything is kept.
@@ -311,6 +326,13 @@ async function main() {
   ipcMain.handle("providers:remove", (_e, id: unknown) => removeProvider(id));
   ipcMain.handle("providers:key:set", (_e, id: unknown, key: unknown) => setProviderKey(id, key));
   ipcMain.handle("providers:key:clear", (_e, id: unknown) => clearProviderKey(id));
+  // Settings → Images: the image model's server and key (answers carry a masked key only).
+  ipcMain.handle("images:get", () => imageSettings());
+  ipcMain.handle("images:set", (_e, draft: unknown) => {
+    const saved = setImageSettings(draft);
+    imagesChanged();
+    return saved;
+  });
   // A built-in's "Generate … key" button: the window names the provider, the address is our own.
   ipcMain.handle("providers:keys-page", (_e, id: unknown) => {
     const url = typeof id === "string" ? builtInProvider(id)?.getStarted.url : undefined;

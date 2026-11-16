@@ -3,8 +3,9 @@
 // `variables` — two-space indented. Every property a node carries is written back as it was read,
 // including ones this version doesn't draw, so opening and saving a file loses nothing.
 //
-// Pictures are files beside the .pen, named by `url` in image fills ("./images/…"), as in Pen. In the
-// document they are kept by that url (doc/assets.ts); saving writes the ones not on disk yet.
+// Pictures are files beside the .pen, named by `url` in image fills ("./images/…"), as in Pen. Their
+// bytes stay in those files (doc/assets.ts): opening reads none of them, and saving writes only the
+// ones added since, which the document carries until then.
 //
 // Older files (2.x before 2.21, such as the ones Pen ships) are brought up to 2.21 as they are read:
 //   icon_font { iconFontFamily, iconFontName } → icon { icon, library }
@@ -19,7 +20,7 @@ import * as Y from "yjs";
 import { generateNKeysBetween } from "fractional-indexing";
 import { NODE_TYPES, PEN_VERSION, ROOT_ID, type PenDocument, type PenNode, type Themes, type Variables } from "./schema.js";
 import { childIndex, insertAsIs, type ChildIndex, metaOf, nodesOf, refAsPen, variablesOf } from "./store.js";
-import { assetsOf, imageUrls } from "./assets.js";
+import { assetsOf, imageUrls, setPictureReader, type PictureReader } from "./assets.js";
 
 export class FileError extends Error {}
 
@@ -66,13 +67,12 @@ export function fileText(doc: Y.Doc): string {
   return JSON.stringify(toPen(doc), null, 2) + "\n";
 }
 
-/** The pictures to write beside the file: each image url the document uses and has bytes for. */
+/** The pictures to write beside the file: each one the document carries (added since the last save) and uses. */
 export function picturesOf(doc: Y.Doc): { url: string; bytes: Uint8Array }[] {
   const store = assetsOf(doc);
-  return [...imageUrls(doc)].flatMap((url) => {
-    const bytes = store.get(url);
-    return bytes ? [{ url, bytes }] : [];
-  });
+  if (!store.size) return [];
+  const used = imageUrls(doc);
+  return [...store].flatMap(([url, bytes]) => (used.has(url) ? [{ url, bytes }] : []));
 }
 
 // ---- Bringing older files up to 2.21 ----------------------------------------------------------------
@@ -144,10 +144,13 @@ export interface ReadReport {
 }
 
 /**
- * Reads a .pen file's text into an empty document. `read` gives a picture file's bytes by the url
- * the file uses (relative to the file). Throws FileError for anything that isn't a .pen file.
+ * Reads a .pen file's text into an empty document. `pictures` finds a picture file by the url the file
+ * uses (relative to the file): it becomes the document's reader, and no picture is read here (only
+ * looked for, to report the missing ones). A plain function is taken as `read`. Throws FileError for
+ * anything that isn't a .pen file.
  */
-export function readFile(text: string, into: Y.Doc, read?: (url: string) => Uint8Array | undefined): ReadReport {
+export function readFile(text: string, into: Y.Doc, pictures?: PictureReader | PictureReader["read"]): ReadReport {
+  const reader = typeof pictures === "function" ? { read: pictures } : pictures;
   let data: Record<string, unknown>;
   try {
     data = JSON.parse(text);
@@ -168,14 +171,10 @@ export function readFile(text: string, into: Y.Doc, read?: (url: string) => Uint
     for (const [k, v] of Object.entries(data)) if (k !== "children" && k !== "variables" && k !== "version" && v !== undefined) meta.set(k, v);
     const vars = variablesOf(into);
     if (isObject(data.variables)) for (const [k, v] of Object.entries(data.variables)) if (isObject(v)) vars.set(k, v as never);
-    if (read) {
-      const pictures = assetsOf(into);
-      for (const url of imageUrls(into)) {
-        const bytes = read(url);
-        if (bytes) pictures.set(url, bytes);
-        else report.missingPictures.push(url);
-      }
-    }
   });
+  if (reader) {
+    setPictureReader(into, reader);
+    for (const url of imageUrls(into)) if (!(reader.has ? reader.has(url) : reader.read(url))) report.missingPictures.push(url);
+  }
   return report;
 }

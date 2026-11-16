@@ -4,7 +4,9 @@ import { nodeAsPen } from "../doc/file.js";
 import { findNode } from "../render/screenshot.js";
 import { varsAt } from "../render/draw.js";
 import { documentFor, htmlFor, type CodegenOptions } from "./codegen.js";
-import { assets, bridge, doc, currentScene, engine, fontFamilies } from "./scene.js";
+import { bridge, doc, currentScene, engine, fontFamilies, pictureBytes } from "./scene.js";
+import { imageFills, isLocalUrl, type Assets } from "../doc/assets.js";
+import type { TreeNode } from "../doc/schema.js";
 import { store } from "./store.js";
 import { renderSelection } from "./export.js";
 
@@ -47,8 +49,8 @@ function dataUrl(bytes: Uint8Array): string {
   return `data:${type};base64,${btoa(bin)}`;
 }
 
-/** What the generator needs from the document and the engine. */
-export function codegenOptions(): CodegenOptions {
+/** What the generator needs from the document and the engine; `assets` gives the pictures' bytes. */
+export function codegenOptions(assets: Assets = pictureBytes.now): CodegenOptions {
   const urls = new Map<string, string | undefined>();
   const web = new Set(fontFamilies);
   return {
@@ -72,15 +74,23 @@ export function codegenOptions(): CodegenOptions {
 }
 
 /** The selected nodes, with the options for generating their code; null when nothing is selected. */
-function selectedForCode() {
+async function selectedForCode() {
   const s = currentScene();
   const nodes = s ? store.get().selection.map((id) => findNode(s.tree, id)).filter((n): n is NonNullable<typeof n> => !!n) : [];
   if (!s || !nodes.length) return null;
-  return { s, nodes, opts: { ...codegenOptions(), varsOf: (n: { id: string }) => varsAt(s.tree, n.id, s.vars) } as CodegenOptions };
+  // The pictures they show are fetched first: saved ones are read from beside the file only when wanted.
+  const urls: string[] = [];
+  const walk = (n: TreeNode) => {
+    for (const f of [...imageFills(n.props.fill), ...imageFills(n.props.stroke)]) if (isLocalUrl(f.url)) urls.push(f.url);
+    n.children.forEach(walk);
+  };
+  nodes.forEach(walk);
+  const assets = await pictureBytes.all(urls);
+  return { s, nodes, opts: { ...codegenOptions(assets), varsOf: (n: { id: string }) => varsAt(s.tree, n.id, s.vars) } as CodegenOptions };
 }
 
 export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
-  const sel = selectedForCode();
+  const sel = await selectedForCode();
   const html = sel && htmlFor(sel.nodes, sel.s.vars, sel.s.boxes, style, sel.opts);
   if (!html) return void toast("Select something to copy first.");
   await put(html, style === "css" ? "HTML + CSS" : "HTML + Tailwind");
@@ -88,7 +98,7 @@ export async function copyAsHtml(style: "css" | "tailwind"): Promise<void> {
 
 /** Export HTML: the selection as a whole page, saved where the person chooses. */
 export async function exportHtml(style: "css" | "tailwind"): Promise<void> {
-  const sel = selectedForCode();
+  const sel = await selectedForCode();
   if (!sel) return void toast("Select something to export first.");
   const name = String(sel.nodes[0]!.props.name ?? sel.nodes[0]!.type).replace(/[\\/:*?"<>|]/g, "-");
   const page = documentFor(sel.nodes, sel.s.vars, sel.s.boxes, style, name, sel.opts);

@@ -4,10 +4,11 @@
 import type { AgentStats, Variants } from "../agent/agent.js";
 import type { Attachment } from "../agent/attachments.js";
 import type { TaggedEvent } from "../agent/team.js";
-import type { Team, CodexModel } from "../agent/models.js";
+import type { Team, ClaudeModel, CodexModel } from "../agent/models.js";
 import type { ProviderStatus } from "../agent/codex.js";
 import type { ProviderDraft, ProviderRecord } from "../agent/providers.js";
 import { BUILT_IN_PROVIDERS, builtInProvider } from "../agent/providers.js";
+import { DEFAULT_IMAGE_SERVER, type ImageSettings } from "../agent/image-gen.js";
 import type { FontFace } from "../text/fonts.js";
 import type { FileInfo, Notice, StartPrompt } from "../main/editor.js";
 import type { FileCard } from "../main/files.js";
@@ -26,6 +27,8 @@ export interface Bridge {
   onDocUpdate(fn: (update: Uint8Array) => void): void;
   /** Sends a change made in this window to the host's document. */
   pushDocUpdate(update: Uint8Array): void;
+  /** A saved picture's bytes (the file beside this one), or null when it isn't there. */
+  pictureBytes(url: string): Promise<Uint8Array | null>;
   fontCatalogue(): Promise<Record<string, string[]>>;
   loadFont(face: FontFace): Promise<ArrayBuffer>;
   /** One agent, or a team of them when `team.count` > 1. */
@@ -45,6 +48,8 @@ export interface Bridge {
   /** Picker-visible Codex models and their supported reasoning efforts. */
   /** The models Codex offers (a recent answer is reused unless `fresh`). */
   codexModels(fresh?: boolean): Promise<CodexModel[]>;
+  /** The Claude models the signed-in Claude CLI offers (`fresh`: ask again rather than reuse its recent answer). */
+  claudeModels(fresh?: boolean): Promise<ClaudeModel[]>;
   /** The AI providers: the built-ins with a key saved, then this person's own. */
   listProviders(): Promise<ProviderRecord[]>;
   /** Adds a custom provider, or updates one (`key` sets or clears it; left out keeps it). */
@@ -55,6 +60,10 @@ export interface Bridge {
   clearProviderKey(id: string): Promise<void>;
   /** Opens a built-in provider's keys page in the person's browser. */
   openProviderKeysPage(id: string): Promise<void>;
+  /** Settings → Images: the image model's server, and whether a key is saved (masked). */
+  imageSettings(): Promise<ImageSettings>;
+  /** Saves the server, and the key when `key` is given (empty clears it). */
+  setImageSettings(draft: { baseUrl?: string; key?: string }): Promise<ImageSettings>;
   /** The file this window shows: its name and whether it is saved. */
   fileInfo(): Promise<FileInfo>;
   onFileInfo(fn: (info: FileInfo) => void): void;
@@ -182,6 +191,11 @@ export function browserBridge(): Bridge {
     },
     onDocUpdate() {},
     pushDocUpdate() {},
+    // Beside the document the page was opened with (?doc=…), as in the app.
+    async pictureBytes(url) {
+      const res = docUrl ? await fetch(new URL(url, new URL(docUrl, location.href))).catch(() => null) : null;
+      return res?.ok ? new Uint8Array(await res.arrayBuffer()) : null;
+    },
     async fontCatalogue() {
       return (await fetch("/fonts/catalogue.json")).json();
     },
@@ -206,6 +220,9 @@ export function browserBridge(): Bridge {
     async codexSignIn() {
       return { loggedIn: false, error: "Open the desktop app to sign in." };
     },
+    async claudeModels() {
+      throw new Error("Open the desktop app to discover Claude models.");
+    },
     async codexModels() {
       // Like document and Dashboard fixtures, a public catalog can drive browser-only UI checks.
       const url = new URLSearchParams(location.search).get("models");
@@ -227,6 +244,8 @@ export function browserBridge(): Bridge {
       const url = builtInProvider(id)?.getStarted.url;
       if (url) window.open(url, "_blank", "noopener");
     },
+    imageSettings: async () => ({ baseUrl: DEFAULT_IMAGE_SERVER }),
+    setImageSettings: () => Promise.reject(new Error("Open the desktop app to save keys.")),
     async fileInfo() {
       return { name: docUrl ? docUrl.split("/").pop()! : `untitled.${PRODUCT.fileExtension}`, state: "saved", draft: !docUrl };
     },

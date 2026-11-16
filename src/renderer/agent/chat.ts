@@ -150,7 +150,7 @@ export function handleAgentEvent(e: TaggedEvent, runId: string = currentId): voi
         update(id, (s) => ({ agentStatus: "planning", session: s.session ?? e.prompt }));
       }
       markLive();
-      push(id, { kind: "agent-head", name: e.name, model: modelLabel(e.model, store.get().codexModels, store.get().providers), ...tag });
+      push(id, { kind: "agent-head", name: e.name, model: modelLabel(e.model, [...store.get().claudeModels, ...store.get().codexModels], store.get().providers), ...tag });
       break;
     case "thought":
       push(id, { kind: "thought", seconds: e.seconds, ...tag });

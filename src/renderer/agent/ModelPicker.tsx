@@ -1,4 +1,4 @@
-// Shared picker for the Dashboard and editor: static Claude choices, a live Codex catalog, and the
+// Shared picker for the Dashboard and editor: Claude's and Codex's own model lists, and the
 // models of every AI provider a person has connected. As Pen's (4 Nov 2026): rows highlight grey; a
 // built-in provider without its key shows its models greyed at the end, each offering "Setup" while
 // hovered; a model's row picks it at its default effort, and one that takes a reasoning effort opens
@@ -12,15 +12,16 @@ import { providerModelId } from "../../agent/providers.js";
 import { store, useEditor } from "../store.js";
 import { MENU_PANEL as PANEL, MENU_ROW_SUBTLE as ROW, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTone } from "../ui/menu.js";
 import { FOOTER_BUTTON, cx } from "../ui/kit.js";
-import { effortChoices, refreshCodexModels, refreshProviders } from "./model-catalog.js";
+import { effortChoices, refreshClaudeModels, refreshCodexModels, refreshProviders } from "./model-catalog.js";
 
 export function ModelPicker() {
   const model = useEditor((s) => s.model);
   const models = useEditor((s) => s.codexModels);
+  const claudeModels = useEditor((s) => s.claudeModels);
   const providers = useEditor((s) => s.providers);
-  const label = modelLabel(model, models, providers);
+  const label = modelLabel(model, [...claudeModels, ...models], providers);
   return (
-    <M.Root onOpenChange={(open) => { if (open) { void refreshCodexModels(); void refreshProviders(); } }}>
+    <M.Root onOpenChange={(open) => { if (open) { void refreshClaudeModels(); void refreshCodexModels(); void refreshProviders(); } }}>
       <M.Trigger asChild>
         {/* Pen's: no tooltip; its name brightens a little while hovered. */}
         <button
@@ -38,17 +39,19 @@ export function ModelPicker() {
 
 /**
  * The menu (Pen's capture 14): search, models grouped by provider, then image model and providers.
- * Codex's models come from Codex itself; until they have, "Codex (default)" lets Codex choose.
+ * Claude's models come from Claude itself; until they have (and when it can't be asked), the built-in
+ * list. Codex's models come from Codex itself; until they have, "Codex (default)" lets Codex choose.
  */
 function ModelMenu({ model }: { model: string }) {
   const [query, setQuery] = useState("");
   const models = useEditor((s) => s.codexModels);
+  const claudeModels = useEditor((s) => s.claudeModels);
   const state = useEditor((s) => s.codexModelsState);
   const error = useEditor((s) => s.codexModelsError);
   const providers = useEditor((s) => s.providers);
   const search = query.trim().toLowerCase();
   const matches = (m: { id: string; label: string }) => `${m.label} ${m.id}`.toLowerCase().includes(search);
-  const claude = MODELS.filter((m) => m.provider === "claude" && matches(m));
+  const claude = (claudeModels.length ? claudeModels : MODELS.filter((m) => m.provider === "claude")).filter(matches);
   // The configured default is only offered while Codex's own list isn't there (it is one of them).
   const fallback = models.length ? [] : MODELS.filter((m) => m.provider === "codex");
   const codex = [...fallback, ...models].filter(matches);
@@ -164,10 +167,11 @@ const effortLabel = (id: string) => (id === "xhigh" ? "Very high" : id === "xlow
  */
 function ModelRow({ id, label, model }: { id: string; label: string; model: string }) {
   const codexModels = useEditor((s) => s.codexModels);
+  const claudeModels = useEditor((s) => s.claudeModels);
   const providers = useEditor((s) => s.providers);
   const effort = useEditor((s) => s.effort);
   const [open, setOpen] = useState(false);
-  const { levels, fallback } = effortChoices(id, codexModels, providers);
+  const { levels, fallback } = effortChoices(id, codexModels, providers, claudeModels);
   const current = id === model;
   // The selected model's name is dimmer than the others' (Pen).
   const name = <span className={cx("block max-w-[180px] truncate", current && "text-muted-foreground group-data-[highlighted]:text-foreground")}>{label}</span>;

@@ -9,15 +9,19 @@ import type { ExecuteResult, Focus } from "../agent/execute.js";
 export type OriginData = { agent: string; step: number } | string;
 
 export type ToWorker =
-  | { type: "open"; doc: number; state: Uint8Array }
+  /** `path`: the document's file, whose pictures are beside it (read there when drawn). */
+  | { type: "open"; doc: number; state: Uint8Array; path?: string }
+  | { type: "path"; doc: number; path?: string }
   | { type: "update"; doc: number; update: Uint8Array }
   | { type: "close"; doc: number }
   | { type: "start"; run: number; doc: number; origin: OriginData; protect?: Touched; globals: Globals; progress: boolean }
   | { type: "feed"; run: number; text: string }
   | { type: "finish"; run: number; script: string }
   | { type: "cancel"; run: number }
+  /** Whether an image model is set up, so scripts' Generate("ai", …) can work. */
+  | { type: "images"; ready: boolean }
   /** The Dashboard's picture of a document (its whole state). */
-  | { type: "thumbnail"; req: number; state: Uint8Array };
+  | { type: "thumbnail"; req: number; state: Uint8Array; path?: string };
 
 export type FromWorker =
   | { type: "ready" }

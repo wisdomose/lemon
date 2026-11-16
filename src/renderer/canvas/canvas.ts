@@ -8,7 +8,9 @@ import { EditorShaders } from "./shaders.js";
 import { ICON_GRID, ICON_LINE, iconPath } from "../../render/icons.js";
 import type { TreeNode } from "../../doc/schema.js";
 import type { Box } from "../../layout/layout.js";
-import { CANVAS_UI_FONT, assets, bridge, currentScene, engine, type Scene } from "../scene.js";
+import { CANVAS_UI_FONT, assets, bridge, currentScene, doc, engine, pictureBytes, type Scene } from "../scene.js";
+import { PictureStore } from "../picture-store.js";
+import { imageFills, isLocalUrl } from "../../doc/assets.js";
 import { pageImage, pagesVersion, startLivePages } from "./live-pages.js";
 import { scriptOutput } from "../scripts.js";
 import { store } from "../store.js";
@@ -150,6 +152,8 @@ function makeSurface() {
   tileSurface = null;
   dropComposite();
   pictures = new WeakMap();
+  // Pictures are textures on the old surface's GPU context too.
+  pictureStore?.reset();
   for (const b of behind.values()) b.image?.delete();
   behind.clear();
   shown = undefined;
@@ -375,6 +379,12 @@ function watchTheme(): () => void {
 
 /** How long a frame spends painting tiles before it shows what it has and asks for another. */
 const BUDGET_MS = 8;
+/**
+ * And the most tiles it paints. The time above is what painting costs here; the GPU's share comes due
+ * when the frame is put together, and an empty stretch of page (quick to paint here, hundreds of tiles
+ * in the time) would cost a fifth of a second there.
+ */
+const MOST_TILES = 32;
 
 function draw() {
   queued = false;
@@ -399,6 +409,8 @@ function draw() {
     view.y = Math.round(view.y * scale) / scale;
     followers.forEach((place) => place());
     more = paintTiles(s, scale, bg, t0);
+    // Pictures decoded since the last frame become textures, a few milliseconds' worth.
+    if (pictureStore?.pump()) more = true;
     const st = store.get();
     canvas.save();
     canvas.scale(dpr, dpr);
@@ -441,7 +453,18 @@ let shadersVersion = 0;
 /** Shaders sample pictures at the zoom rounded to a power of two (re-drawn when that changes), times the screen's density. */
 const shaderScale = () => (devicePixelRatio || 1) * 2 ** Math.max(-2, Math.min(2, Math.round(Math.log2(view.zoom))));
 
-const tiles = new Tiles<Image>((i) => i.delete());
+const tiles = new Tiles<Image>((i) => i.delete(), 2048);
+/**
+ * How far around the view tiles are painted ahead (device pixels; Pen keeps 512 around its view too),
+ * and how many frames ahead of a moving view the margin is painted first.
+ */
+const AROUND = 512;
+const LEAD_FRAMES = 12;
+/** Where the view was in the last frame (device pixels, and its scale), to tell which way it is going. */
+let lastView: { ox: number; oy: number; scale: number } | undefined;
+/** When the zoom last changed: for this long after, it is still taken to be changing. */
+let zoomedAt = -Infinity;
+const ZOOM_SETTLE_MS = 150;
 /** The surface tiles are painted on (on the canvas's GPU), and the scene the tiles show. */
 let tileSurface: Surface | null = null;
 let shown: { scene: Scene; bounds: Bounds; pages: number; shaders: number; bg: string; dpr: number } | undefined;
@@ -451,6 +474,45 @@ let pictures = new WeakMap<TreeNode, { key: string; picture: SkPicture }>();
 /** What is behind each node with a "pencil:background" shader, kept while nothing behind it changes. */
 const behind = new Map<string, { key: string; image: Image | null }>();
 let sceneCount = 0;
+
+/**
+ * The document's pictures as the canvas draws them: fetched and decoded when first drawn, at the size
+ * they show (picture-store.ts). What it tells of (a picture come, or bettered, or given up on) is
+ * painted again in the next frame.
+ */
+let pictureStore: PictureStore | undefined;
+const pictureNews = new Set<string>();
+/** The view when pictures still waiting were last dropped, and when. */
+let waitingFor = { view: "", at: 0 };
+/** How often, at most, a moving view drops the pictures it no longer waits for. */
+const DROP_WAITING_MS = 250;
+
+/** The nodes that show each picture, by its url (built once per scene, when a picture has news). */
+const pictureUsers = new WeakMap<Scene, Map<string, string[]>>();
+function usersOf(s: Scene): Map<string, string[]> {
+  let users = pictureUsers.get(s);
+  if (users) return users;
+  pictureUsers.set(s, (users = new Map()));
+  const walk = (n: TreeNode) => {
+    for (const f of [...imageFills(n.props.fill), ...imageFills(n.props.stroke)]) {
+      if (!isLocalUrl(f.url)) continue;
+      const list = users!.get(f.url);
+      if (list) list.push(n.id);
+      else users!.set(f.url, [n.id]);
+    }
+    n.children.forEach(walk);
+  };
+  walk(s.tree);
+  return users;
+}
+
+const pictureTops = new WeakMap<TreeNode, boolean>();
+/** Whether anything in the frame shows a picture. */
+function hasPictures(n: TreeNode): boolean {
+  let known = pictureTops.get(n);
+  if (known === undefined) pictureTops.set(n, (known = imageFills(n.props.fill).length > 0 || imageFills(n.props.stroke).length > 0 || n.children.some(hasPictures)));
+  return known;
+}
 
 /**
  * Shaders that move (Pen's way): only those of the selection and what is inside it, each on its own
@@ -490,6 +552,30 @@ function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
   const ox = Math.round(view.x * scale);
   const oy = Math.round(view.y * scale);
   const viewKey = `${ox},${oy},${scale},${el.width}x${el.height},${bg}`;
+  pictureStore ??= new PictureStore(doc, {
+    ck,
+    surface: () => surface,
+    fetch: (url) => bridge.pictureBytes(url),
+    changed: (urls) => (urls.forEach((u) => pictureNews.add(u)), schedule()),
+  });
+  // The view moved on: pictures it was waiting for and hasn't begun to load are asked for again by
+  // whatever is in view now, ahead of them.
+  if (viewKey !== waitingFor.view && t0 - waitingFor.at > DROP_WAITING_MS) {
+    waitingFor = { view: viewKey, at: t0 };
+    for (const url of pictureStore.dropWaiting()) pictureNews.add(url);
+  }
+  // Pictures that came (or came bigger): what shows them is painted again.
+  if (pictureNews.size) {
+    const users = usersOf(s);
+    const rects: Box[] = [];
+    for (const url of pictureNews) for (const id of users.get(url) ?? []) rects.push(bounds.reach.get(id)!);
+    pictureNews.clear();
+    if (rects.length) {
+      // What is kept of the page behind a shader may show them too.
+      sceneCount++;
+      tiles.invalidate(withBehind(rects.filter(Boolean), bounds), t0);
+    }
+  }
   // Nothing changed since the last frame that had every tile in view painted and shown: show that
   // frame's picture of the view again, without going through the tiles (only something on top moves).
   if (settled && settled.key === viewKey && settled.version === tiles.version && composite?.image) {
@@ -501,25 +587,58 @@ function paintTiles(s: Scene, scale: number, bg: string, t0: number): boolean {
   if (!tileSurface) return false;
   tiles.begin();
   const page = { x: view.x, y: view.y, w: el.width / scale, h: el.height / scale };
-  const inView = tiles.inView(page, scale);
+  // While the zoom is changing, tiles are painted at the nearest whole step of it (a power of two) and
+  // shown scaled; at the zoom it comes to rest on, at that zoom exactly.
+  if (lastView && lastView.scale !== scale) zoomedAt = t0;
+  const zooming = t0 - zoomedAt < ZOOM_SETTLE_MS;
+  const paintScale = zooming ? 2 ** Math.round(Math.log2(scale)) : scale;
+  const inView = tiles.inView(page, scale, !zooming || paintScale === scale);
+  const toShow = paintScale === scale ? inView : tiles.inView(page, paintScale);
   const context = drawContext(s, bounds);
+  // Drawn straight into a tile, at its scale: pictures no bigger than they show, nothing under half a pixel.
+  const live: DrawContext = { ...context, scale: paintScale, lod: true };
   const background = ck.parseColorString(bg);
+  // The margin around the view, painted once the view itself is: what comes into view next is there
+  // already. First the part the view is heading for.
+  const pad = AROUND / paintScale;
+  const inside = new Set(toShow);
+  const around = tiles.inView({ x: page.x - pad, y: page.y - pad, w: page.w + 2 * pad, h: page.h + 2 * pad }, paintScale).filter((t) => !inside.has(t));
+  const moved = lastView && lastView.scale === scale ? { x: ox - lastView.ox, y: oy - lastView.oy } : { x: 0, y: 0 };
+  lastView = { ox, oy, scale };
+  const lead = (d: number) => Math.max(-AROUND, Math.min(AROUND, d * LEAD_FRAMES));
+  const k = paintScale / scale;
+  const ahead = { i: ((ox + el.width / 2 + lead(moved.x)) * k) / TILE - 0.5, j: ((oy + el.height / 2 + lead(moved.y)) * k) / TILE - 0.5 };
   let painted = 0;
-  for (const t of tiles.toPaint(inView)) {
-    if (painted && performance.now() - t0 > BUDGET_MS) break;
-    tiles.painted(t, paintTile(s, bounds, context, t.i, t.j, scale, background));
+  for (const t of [...tiles.toPaint(toShow), ...tiles.toPaint(around, ahead)]) {
+    if (painted && (painted >= MOST_TILES || performance.now() - t0 > BUDGET_MS)) break;
+    tiles.painted(t, paintTile(s, bounds, context, live, t.i, t.j, paintScale, background));
     painted++;
   }
+  const tPainted = performance.now();
   const holding = tiles.commit(inView, performance.now());
   // The view put together from its tiles once (another zoom's tiles, scaled, where this zoom's aren't
   // painted yet), and drawn as one picture in every frame until a tile in it or the view itself changes.
   const view$ = viewPicture(surfaceNow, viewKey, inView, scale, ox, oy, background);
   if (view$) surfaceNow.getCanvas().drawImage(view$, 0, 0, null);
+  const tComposed = performance.now();
+  spent = { paint: Math.max(spent.paint, tPainted - t0), compose: Math.max(spent.compose, tComposed - tPainted), painted: Math.max(spent.painted, painted) };
   tiles.evict();
-  const more = holding || inView.some((t) => t.dirty);
+  const more = holding || zooming || inView.some((t) => t.dirty) || toShow.some((t) => t.dirty) || around.some((t) => t.dirty);
+  // Tiles in view with nothing to show at their middle: neither their own picture nor one from another zoom.
+  bare = 0;
+  for (const t of inView) {
+    if (t.image !== undefined) continue;
+    const r = tileRect(t.i, t.j, scale);
+    if (!tiles.coveredAt(r.x + r.w / 2, r.y + r.h / 2, scale)) bare++;
+  }
   if (!more && view$ && inView.every((t) => t.image !== undefined)) settled = { key: viewKey, version: tiles.version };
   return more;
 }
+
+/** How many tiles in view showed the bare canvas in the last frame: not painted at this zoom, and none from another zoom to stand in. */
+let bare = 0;
+/** The longest a frame spent painting tiles and putting the view together since last asked (canvasState), in ms. */
+let spent = { paint: 0, compose: 0, painted: 0 };
 
 /** The last frame whose view was whole (every tile in it painted and shown): its view and tiles' version. */
 let settled: { key: string; version: number } | undefined;
@@ -570,7 +689,7 @@ function viewPicture(on: Surface, key: string, inView: Tile<Image>[], scale: num
 }
 
 /** One tile: the canvas colour, then every top-level frame reaching it. */
-function paintTile(s: Scene, bounds: Bounds, context: DrawContext, i: number, j: number, scale: number, background: Float32Array): Image {
+function paintTile(s: Scene, bounds: Bounds, context: DrawContext, live: DrawContext, i: number, j: number, scale: number, background: Float32Array): Image {
   const r = tileRect(i, j, scale);
   const c = tileSurface!.getCanvas();
   c.save();
@@ -580,8 +699,10 @@ function paintTile(s: Scene, bounds: Bounds, context: DrawContext, i: number, j:
   for (const top of s.tree.children) {
     const reach = bounds.reach.get(top.id);
     if (!reach || !overlaps(reach, r)) continue;
-    // A frame with a moving shader is drawn afresh (only what reaches the tile); the rest replayed.
-    if (moving.tops.has(top.id)) drawNode({ ...context, cull: { rect: r, reach: (id) => bounds.reach.get(id) } }, c, top);
+    // A frame with a moving shader is drawn afresh (only what reaches the tile), and so is one with
+    // pictures: a recording would ask for every picture in the frame, at no size in particular, and
+    // be made again as each came. The rest are replayed.
+    if (moving.tops.has(top.id) || hasPictures(top)) drawNode({ ...live, cull: { rect: r, reach: (id) => bounds.reach.get(id) } }, c, top);
     else c.drawPicture(pictureOf(top, context, bounds));
   }
   c.restore();
@@ -596,7 +717,8 @@ function pictureOf(top: TreeNode, context: DrawContext, bounds: Bounds): SkPictu
   known?.picture.delete();
   const recorder = new ck.PictureRecorder();
   const reach = bounds.reach.get(top.id) ?? { x: -1e7, y: -1e7, w: 2e7, h: 2e7 };
-  const c = recorder.beginRecording(ck.XYWHRect(reach.x - 1, reach.y - 1, reach.w + 2, reach.h + 2));
+  // With a bounds tree: a tile replays only what reaches it, not the whole frame.
+  const c = recorder.beginRecording(ck.XYWHRect(reach.x - 1, reach.y - 1, reach.w + 2, reach.h + 2), true);
   drawNode(context, c, top);
   const picture = recorder.finishRecordingAsPicture();
   recorder.delete();
@@ -612,6 +734,7 @@ function drawContext(s: Scene, bounds: Bounds): DrawContext {
     vars: s.vars,
     boxes: s.boxes,
     assets,
+    pictures: pictureStore!.get,
     pages: pageImage,
     scripts: scriptOutput,
     shaders: shaders!,
@@ -631,7 +754,7 @@ function drawContext(s: Scene, bounds: Bounds): DrawContext {
       shaders!.scale,
       (o) => {
         const stop = { id: node.id, hit: false };
-        for (const frame of s.tree.children) drawNode({ ...context, stop, cull: { rect: box, reach: (id) => bounds.reach.get(id) } }, o, frame);
+        for (const frame of s.tree.children) drawNode({ ...context, scale: shaders!.scale, stop, cull: { rect: box, reach: (id) => bounds.reach.get(id) } }, o, frame);
       },
       context.surface,
     );
@@ -1083,13 +1206,23 @@ export function attach(canvasEl: HTMLCanvasElement): () => void {
   el.addEventListener("wheel", onWheel, { passive: false });
   const unsub = store.subscribe(schedule);
   const unwatchTheme = watchTheme();
+  // A whole picture a shader samples has been fetched: shaders are drawn again.
+  const unwatchPictures = pictureBytes.onArrive(() => (shadersVersion++, schedule()));
   schedule();
   return () => {
     unsub();
     unwatchTheme();
+    unwatchPictures();
     removeEventListener("resize", onResize);
     el.removeEventListener("wheel", onWheel);
   };
+}
+
+/** For benchmarks and headless checks (scripts/bench-volume.ts): the view, and how the pictures are coming. */
+export function canvasState(reset = false) {
+  const took = spent;
+  if (reset) spent = { paint: 0, compose: 0, painted: 0 };
+  return { spent: took, view: { ...view }, size: el ? { width: el.clientWidth, height: el.clientHeight } : undefined, settled: !!settled && !pictureStore?.busy && !pictureNews.size, tiles: tiles.size, bare, pictures: pictureStore?.stats };
 }
 
 /** Sets the view directly (headless checks reproduce a capture's view this way). */
