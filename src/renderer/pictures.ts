@@ -58,18 +58,43 @@ export const pictures: PictureSource = { choose, url };
 /** Whether a drag carries picture files. */
 export const carriesPictures = (e: DragEvent) => [...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file" && ACCEPT.includes(i.type));
 
-/** Places dropped picture files at page point (x, y), side by side, and selects them. */
-export async function placePictures(files: File[], x: number, y: number): Promise<void> {
-  const stored = await Promise.all(files.filter((f) => ACCEPT.includes(f.type)).map(async (f) => ({ name: f.name.replace(/\.[^.]+$/, ""), ...(await storeFile(f)) })));
+/**
+ * The picture files on a paste. A copied picture can come only as a file item (with `files` empty),
+ * so the items are read first.
+ */
+export function pastedPictures(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  const items = [...data.items].filter((i) => i.kind === "file" && ACCEPT.includes(i.type)).map((i) => i.getAsFile()).filter((f): f is File => !!f);
+  return items.length ? items : [...data.files].filter((f) => ACCEPT.includes(f.type));
+}
+
+/** A picture's size on the canvas: its own, no larger than MAX_SIDE. */
+const fitted = (p: { width: number; height: number }) => {
+  const k = Math.min(1, MAX_SIDE / Math.max(p.width, p.height));
+  return { width: Math.round(p.width * k), height: Math.round(p.height * k) };
+};
+
+/**
+ * Places picture files at page point (x, y), side by side, and selects them: their top-left there
+ * (dropped), or the row's middle there (`centred`, pasted into the view).
+ */
+export async function placePictures(files: File[], x: number, y: number, centred = false): Promise<void> {
+  const stored = await Promise.all(
+    files.filter((f) => ACCEPT.includes(f.type)).map(async (f) => ({ name: f.name.replace(/\.[^.]+$/, "") || "Image", ...(await storeFile(f)) })),
+  );
   const s = currentScene();
   if (!s || !stored.length) return;
   const container = frameAt(s, x, y);
+  if (centred) {
+    const sizes = stored.map(fitted);
+    x -= (sizes.reduce((w, p) => w + p.width, 0) + 20 * (sizes.length - 1)) / 2;
+    y -= Math.max(...sizes.map((p) => p.height)) / 2;
+  }
   const ids: string[] = [];
   let left = x;
   edit(() => {
     for (const p of stored) {
-      const k = Math.min(1, MAX_SIDE / Math.max(p.width, p.height));
-      const spec: PenNode = { type: "rectangle", name: p.name, width: Math.round(p.width * k), height: Math.round(p.height * k), fill: { type: "image", url: p.url, mode: "cover" } };
+      const spec: PenNode = { type: "rectangle", name: p.name, ...fitted(p), fill: { type: "image", url: p.url, mode: "cover" } };
       if (flows(container)) ids.push(docStore.insert(doc, container.id, spec, flowSlot(s, container, x, y).index));
       else {
         const cb = container.id === ROOT_ID ? { x: 0, y: 0 } : s.boxes.get(container.id)!;

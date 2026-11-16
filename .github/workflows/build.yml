@@ -69,3 +69,27 @@ jobs:
             smoke.png
             smoke.log
           if-no-files-found: warn
+
+  # Run by hand (Actions > Build > Run workflow): put the executables on a public GitHub Release, which
+  # anyone can download without signing in (Actions artifacts need a GitHub sign-in).
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: lemon-*
+          merge-multiple: true
+          path: .
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Lemon build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            dist/*.exe
+            dist/*.AppImage
+          fail_on_unmatched_files: true

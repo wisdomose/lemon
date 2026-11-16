@@ -6,6 +6,7 @@ import { bridge, currentScene, doc, edit } from "./scene.js";
 import { store } from "./store.js";
 import { pageInView, schedule } from "./canvas/canvas.js";
 import { copyNodes, duplicateNodes, groupNodes, pasteAt, pasteNodes, pasteReplacing, readClip, ungroupNodes } from "./arrange.js";
+import { pastedPictures, placePictures } from "./pictures.js";
 
 /** This window's mark on what it copies, so a paste here knows the nodes' places on the page. */
 const SOURCE = crypto.randomUUID();
@@ -60,12 +61,24 @@ export function pasteToReplace(): void {
   clipboardCommand("paste");
 }
 
-/** A paste event outside a text field: nodes copied in Pen or Lemon go in. */
+/**
+ * A paste event outside a text field: nodes copied in Pen or Lemon go in; otherwise a copied picture
+ * (a screenshot, "Copy image") becomes an image, at the menu's point for Paste here, else in the middle
+ * of the view.
+ */
 export function onPaste(e: ClipboardEvent): void {
   const mode = pending;
   pending = null;
   const clip = readClip(e.clipboardData?.getData("text/html") ?? "");
-  if (!clip) return;
+  if (!clip) {
+    const files = pastedPictures(e.clipboardData);
+    if (!files.length || !currentScene()) return;
+    e.preventDefault();
+    const at = mode && mode !== "replace" ? mode.at : null;
+    const v = pageInView();
+    void placePictures(files, at?.x ?? v.x + v.w / 2, at?.y ?? v.y + v.h / 2, !at).then(schedule);
+    return;
+  }
   e.preventDefault();
   const here = clip.source === SOURCE;
   const s = currentScene()!;

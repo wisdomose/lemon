@@ -74,6 +74,8 @@ export interface EditorState {
   agentStatus: "planning" | "thinking" | null;
   /** The chat session's title (its first prompt). */
   session: string | null;
+  /** Ids of the conversations whose agent is working, the one shown or others left running. */
+  liveSessions: string[];
   model: string;
   /** Session cache stays visible while the picker refreshes its live Codex catalog. */
   /** Claude's models as Claude last listed them; empty until it has (the built-in list shows meanwhile). */
@@ -110,6 +112,11 @@ export interface EditorState {
   commentOpen: string | null;
   /** Comment pins on the canvas (Shift+C, or the eye in the Comments panel). */
   showComments: boolean;
+  /** How the Properties panel's Code section and "Export code to file…" write HTML. */
+  codeStyle: "tailwind" | "css";
+  /** The Properties panel's Export: the scale and the file type. */
+  exportScale: number;
+  exportFormat: "png" | "jpeg" | "webp";
   shortcutsOpen: boolean;
   paletteOpen: boolean;
   /** The left column (panel and chat box), Ctrl+\. */
@@ -137,6 +144,7 @@ const initial: EditorState = {
   chat: [],
   agentStatus: null,
   session: null,
+  liveSessions: [],
   model: DEFAULT_MODEL,
   claudeModels: [],
   codexModels: [],
@@ -155,6 +163,9 @@ const initial: EditorState = {
   commentDraft: null,
   commentOpen: null,
   showComments: true,
+  codeStyle: "tailwind",
+  exportScale: 1,
+  exportFormat: "png",
   shortcutsOpen: false,
   paletteOpen: false,
   panelOpen: true,

@@ -5,6 +5,7 @@ import { store, useEditor } from "../store.js";
 import { ContextContent, ContextItem, ContextSeparator, ContextSub } from "../ui/menu.js";
 import { detachSelected, makeComponents } from "../components.js";
 import { clipboardCommand, frameSelection, groupSelection, pasteHere, pasteToReplace, ungroupSelection } from "../editing.js";
+import { copyAsHtml, copyAsJson, copyAsPng } from "../copyAs.js";
 import { lastMenuPoint } from "../canvas/gestures.js";
 
 export function deleteSelection() {
@@ -41,10 +42,10 @@ export function CanvasMenu({ inLayers = false }: { inLayers?: boolean }) {
     <ContextContent>
       <ContextItem label="Copy" keys="Ctrl C" onSelect={() => clipboardCommand("copy")} />
       <ContextSub label="Copy as">
-        <ContextItem label="Copy as HTML + CSS" />
-        <ContextItem label="Copy as HTML + Tailwind" />
-        <ContextItem label="Copy as JSON" />
-        <ContextItem label="Copy as PNG" keys="Ctrl Shift C" />
+        <ContextItem label="Copy as HTML + CSS" onSelect={() => void copyAsHtml("css")} />
+        <ContextItem label="Copy as HTML + Tailwind" onSelect={() => void copyAsHtml("tailwind")} />
+        <ContextItem label="Copy as JSON" onSelect={() => void copyAsJson()} />
+        <ContextItem label="Copy as PNG" keys="Ctrl Shift C" onSelect={() => void copyAsPng()} />
       </ContextSub>
       {inLayers ? (
         <ContextItem label="Paste" onSelect={() => clipboardCommand("paste")} />
